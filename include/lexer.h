@@ -1,17 +1,55 @@
 #ifndef LEXER_H
 #define LEXER_H
 
-enum TokenType{
+#include <ctype.h>
+
+enum token_type{
+    LEXER_TOKEN_TYPE_EOF = 0,
+    LEXER_TOKEN_TYPE_ERROR,
+    LEXER_TOKEN_TYPE_UNKNOWN,
+
+    LEXER_TOKEN_TYPE_IDENTIFIER,   
+    LEXER_TOKEN_TYPE_INT_LITERAL, 
+    LEXER_TOKEN_TYPE_FLOAT_LITERAL,
+    LEXER_TOKEN_TYPE_STRING_LITERAL,
+    LEXER_TOKEN_TYPE_CHAR_LITERAL,
+
     LEXER_TOKEN_TYPE_KEYWORD,
-    LEXER_TOKEN_TYPE_IDENTIFIER,
-    LEXER_TOKEN_TYPE_NUMBER,
-    LEXER_TOKEN_TYPE_OPERATOR
+
+    LEXER_TOKEN_TYPE_PLUS,         // +
+    LEXER_TOKEN_TYPE_MINUS,        // -
+    LEXER_TOKEN_TYPE_STAR,         // *
+    LEXER_TOKEN_TYPE_SLASH,        // /
+    LEXER_TOKEN_TYPE_PERCENT,      // %
+    LEXER_TOKEN_TYPE_EQUAL,        // =
+    LEXER_TOKEN_TYPE_BANG,         // !
+
+    LEXER_TOKEN_TYPE_EQUAL_EQUAL,  // ==
+    LEXER_TOKEN_TYPE_BANG_EQUAL,   // !=
+    LEXER_TOKEN_TYPE_LESS,         // <
+    LEXER_TOKEN_TYPE_LESS_EQUAL,   // <=
+    LEXER_TOKEN_TYPE_GREATER,      // >
+    LEXER_TOKEN_TYPE_GREATER_EQUAL,// >=
+
+    LEXER_TOKEN_TYPE_AND_AND,      // &&
+    LEXER_TOKEN_TYPE_OR_OR,        // ||
+
+    LEXER_TOKEN_TYPE_LPAREN,       // (
+    LEXER_TOKEN_TYPE_RPAREN,       // )
+    LEXER_TOKEN_TYPE_LBRACE,       // {
+    LEXER_TOKEN_TYPE_RBRACE,       // }
+    LEXER_TOKEN_TYPE_LBRACKET,     // [
+    LEXER_TOKEN_TYPE_RBRACKET,     // ]
+    LEXER_TOKEN_TYPE_COMMA,        // ,
+    LEXER_TOKEN_TYPE_DOT,          // .
+    LEXER_TOKEN_TYPE_SEMICOLON,    // ;
+    LEXER_TOKEN_TYPE_COLON         // :
 };
 
 struct lexer_token{
     int size;
     char *token;
-    enum TokenType type;
+    enum token_type type;
 };
 
 struct lexer_line{
@@ -47,4 +85,143 @@ int lexer_create_lexer_line(struct lexer_line *restrict line, char *restrict str
 
 int lexer_tokenize(char *restrict str, struct lexer_token *restrict tokens);
 
+static inline int lexer_is_double_operator_token(const char *chr){
+    if((chr+1) && (*(chr+1))=='=') {
+        switch (*chr) {
+            case '=':
+                return 0;
+            case '!':
+                return 0;
+            case '<':
+                return 0;
+            case '>':
+                return 0;
+            default:
+                break;
+        }
+    }
+    return -1;
+}
+
+static inline enum token_type lexer_get_symbol_type(const char *chr) {
+    if(lexer_is_double_operator_token(chr) == 0){
+        switch (*chr) {
+            case '=':
+                return LEXER_TOKEN_TYPE_EQUAL_EQUAL;
+            case '!':
+                return LEXER_TOKEN_TYPE_BANG_EQUAL;
+            case '<':
+                return LEXER_TOKEN_TYPE_LESS_EQUAL;
+            case '>':
+                return LEXER_TOKEN_TYPE_GREATER_EQUAL;
+            default:
+                break;
+        }
+    }
+
+    switch (*chr) {
+        case '(':
+            return LEXER_TOKEN_TYPE_LPAREN;
+        case ')':
+            return LEXER_TOKEN_TYPE_RPAREN;
+        case '{':
+            return LEXER_TOKEN_TYPE_LBRACE;
+        case '}':
+            return LEXER_TOKEN_TYPE_RBRACE;
+        case '[':
+            return LEXER_TOKEN_TYPE_LBRACKET;
+        case ']':
+            return LEXER_TOKEN_TYPE_RBRACKET;
+        case ':':
+            return LEXER_TOKEN_TYPE_COLON;
+        case ';':
+            return LEXER_TOKEN_TYPE_SEMICOLON;
+        case '>':
+            return LEXER_TOKEN_TYPE_GREATER;
+        case '<':
+            return LEXER_TOKEN_TYPE_LESS;
+        case '=':
+            return LEXER_TOKEN_TYPE_EQUAL;
+        case '\"':
+            return LEXER_TOKEN_TYPE_STRING_LITERAL;
+        case ',':
+            return LEXER_TOKEN_TYPE_COMMA;
+        case '.':
+            return LEXER_TOKEN_TYPE_DOT;
+        case '+':
+            return LEXER_TOKEN_TYPE_PLUS;
+        case '-':
+            return LEXER_TOKEN_TYPE_MINUS;
+        case '*':
+            return LEXER_TOKEN_TYPE_STAR;
+        case '/':
+            return LEXER_TOKEN_TYPE_SLASH;
+        case '%':
+            return LEXER_TOKEN_TYPE_PERCENT;
+        default:
+            return LEXER_TOKEN_TYPE_UNKNOWN;
+    }
+}
+
+static inline int lexer_is_number(const char chr) {
+    if (chr >= '0' && chr <= '9') {
+        return LEXER_TOKEN_TYPE_INT_LITERAL;
+    }
+    return -1;
+}
+
+static const char* lexer_token_type_to_string(enum token_type type) {
+    switch (type) {
+        // Sistem ve Hata Tipleri
+        case LEXER_TOKEN_TYPE_EOF:             return "EOF";
+        case LEXER_TOKEN_TYPE_ERROR:           return "ERROR";
+        case LEXER_TOKEN_TYPE_UNKNOWN:         return "UNKNOWN";
+
+        // Tanımlayıcılar ve Literaller
+        case LEXER_TOKEN_TYPE_IDENTIFIER:      return "IDENTIFIER";
+        case LEXER_TOKEN_TYPE_INT_LITERAL:     return "INT_LITERAL";
+        case LEXER_TOKEN_TYPE_FLOAT_LITERAL:   return "FLOAT_LITERAL";
+        case LEXER_TOKEN_TYPE_STRING_LITERAL:  return "STRING_LITERAL";
+        case LEXER_TOKEN_TYPE_CHAR_LITERAL:    return "CHAR_LITERAL";
+
+        // Anahtar Kelimeler (Keywords)
+        case LEXER_TOKEN_TYPE_KEYWORD:          return "KEYWORD";
+
+        // Tek Karakterli Operatörler
+        case LEXER_TOKEN_TYPE_PLUS:            return "PLUS";
+        case LEXER_TOKEN_TYPE_MINUS:           return "MINUS";
+        case LEXER_TOKEN_TYPE_STAR:            return "STAR";
+        case LEXER_TOKEN_TYPE_SLASH:           return "SLASH";
+        case LEXER_TOKEN_TYPE_PERCENT:         return "PERCENT";
+        case LEXER_TOKEN_TYPE_EQUAL:           return "EQUAL";
+        case LEXER_TOKEN_TYPE_BANG:            return "BANG";
+
+        // Karşılaştırma Operatörleri
+        case LEXER_TOKEN_TYPE_EQUAL_EQUAL:     return "EQUAL_EQUAL";
+        case LEXER_TOKEN_TYPE_BANG_EQUAL:      return "BANG_EQUAL";
+        case LEXER_TOKEN_TYPE_LESS:            return "LESS";
+        case LEXER_TOKEN_TYPE_LESS_EQUAL:      return "LESS_EQUAL";
+        case LEXER_TOKEN_TYPE_GREATER:         return "GREATER";
+        case LEXER_TOKEN_TYPE_GREATER_EQUAL:   return "GREATER_EQUAL";
+
+        // Mantıksal Operatörler
+        case LEXER_TOKEN_TYPE_AND_AND:         return "AND_AND";
+        case LEXER_TOKEN_TYPE_OR_OR:           return "OR_OR";
+
+        // Ayraçlar ve Noktalama İşaretleri
+        case LEXER_TOKEN_TYPE_LPAREN:          return "LPAREN";
+        case LEXER_TOKEN_TYPE_RPAREN:          return "RPAREN";
+        case LEXER_TOKEN_TYPE_LBRACE:          return "LBRACE";
+        case LEXER_TOKEN_TYPE_RBRACE:          return "RBRACE";
+        case LEXER_TOKEN_TYPE_LBRACKET:        return "LBRACKET";
+        case LEXER_TOKEN_TYPE_RBRACKET:        return "RBRACKET";
+        case LEXER_TOKEN_TYPE_COMMA:           return "COMMA";
+        case LEXER_TOKEN_TYPE_DOT:             return "DOT";
+        case LEXER_TOKEN_TYPE_SEMICOLON:       return "SEMICOLON";
+        case LEXER_TOKEN_TYPE_COLON:           return "COLON";
+
+        default:                               return "UNKNOWN_TOKEN";
+    }
+}
 #endif
+
