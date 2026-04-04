@@ -48,6 +48,11 @@ int lexer_create_lexer_line(struct lexer_line *restrict line, char *restrict str
     return -1;
 }
 
+void lexer_delete_lexer_line(struct lexer_line *restrict line){
+   free(line->tokens);
+   free(line);
+}
+
 int lexer_tokenize(char *restrict str, struct lexer_token *restrict tokens){ //Returns token count
     int i = 0;
     int token_id = 0;

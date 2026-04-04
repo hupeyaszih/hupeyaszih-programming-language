@@ -47,7 +47,6 @@ enum token_type{
 };
 
 struct lexer_token{
-    int size;
     char *token;
     enum token_type type;
 };
@@ -82,6 +81,7 @@ int lexer_compare_keyword(const char *restrict word);
 int lexer_compare_primitive_type(const char *restrict word);
 
 int lexer_create_lexer_line(struct lexer_line *restrict line, char *restrict str);
+void lexer_delete_lexer_line(struct lexer_line *restrict line);
 
 int lexer_tokenize(char *restrict str, struct lexer_token *restrict tokens);
 
