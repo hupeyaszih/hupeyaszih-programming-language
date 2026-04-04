@@ -12,13 +12,13 @@ static inline void lexer_test(char ln[]){
         printf("%s | token type: %s\n", (*(line->tokens+i)).token, lexer_token_type_to_string((*(line->tokens+i)).type));
     }
 
-    free(line);
+    lexer_delete_lexer_line(line);
     printf("\n\n");
 }
 
 int main() {
     lexer_test("var year:int32 = 2026;");
-    lexer_test("(a>123)b=45+67; @");
+    lexer_test("(a>=123)b=45+67;");
     return 0;
 }
 
