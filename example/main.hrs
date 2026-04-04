@@ -1,0 +1,6 @@
+import <stdlib.hrs>
+
+main() int {
+    println("Hello World!");
+    return 0;
+}
