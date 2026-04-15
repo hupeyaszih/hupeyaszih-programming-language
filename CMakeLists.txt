@@ -9,6 +9,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_executable(HupeyaszihProgrammingLanguage
     src/main.c
     src/lexer.c
+    src/parser.c
 )
 
 target_include_directories(HupeyaszihProgrammingLanguage

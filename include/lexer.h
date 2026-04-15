@@ -2,6 +2,7 @@
 #define LEXER_H
 
 #include <ctype.h>
+#include <string.h>
 
 enum token_type{
     LEXER_TOKEN_TYPE_EOF = 0,
@@ -51,19 +52,12 @@ struct lexer_token{
     enum token_type type;
 };
 
-struct lexer_line{
-    int char_count;
-    int token_count;
-    
-    struct lexer_token *tokens;
-};
 
 struct lexer_file{
-    int line_count;
     int char_count;
     int token_count;
 
-    struct lexer_line *lines;
+    struct lexer_token *tokens;
 };
 
 #define LEXER_MAX_KEYWORD_CHAR_LENGHT 10
@@ -80,8 +74,9 @@ extern const char language_primitive_types[LEXER_PRIMITIVE_TYPE_COUNT][LEXER_MAX
 int lexer_compare_keyword(const char *restrict word);
 int lexer_compare_primitive_type(const char *restrict word);
 
-int lexer_create_lexer_line(struct lexer_line *restrict line, char *restrict str);
-void lexer_delete_lexer_line(struct lexer_line *restrict line);
+
+int lexer_create_lexer_file(struct lexer_file *restrict file, char *restrict str);
+void lexer_delete_lexer_file(struct lexer_file *restrict file);
 
 int lexer_tokenize(char *restrict str, struct lexer_token *restrict tokens);
 
@@ -101,7 +96,7 @@ static const char* lexer_token_type_to_string(enum token_type type) {
         case LEXER_TOKEN_TYPE_CHAR_LITERAL:    return "CHAR_LITERAL";
 
         // Anahtar Kelimeler (Keywords)
-        case LEXER_TOKEN_TYPE_KEYWORD:          return "KEYWORD";
+        case LEXER_TOKEN_TYPE_KEYWORD:         return "KEYWORD";
 
         // Tek Karakterli Operatörler
         case LEXER_TOKEN_TYPE_PLUS:            return "PLUS";
@@ -138,6 +133,13 @@ static const char* lexer_token_type_to_string(enum token_type type) {
 
         default:                               return "UNKNOWN_TOKEN";
     }
+}
+
+static inline int lexer_is_type(const char *restrict token){
+    for(int i = 0;i < LEXER_PRIMITIVE_TYPE_COUNT; ++i){
+        if(strcmp(token, language_primitive_types[i]) == 0) return LEXER_KEYWORD_COUNT + i;
+    }
+    return -1;
 }
 #endif
 

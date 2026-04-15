@@ -108,6 +108,7 @@ static inline int lexer_is_keyword(const char *restrict token){
     return -1;
 }
 
+
 int lexer_compare_keyword(const char *restrict word){ //Returns Keyword ID
     for(int i = 0;i < LEXER_KEYWORD_COUNT; ++i){
         const char *restrict keyword = language_keywords[i];
@@ -124,18 +125,19 @@ int lexer_compare_primitive_type(const char *restrict word){ // Returns Primitiv
     return -1;
 }
 
-int lexer_create_lexer_line(struct lexer_line *restrict line, char *restrict str){
-    line->tokens = malloc(sizeof(char *) * 64);
-    line->tokens = memset(line->tokens, 0, sizeof(char *) * 64);
-    line->char_count = strlen(str);
-    int token_count = lexer_tokenize(str, line->tokens);
-    line->token_count = token_count;
+int lexer_create_lexer_file(struct lexer_file *restrict file, char *restrict str){
+    file->tokens = malloc(sizeof(char *) * 64);
+    file->tokens = memset(file->tokens, 0, sizeof(char *) * 64);
+    file->char_count = strlen(str);
+    int token_count = lexer_tokenize(str, file->tokens);
+    file->token_count = token_count;
+    
     return -1;
 }
 
-void lexer_delete_lexer_line(struct lexer_line *restrict line){
-   free(line->tokens);
-   free(line);
+void lexer_delete_lexer_file(struct lexer_file *restrict file){
+   free(file->tokens);
+   free(file);
 }
 
 int lexer_tokenize(char *restrict str, struct lexer_token *restrict tokens){ //Returns token count

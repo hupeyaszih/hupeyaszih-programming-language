@@ -1,6 +1,6 @@
 import <stdlib.hrs>
 
-main() int {
+main() int32 {
     println("Hello World!");
     return 0;
 }
