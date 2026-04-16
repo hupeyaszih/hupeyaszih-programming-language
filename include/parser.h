@@ -3,49 +3,57 @@
 
 #include "lexer.h"
 
-struct parser_symbol {
-    char *name;
-    char *type;
-    void *value;
-};
-
-enum parser_node_type{
-    PARSER_NODE_TYPE_NULL,
-    PARSER_NODE_TYPE_VAR_DECL,
-    PARSER_NODE_TYPE_EXPRESSION
+enum parser_node_type {
+    PARSER_NODE_PLUS,
+    PARSER_NODE_MINUS,
+    PARSER_NODE_DIVIDE,
+    PARSER_NODE_MUL,
+    PARSER_NODE_NUMBER,
+    PARSER_NODE_IDENTIFIER,
+    PARSER_NODE_UNDEFINED
 };
 
 struct parser_node{
-    const struct lexer_file *file;
-    int start_index, end_index;
-    enum parser_node_type type;
+   enum parser_node_type type;      // Node type
+   struct parser_node *left_node;   // left sub node
+   struct parser_node *right_node;  // right sub node
 
-    int sub_node_count;   
-    struct parser_node **sub_nodes;
+   char* value; // literal or variable name
+   int line; // Line which our node points at (for debugging)
 };
 
-struct parser_t{
-    struct parser_symbol *symbols;
-    struct parser_node **nodes;
+static inline int is_node_type_operator(struct parser_node *restrict node){
+    switch (node->type) {
+        case PARSER_NODE_PLUS:
+            return 0;
+        case PARSER_NODE_MINUS:
+            return 0;
+        case PARSER_NODE_DIVIDE:
+            return 0;
+        case PARSER_NODE_MUL:
+            return 0;
+        default:
+            return -1;
+    }
+    return -1;
+}
 
-    int symbol_count;
+struct parser_t{
+    struct parser_node **nodes;
     int node_count;
 };
 
-void parser_create_parser(struct parser_t **restrict parser, int node_count, int symbol_count);
-void parser_delete_parser(struct parser_t *restrict parser);
+struct parser_t *parser_create_parser();
+void parser_delete_parser(struct parser_t **parser);
 
-void parser_create_parser_symbol(struct parser_symbol **restrict symbol, char *name, char *type, void *value);
-void parser_delete_parser_symbol(struct parser_symbol *restrict symbol);
+struct parser_node *parser_create_node(enum parser_node_type type, int line);
+void parser_delete_node(struct parser_node **node);
 
-void parser_add_sub_node(struct parser_node *restrict main_node, struct parser_node *restrict sub_node);
-void parser_create_parser_node(struct parser_node **node, const struct lexer_file *file, int start_index, int end_index);
-void parser_delete_parser_node(struct parser_node *node);
+void parser_parser_add_node(struct parser_t *parser, struct parser_node *node);
 
-int parser_parse(struct parser_t *restrict parser, struct lexer_file *restrict file);
-int parser_pars_var(struct parser_t *restrict parser, struct parser_node *restrict main_node, const struct lexer_file *restrict file, int *restrict cursor);
-int parser_pars_expression(struct parser_t *restrict parser, struct parser_node *restrict main_node, const struct lexer_file *restrict file, int *restrict cursor);
-// int parser_pars_var(struct lexer_file *restrict file, int cursor);
+int parser_parse(struct parser_t *restrict parser, struct lexer_file *restrict file, int line);
+struct parser_node *parser_parse_expression(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor, int line);
+struct parser_node *parser_parse_term(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor, int line);
+struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor, int line);
 
-char *parser_node_type_to_string(enum parser_node_type type);
 #endif
