@@ -89,7 +89,7 @@ static inline struct lexer_token* eat(struct lexer_token *tokens, int token_coun
 
 int parser_parse(struct parser_t *restrict parser, struct lexer_file *restrict file){
     int cursor = 0;
-    for(int line = 0;line < file->line_count; ++line){
+    for(int line = 0;line < file->statement_count; ++line){
 
         if(parser_parse_control_depth(parser, file->tokens, file->token_count, cursor, line) == -1){
             printf("ERR: expected \"(\" or \")\" on line %d\n", line);

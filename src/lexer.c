@@ -125,23 +125,36 @@ int lexer_compare_primitive_type(const char *restrict word){ // Returns Primitiv
     return -1;
 }
 
-static inline int calculate_line_count(struct lexer_file *restrict file){
+static inline int calculate_line_count(char *restrict str){
+    int char_count = strlen(str);
     int line_count = 0;
-    for(int cursor = 0;cursor < file->token_count; ++cursor){
-        if(file->tokens[cursor].type == LEXER_TOKEN_TYPE_SEMICOLON) line_count++;
+    for(int cursor = 0;cursor < char_count; ++cursor){
+        if(str[cursor] == '\n') line_count++;
     }
 
     return line_count;
+}
+
+static inline int calculate_statement_count(struct lexer_file *restrict file){
+    int statement_count = 0;
+    for(int cursor = 0;cursor < file->token_count; ++cursor){
+        if(file->tokens[cursor].type == LEXER_TOKEN_TYPE_SEMICOLON) statement_count++;
+    }
+
+    return statement_count;
 }
 
 int lexer_create_lexer_file(struct lexer_file *restrict file, char *restrict str){
     file->tokens = malloc(sizeof(char *) * 64);
     file->tokens = memset(file->tokens, 0, sizeof(char *) * 64);
     file->char_count = strlen(str);
+
+    file->line_count = calculate_line_count(str);
+
     int token_count = lexer_tokenize(str, file->tokens);
     file->token_count = token_count;
 
-    file->line_count = calculate_line_count(file);
+    file->statement_count = calculate_statement_count(file);
     
     return -1;
 }
