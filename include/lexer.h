@@ -56,6 +56,10 @@ struct lexer_token{
 struct lexer_file{
     int char_count;
     int token_count;
+    int line_count; // ;
+                    //
+                    // Ex: "4+3; 2=1; 3+6;" has 3 line
+                    //
 
     struct lexer_token *tokens;
 };
