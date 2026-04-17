@@ -5,9 +5,9 @@
 #include <stdlib.h>
 
 static inline struct lexer_file *lexer_test(struct parser_t *restrict parser, char fl[]){
-    printf("\n\n\nfile: %s\n", fl);
+    printf("\n________________________\n\nfile: %s\n", fl);
 
-    LOG_SIMPLE("\n[LOG] Lexer started...\n\n");
+    LOG("Lexer started...\n\n");
     struct lexer_file *file = malloc(sizeof(struct lexer_file));
     lexer_create_lexer_file(file, fl);
     printf("line count: %d, statement count: %d\n", file->line_count, file->statement_count);
@@ -17,7 +17,7 @@ static inline struct lexer_file *lexer_test(struct parser_t *restrict parser, ch
     // }
     
     printf("total token count: %d\n", file->token_count);
-    LOG_SIMPLE("\n[LOG] Parser started...\n\n");
+    LOG("Parser started...\n\n");
     int result = parser_parse(parser, file);
     printf("parser result: %d\n", result);
 
@@ -28,7 +28,7 @@ int main() {
 
     struct parser_t *parser = parser_create_parser();
 
-    struct lexer_file *file_1 = lexer_test(parser, "(99+1)/10;\n (100-50)*-2*-2;");
+    struct lexer_file *file_1 = lexer_test(parser, "(99+1)/10;\n(+100-50)*-2*-2;");
     struct lexer_file *file_2 = lexer_test(parser, "(5+1)/2   + -2;");
 
     parser_delete_parser(&parser);
