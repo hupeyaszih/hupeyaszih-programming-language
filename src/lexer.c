@@ -156,32 +156,58 @@ static inline int calculate_statement_count(const struct lexer_file *restrict fi
 }
 
 int lexer_create_lexer_file(struct lexer_file *restrict file, char *restrict str){
-    file->tokens = malloc(sizeof(char *) * 64);
-    file->tokens = memset(file->tokens, 0, sizeof(char *) * 64);
-    file->char_count = strlen(str);
+    int current_capacity = 16;
+    file->tokens = malloc(sizeof(struct lexer_token) * current_capacity);
 
+    file->char_count = strlen(str);
     file->line_count = calculate_line_count(str);
 
-    int token_count = lexer_tokenize(str, file->tokens);
+    int token_count = lexer_tokenize(str, &file->tokens, &current_capacity);
     file->token_count = token_count;
+    if(token_count <= 0) {
+        LOG_ERR("lexer_create_lexer_file - \"token_count<=0\"\n");
+        lexer_delete_lexer_file(file);
+        return -1;
+    }
+
+    struct lexer_token *temp = realloc(file->tokens, sizeof(struct lexer_token) * file->token_count);
+    if(temp){
+        file->tokens = temp;
+    }
 
     file->statement_count = calculate_statement_count(file);
     
-    return -1;
+    return 0;
 }
 
 void lexer_delete_lexer_file(struct lexer_file *restrict file){
-   free(file->tokens);
+   if (!file) return;
+   if (file->tokens) {
+       for (int i = 0; i < file->token_count; i++) {
+           free(file->tokens[i].token);
+       }
+       free(file->tokens);
+   }
+
    free(file);
 }
 
-int lexer_tokenize(char *restrict str, struct lexer_token *restrict tokens){ //Returns token count
+int lexer_tokenize(char *restrict str, struct lexer_token **restrict tokens, int *current_token_capacity){ //Returns token count
     int line_index = 1;
     int i = 0;
     int token_id = 0;
     int str_len = strlen(str);
 
     while(i < str_len){
+        if((*current_token_capacity) <= token_id){
+            (*current_token_capacity) *= 2;
+            struct lexer_token *temp = realloc((*tokens), sizeof(struct lexer_token) * (*current_token_capacity));
+            if(temp){
+                (*tokens) = temp;
+            }else {
+                return -1;
+            }
+        }
         char curr = str[i];
         if(curr == '\n') line_index++;
         if(isspace(curr)) {i++;continue;}
@@ -191,14 +217,14 @@ int lexer_tokenize(char *restrict str, struct lexer_token *restrict tokens){ //R
                 i++;
             }
 
-            tokens[token_id].token = strndup(&str[start], i - start);
-            tokens[token_id].line = line_index;
-            int is_keyword = lexer_is_keyword(tokens[token_id].token);
+            (*tokens)[token_id].token = strndup(&str[start], i - start);
+            (*tokens)[token_id].line = line_index;
+            int is_keyword = lexer_is_keyword((*tokens)[token_id].token);
 
             if(is_keyword == -1){
-                tokens[token_id].type = LEXER_TOKEN_TYPE_IDENTIFIER;
+                (*tokens)[token_id].type = LEXER_TOKEN_TYPE_IDENTIFIER;
             }else {
-                tokens[token_id].type = LEXER_TOKEN_TYPE_KEYWORD;
+                (*tokens)[token_id].type = LEXER_TOKEN_TYPE_KEYWORD;
             }
 
             token_id++;
@@ -212,9 +238,9 @@ int lexer_tokenize(char *restrict str, struct lexer_token *restrict tokens){ //R
                 i++;
             }
 
-            tokens[token_id].type = LEXER_TOKEN_TYPE_INT_LITERAL;
-            tokens[token_id].token = strndup(&str[start], i - start); 
-            tokens[token_id].line = line_index;
+            (*tokens)[token_id].type = LEXER_TOKEN_TYPE_INT_LITERAL;
+            (*tokens)[token_id].token = strndup(&str[start], i - start); 
+            (*tokens)[token_id].line = line_index;
             token_id++;
             continue;
         }
@@ -222,9 +248,9 @@ int lexer_tokenize(char *restrict str, struct lexer_token *restrict tokens){ //R
         int symbol_type = lexer_get_symbol_type(&str[i]);
         int is_double_operator_token = (lexer_is_double_operator_token(&str[i]) == 0);
         if (symbol_type != -1) {
-            tokens[token_id].type = symbol_type;
-            tokens[token_id].token = strndup(&str[i], 1 + is_double_operator_token);
-            tokens[token_id].line = line_index;
+            (*tokens)[token_id].type = symbol_type;
+            (*tokens)[token_id].token = strndup(&str[i], 1 + is_double_operator_token);
+            (*tokens)[token_id].line = line_index;
             token_id++;
             i += 1 + is_double_operator_token;
             continue;

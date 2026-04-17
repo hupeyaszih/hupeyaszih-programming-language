@@ -90,21 +90,19 @@ static inline struct lexer_token* eat(struct lexer_token *tokens, int token_coun
 int parser_parse(struct parser_t *restrict parser, struct lexer_file *restrict file){
     int cursor = 0;
     for(int statement = 0;statement < file->statement_count; ++statement){
-
         if(-1 == parser_parse_control_depth(parser, file->tokens, file->token_count, cursor)){
             printf("[ERROR]: expected \"(\" or \")\" on line %d\n", file->tokens[cursor].line);
             return -1;
         }
         struct parser_node *node = parser_parse_expression(parser, file->tokens, file->token_count, &cursor);
-        parser_parser_add_node(parser, node);
-
-        printf("Result: %f\n", parser_eval(node)); // Debug
-        
+        if(NULL == node) return -1;
         if(NULL == eat(file->tokens, file->token_count, &cursor, LEXER_TOKEN_TYPE_SEMICOLON)) {
             printf("[ERROR]: expected \";\" on line: %d\n", file->tokens[cursor].line);
             return -1;
         }
-        if(NULL == node) return -1;
+        parser_parser_add_node(parser, node);
+
+        printf("Result: %f\n", parser_eval(node)); // Debug
     }
     return 0;
 }
@@ -138,6 +136,7 @@ struct parser_node *parser_parse_expression(struct parser_t *restrict parser, st
 }
 struct parser_node *parser_parse_term(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor){
     if(parser == NULL) {LOG_ERR("parser_parse_term - \"struct parser_t *restrict parser\" is null\n")return NULL;}
+
     struct parser_node *left = parser_parse_unary(parser, tokens, token_count, cursor);
     if(left == NULL){
         LOG_ERR("parser_parse_term - \"struct parser_node *left\" is null\n");
@@ -160,13 +159,14 @@ struct parser_node *parser_parse_term(struct parser_t *restrict parser, struct l
         new_node->right_node = right;
         
         left = new_node;
+
     }
     return left;
 }
 struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor){
     if(parser == NULL) {LOG_ERR("parser_parse_factor - \"struct parser_t *restrict parser\" is null\n")return NULL;}
     if(*cursor >= token_count) {
-        printf("[ERROR] parser_parse_factor - \"*cursor >= token_count\"");
+        printf("[ERROR] parser_parse_factor - \"*cursor >= token_count\"\n");
     }
 
     if(tokens[*cursor].type == LEXER_TOKEN_TYPE_INT_LITERAL) {
@@ -201,9 +201,10 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
             (*cursor)+=1;
             return NULL;
         }
+
         return node;
     }else {
-        LOG_ERR("parser_parse_factor - current token is not literal or identifier (unexpected token)\n");
+        printf("[ERR] parser_parse_factor - current token is not literal or identifier (unexpected token), line: %d\n", tokens[*cursor].line);
         return NULL;
     }
     return NULL;
@@ -233,7 +234,12 @@ struct parser_node *parser_parse_unary(struct parser_t *restrict parser, struct 
 int parser_parse_control_depth(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int cursor){
     int depth = 0;
     int max_depth = 0;
-    while(cursor < token_count && tokens[cursor].type != LEXER_TOKEN_TYPE_SEMICOLON){
+    while(cursor < token_count){
+        // if(tokens[cursor].type == LEXER_TOKEN_TYPE_SEMICOLON) {
+        //     cursor++;
+        //
+        //     break;
+        // }
         enum token_type current_type = tokens[cursor].type;
         if(current_type == LEXER_TOKEN_TYPE_LPAREN) {depth++;}
         else if(current_type == LEXER_TOKEN_TYPE_RPAREN) {depth--;}

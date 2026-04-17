@@ -82,8 +82,7 @@ int lexer_compare_primitive_type(const char *restrict word);
 int lexer_create_lexer_file(struct lexer_file *restrict file, char *restrict str);
 void lexer_delete_lexer_file(struct lexer_file *restrict file);
 
-int lexer_tokenize(char *restrict str, struct lexer_token *restrict tokens);
-
+int lexer_tokenize(char *restrict str, struct lexer_token **restrict tokens, int *current_token_capacity); //Returns token count
 
 static const char* lexer_token_type_to_string(enum token_type type) {
     switch (type) {
