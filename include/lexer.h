@@ -49,6 +49,7 @@ enum token_type{
 
 struct lexer_token{
     char *token;
+    int line;
     enum token_type type;
 };
 

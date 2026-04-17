@@ -125,20 +125,31 @@ int lexer_compare_primitive_type(const char *restrict word){ // Returns Primitiv
     return -1;
 }
 
-static inline int calculate_line_count(char *restrict str){
-    int char_count = strlen(str);
-    int line_count = 0;
-    for(int cursor = 0;cursor < char_count; ++cursor){
-        if(str[cursor] == '\n') line_count++;
-    }
+static inline int calculate_line_count(const char *restrict str) {
+    if (!str || str[0] == '\0') return 0;
 
+    int line_count = 1;
+    const char *ptr = str;
+
+    while ((ptr = strchr(ptr, '\n')) != NULL) {
+        line_count++;
+        ptr++; 
+    }
+    
     return line_count;
 }
 
-static inline int calculate_statement_count(struct lexer_file *restrict file){
+static inline int calculate_statement_count(const struct lexer_file *restrict file) {
+    if (!file || file->token_count <= 0) return 0;
+
     int statement_count = 0;
-    for(int cursor = 0;cursor < file->token_count; ++cursor){
-        if(file->tokens[cursor].type == LEXER_TOKEN_TYPE_SEMICOLON) statement_count++;
+    const struct lexer_token *tokens = file->tokens; 
+    const int count = file->token_count;
+
+    for (int i = 0; i < count; ++i) {
+        if (tokens[i].type == LEXER_TOKEN_TYPE_SEMICOLON) {
+            statement_count++;
+        }
     }
 
     return statement_count;
@@ -165,12 +176,14 @@ void lexer_delete_lexer_file(struct lexer_file *restrict file){
 }
 
 int lexer_tokenize(char *restrict str, struct lexer_token *restrict tokens){ //Returns token count
+    int line_index = 1;
     int i = 0;
     int token_id = 0;
     int str_len = strlen(str);
 
     while(i < str_len){
         char curr = str[i];
+        if(curr == '\n') line_index++;
         if(isspace(curr)) {i++;continue;}
         if(isalpha(curr)){
             int start = i;
@@ -179,6 +192,7 @@ int lexer_tokenize(char *restrict str, struct lexer_token *restrict tokens){ //R
             }
 
             tokens[token_id].token = strndup(&str[start], i - start);
+            tokens[token_id].line = line_index;
             int is_keyword = lexer_is_keyword(tokens[token_id].token);
 
             if(is_keyword == -1){
@@ -200,6 +214,7 @@ int lexer_tokenize(char *restrict str, struct lexer_token *restrict tokens){ //R
 
             tokens[token_id].type = LEXER_TOKEN_TYPE_INT_LITERAL;
             tokens[token_id].token = strndup(&str[start], i - start); 
+            tokens[token_id].line = line_index;
             token_id++;
             continue;
         }
@@ -209,6 +224,7 @@ int lexer_tokenize(char *restrict str, struct lexer_token *restrict tokens){ //R
         if (symbol_type != -1) {
             tokens[token_id].type = symbol_type;
             tokens[token_id].token = strndup(&str[i], 1 + is_double_operator_token);
+            tokens[token_id].line = line_index;
             token_id++;
             i += 1 + is_double_operator_token;
             continue;

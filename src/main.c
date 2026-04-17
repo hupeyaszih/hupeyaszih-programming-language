@@ -28,7 +28,7 @@ int main() {
 
     struct parser_t *parser = parser_create_parser();
 
-    struct lexer_file *file_1 = lexer_test(parser, "-5 + (+10 * -2);\n-5;\n+5;\n5*5-(10+7+(5*3));");
+    struct lexer_file *file_1 = lexer_test(parser, "-5 + (+10 * -2);\n-5;\n+5;\n\n\n5*5+(10+7+(5*3));");
 
     parser_delete_parser(&parser);
 
