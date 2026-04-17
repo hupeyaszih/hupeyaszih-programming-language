@@ -170,7 +170,7 @@ int lexer_create_lexer_file(struct lexer_file *restrict file, char *restrict str
         return -1;
     }
 
-    struct lexer_token *temp = realloc(file->tokens, sizeof(struct lexer_token) * file->token_count);
+    struct lexer_token *temp = realloc(file->tokens, sizeof(struct lexer_token) * (file->token_count + 1));
     if(temp){
         file->tokens = temp;
     }

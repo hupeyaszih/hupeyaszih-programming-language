@@ -20,6 +20,7 @@ static inline double parser_eval(struct parser_node *node) { // For testing
     double left_val = parser_eval(node->left_node);
     double right_val = parser_eval(node->right_node);
 
+
     switch (node->type) {
         case PARSER_NODE_PLUS:   return left_val + right_val;
         case PARSER_NODE_MINUS:  return left_val - right_val;
@@ -90,6 +91,8 @@ static inline struct lexer_token* eat(struct lexer_token *tokens, int token_coun
 int parser_parse(struct parser_t *restrict parser, struct lexer_file *restrict file){
     int cursor = 0;
     for(int statement = 0;statement < file->statement_count; ++statement){
+        printf("[DEBUG] Statement: %d, Starting Cursor: %d, Token Type: %d, Value: %s\n", statement, cursor, file->tokens[cursor].type, file->tokens[cursor].token);
+
         if(-1 == parser_parse_control_depth(parser, file->tokens, file->token_count, cursor)){
             printf("[ERROR]: expected \"(\" or \")\" on line %d\n", file->tokens[cursor].line);
             return -1;
