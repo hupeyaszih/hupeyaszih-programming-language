@@ -138,6 +138,8 @@ static const char* lexer_token_type_to_string(enum token_type type) {
     }
 }
 
+int lexer_is_double_operator_token(const char *chr);
+
 static inline int lexer_is_type(const char *restrict token){
     for(int i = 0;i < LEXER_PRIMITIVE_TYPE_COUNT; ++i){
         if(strcmp(token, language_primitive_types[i]) == 0) return LEXER_KEYWORD_COUNT + i;

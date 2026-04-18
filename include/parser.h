@@ -4,12 +4,19 @@
 #include "lexer.h"
 
 enum parser_node_type {
+    PARSER_NODE_EQUAL_EQUAL = 1,
+    PARSER_NODE_BANG_EQUAL = 2,
+    PARSER_NODE_LESS_EQUAL = 3,
+    PARSER_NODE_GREATER_EQUAL = 4,
+    PARSER_NODE_LESS = 5,
+    PARSER_NODE_GREATER = 6,
+    PARSER_NODE_UNARY_BANG,
+    PARSER_NODE_UNARY_MINUS,
     PARSER_NODE_PLUS,
     PARSER_NODE_MINUS,
     PARSER_NODE_DIVIDE,
     PARSER_NODE_MUL,
     PARSER_NODE_NUMBER,
-    PARSER_NODE_UNARY,
     PARSER_NODE_IDENTIFIER,
     PARSER_NODE_UNDEFINED
 };
@@ -53,6 +60,7 @@ void parser_delete_node(struct parser_node **node);
 void parser_parser_add_node(struct parser_t *parser, struct parser_node *node);
 
 int parser_parse(struct parser_t *restrict parser, struct lexer_file *restrict file);
+struct parser_node *parser_parse_boolean_logic(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
 struct parser_node *parser_parse_expression(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
 struct parser_node *parser_parse_term(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
 struct parser_node *parser_parse_unary(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);

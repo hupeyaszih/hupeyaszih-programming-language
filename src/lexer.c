@@ -12,7 +12,7 @@ const char language_keywords[LEXER_KEYWORD_COUNT][LEXER_MAX_KEYWORD_CHAR_LENGHT]
 const char language_primitive_types[LEXER_PRIMITIVE_TYPE_COUNT][LEXER_MAX_PRIMITIVE_TYPE_CHAR_LENGHT] = {"int8", "int16", "int32", "int64", "char", "float", "void"};
 
 
-static inline int lexer_is_double_operator_token(const char *chr){
+int lexer_is_double_operator_token(const char *chr){
     if((chr+1) && (*(chr+1))=='=') {
         switch (*chr) {
             case '=':
@@ -83,6 +83,8 @@ static inline enum token_type lexer_get_symbol_type(const char *chr) {
             return LEXER_TOKEN_TYPE_STAR;
         case '/':
             return LEXER_TOKEN_TYPE_SLASH;
+        case '!':
+            return LEXER_TOKEN_TYPE_BANG;
         case '%':
             return LEXER_TOKEN_TYPE_PERCENT;
         default:

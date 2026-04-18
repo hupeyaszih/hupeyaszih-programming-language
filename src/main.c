@@ -28,12 +28,10 @@ int main() {
 
     struct parser_t *parser = parser_create_parser();
 
-    struct lexer_file *file_1 = lexer_test(parser, "(99+1)/10;\n(+100-50)*-2*-2;");
-    struct lexer_file *file_2 = lexer_test(parser, "(5+1)/2   + -2;");
+    struct lexer_file *file_2 = lexer_test(parser, "!(5 + 5 == 10) == ( (---1 < 0) == !(2 * 2 != 4) );");
 
     parser_delete_parser(&parser);
 
-    lexer_delete_lexer_file(file_1);
     lexer_delete_lexer_file(file_2);
     return 0;
 }

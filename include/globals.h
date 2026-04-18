@@ -12,6 +12,7 @@
 #define LOG(x) 
 #define LOG_SIMPLE(x)
 #define LOG_INT(x) 
+#define LOG_ERR(x) 
 #endif
 
 #endif
