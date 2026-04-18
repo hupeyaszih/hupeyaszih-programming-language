@@ -12,7 +12,7 @@ static inline double parser_eval(struct parser_node *node) { // For testing
     }
 
     if (node->type == PARSER_NODE_IDENTIFIER) {
-        C_LOG_WARN("Variable support is not enabled: %s\n", node->value);
+        C_LOG_WARN("Variable support is not enabled: %s", node->value);
         return 0.0;
     }
 
@@ -32,7 +32,7 @@ static inline double parser_eval(struct parser_node *node) { // For testing
         case PARSER_NODE_MUL:    return left_val * right_val;
         case PARSER_NODE_DIVIDE: 
             if (right_val == 0.0) {
-                C_LOG_ERR("cannot divide 0 by 0!\n");
+                C_LOG_ERR("cannot divide 0 by 0!");
                 return 0.0;
             }
             return left_val / right_val;
@@ -43,21 +43,21 @@ static inline double parser_eval(struct parser_node *node) { // For testing
         case PARSER_NODE_GREATER: return (left_val > right_val);
         case PARSER_NODE_LESS: return (left_val < right_val);
         default:
-            C_LOG_ERR("[ERROR] parser_eval - UNDEFINED NODE TYPE\n");
+            C_LOG_ERR("parser_eval - UNDEFINED NODE TYPE");
             return 0.0;
     }
 }
 
 struct parser_t *parser_create_parser(){
     struct parser_t *parser = malloc(sizeof(struct parser_t));
-    if(!parser) {C_LOG_ERR("parser_create_parser - couldn't create parser\n"); free(parser); return NULL;}
+    if(!parser) {C_LOG_ERR("parser_create_parser - couldn't create parser"); free(parser); return NULL;}
     parser->node_count = 0;
     parser->nodes = NULL;
 
     return parser;
 }
 void parser_delete_parser(struct parser_t **parser){
-    if(parser == NULL || *parser == NULL) {C_LOG_ERR("parser_delete_parser - \"struct parser_t **parser\" or \"*parser\" is null\n"); return;}
+    if(parser == NULL || *parser == NULL) {C_LOG_ERR("parser_delete_parser - \"struct parser_t **parser\" or \"*parser\" is null"); return;}
     free((*parser)->nodes);
     free((*parser));
     *parser = NULL;
@@ -71,7 +71,7 @@ struct parser_node *parser_create_node(enum parser_node_type type, int line){
     return node;
 }
 void parser_delete_node(struct parser_node **node){
-    if(node == NULL || (*node) == NULL) {LOG_M_ERR("parser_delete_node - \"struct parser_node *node\" is null\n"); return;}
+    if(node == NULL || (*node) == NULL) {LOG_M_ERR("parser_delete_node - \"struct parser_node *node\" is null"); return;}
     if((*node)->left_node) parser_delete_node(&((*node)->left_node));
     if((*node)->right_node) parser_delete_node(&((*node)->right_node));
 
@@ -80,11 +80,11 @@ void parser_delete_node(struct parser_node **node){
 }
 
 void parser_parser_add_node(struct parser_t *parser, struct parser_node *node){
-    if(node == NULL) {LOG_M_ERR("parser_parser_add_node - \"struct parser_node *node\" is null\n"); return;}
-    if(parser == NULL) {LOG_M_ERR("parser_parser_add_node - \"struct parser_t *parser\" is null\n"); return;}
+    if(node == NULL) {LOG_M_ERR("parser_parser_add_node - \"struct parser_node *node\" is null"); return;}
+    if(parser == NULL) {LOG_M_ERR("parser_parser_add_node - \"struct parser_t *parser\" is null"); return;}
 
     struct parser_node **tmp = realloc(parser->nodes, sizeof(struct parser_node *) * (parser->node_count+1));
-    if(!tmp) {LOG_M_ERR("parser_parser_add_node - couldn't realloc \"parser->nodes\"\n"); return;}
+    if(!tmp) {LOG_M_ERR("parser_parser_add_node - couldn't realloc \"parser->nodes\""); return;}
     tmp[parser->node_count] = node;
     parser->nodes = tmp;
     parser->node_count += 1;
@@ -94,7 +94,7 @@ void parser_parser_add_node(struct parser_t *parser, struct parser_node *node){
 
 static inline struct lexer_token* eat(struct lexer_token *tokens, int token_count, int *cursor, enum token_type expected_type) {
     if (*cursor >= token_count || tokens[*cursor].type != expected_type) {
-        C_LOG_ERR("unexpected token type on line %d\n", tokens[*cursor].line);
+        C_LOG_ERR("unexpected token type on line %d", tokens[*cursor].line);
         return NULL;
     }
     return &tokens[(*cursor)++];
@@ -105,20 +105,20 @@ int parser_parse(struct parser_t *restrict parser, struct lexer_file *restrict f
     for(int statement = 0;statement < file->statement_count; ++statement){
 
         if(-1 == parser_parse_control_depth(parser, file->tokens, file->token_count, cursor)){
-            C_LOG_ERR("expected \"(\" or \")\" on line %d\n", file->tokens[cursor].line);
-            return -1;
+            C_LOG_ERR("expected \"(\" or \")\" on line %d", file->tokens[cursor].line);
+            return 0;
         }
         struct parser_node *node = parser_parse_boolean_logic(parser, file->tokens, file->token_count, &cursor);
-        if(NULL == node) return -1;
+        if(NULL == node) return 0;
         if(NULL == eat(file->tokens, file->token_count, &cursor, LEXER_TOKEN_TYPE_SEMICOLON)) {
-            C_LOG_ERR("expected \";\" on line: %d\n", file->tokens[cursor].line);
-            return -1;
+            C_LOG_ERR("expected \";\" on line: %d", file->tokens[cursor].line);
+            return 0;
         }
         parser_parser_add_node(parser, node);
 
-        C_LOG("Result: %f\n", parser_eval(node)); // Debug
+        C_LOG("Result: %f", parser_eval(node)); // Debug
     }
-    return 0;
+    return 1;
 }
 
 static inline int is_boolean_logic_token(enum token_type type){ // returns token ID 
@@ -137,10 +137,10 @@ static inline int is_boolean_logic_token(enum token_type type){ // returns token
 }
 
 struct parser_node *parser_parse_boolean_logic(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor){
-    if(parser == NULL) {LOG_M_ERR("parser_parse_boolean_logic - \"struct parser_t *restrict parser\" is null\n"); return NULL;}
+    if(parser == NULL) {LOG_M_ERR("parser_parse_boolean_logic - \"struct parser_t *restrict parser\" is null"); return NULL;}
     struct parser_node *left = parser_parse_expression(parser, tokens, token_count, cursor);
     if(left == NULL){
-        LOG_M_ERR("parser_parse_boolean_logic - \"struct parser_node *left\" is null\n");
+        LOG_M_ERR("parser_parse_boolean_logic - \"struct parser_node *left\" is null");
         return NULL;
     }
 
@@ -151,7 +151,7 @@ struct parser_node *parser_parse_boolean_logic(struct parser_t *restrict parser,
 
         struct parser_node *right = parser_parse_expression(parser, tokens, token_count, cursor);
         if(!right){
-            LOG_M_ERR("parser_parse_boolean_logic - \"struct parser_node *right\" is null\n");
+            LOG_M_ERR("parser_parse_boolean_logic - \"struct parser_node *right\" is null");
             return NULL;
         }
 
@@ -171,10 +171,10 @@ struct parser_node *parser_parse_boolean_logic(struct parser_t *restrict parser,
 }
 
 struct parser_node *parser_parse_expression(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor){
-    if(parser == NULL) {LOG_M_ERR("parser_parse_expression - \"struct parser_t *restrict parser\" is null\n"); return NULL;}
+    if(parser == NULL) {LOG_M_ERR("parser_parse_expression - \"struct parser_t *restrict parser\" is null"); return NULL;}
     struct parser_node *left = parser_parse_term(parser, tokens, token_count, cursor);
     if(left == NULL){
-        LOG_M_ERR("parser_parse_expression - \"struct parser_node *left\" is null\n");
+        LOG_M_ERR("parser_parse_expression - \"struct parser_node *left\" is null");
         return NULL;
     }
 
@@ -185,7 +185,7 @@ struct parser_node *parser_parse_expression(struct parser_t *restrict parser, st
 
         struct parser_node *right = parser_parse_term(parser, tokens, token_count, cursor);
         if(!right){
-            LOG_M_ERR("parser_parse_expression - \"struct parser_node *right\" is null\n");
+            LOG_M_ERR("parser_parse_expression - \"struct parser_node *right\" is null");
             return NULL;
         }
 
@@ -198,11 +198,11 @@ struct parser_node *parser_parse_expression(struct parser_t *restrict parser, st
     return left;
 }
 struct parser_node *parser_parse_term(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor){
-    if(parser == NULL) {LOG_M_ERR("parser_parse_term - \"struct parser_t *restrict parser\" is null\n"); return NULL;}
+    if(parser == NULL) {LOG_M_ERR("parser_parse_term - \"struct parser_t *restrict parser\" is null"); return NULL;}
 
     struct parser_node *left = parser_parse_unary(parser, tokens, token_count, cursor);
     if(left == NULL){
-        LOG_M_ERR("parser_parse_term - \"struct parser_node *left\" is null\n");
+        LOG_M_ERR("parser_parse_term - \"struct parser_node *left\" is null");
         return NULL;
     }
 
@@ -213,7 +213,7 @@ struct parser_node *parser_parse_term(struct parser_t *restrict parser, struct l
 
         struct parser_node *right = parser_parse_unary(parser, tokens, token_count, cursor);
         if(!right){
-            LOG_M_ERR("parser_parse_term - \"struct parser_node *right\" is null\n");
+            LOG_M_ERR("parser_parse_term - \"struct parser_node *right\" is null");
             return NULL;
         }
 
@@ -227,9 +227,9 @@ struct parser_node *parser_parse_term(struct parser_t *restrict parser, struct l
     return left;
 }
 struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor){
-    if(parser == NULL) {LOG_M_ERR("parser_parse_factor - \"struct parser_t *restrict parser\" is null\n"); return NULL;}
+    if(parser == NULL) {LOG_M_ERR("parser_parse_factor - \"struct parser_t *restrict parser\" is null"); return NULL;}
     if(*cursor >= token_count) {
-        LOG_M_ERR("parser_parse_factor - \"*cursor >= token_count\"\n");
+        LOG_M_ERR("parser_parse_factor - \"*cursor >= token_count\"");
         return NULL;
     }
 
@@ -260,7 +260,7 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
 
         struct parser_node *node = parser_parse_boolean_logic(parser, tokens, token_count, cursor);
         if(!eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_RPAREN)){
-            C_LOG_ERR("expected \")\" on line: %d\n", tokens[*cursor].line);
+            C_LOG_ERR("expected \")\" on line: %d", tokens[*cursor].line);
             parser_delete_node(&node);
             (*cursor)+=1;
             return NULL;
@@ -268,14 +268,14 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
 
         return node;
     }else {
-        C_LOG_ERR("parser_parse_factor - current token is not literal or identifier (unexpected token), line: %d\n", tokens[*cursor].line);
+        C_LOG_ERR("parser_parse_factor - current token is not literal or identifier (unexpected token), line: %d", tokens[*cursor].line);
         return NULL;
     }
     return NULL;
 }
 
 struct parser_node *parser_parse_unary(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor) {
-    if(*cursor >= token_count) {LOG_M_ERR("parser_parse_unary - \"*cursor >= token_count\"\n"); return NULL;}
+    if(*cursor >= token_count) {LOG_M_ERR("parser_parse_unary - \"*cursor >= token_count\""); return NULL;}
     enum token_type tok_type = tokens[*cursor].type;
     if (tok_type == LEXER_TOKEN_TYPE_MINUS || tok_type == LEXER_TOKEN_TYPE_PLUS || tok_type == LEXER_TOKEN_TYPE_BANG) {
         int op_line = tokens[*cursor].line;
