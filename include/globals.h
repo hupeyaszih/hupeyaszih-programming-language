@@ -17,7 +17,8 @@
 #define C_LOG_INFO(format, ...) printf(ANSI_COLOR_BLUE "[INFO] " ANSI_COLOR_RESET format "\n", ##__VA_ARGS__)
 
 
-#define DEBUG
+// #define DEBUG
+
 #ifdef DEBUG
 #define LOG_M(format, ...) printf(ANSI_COLOR_CYAN "{LOG} " ANSI_COLOR_RESET format "\n", ##__VA_ARGS__)
 #define LOG_M_OK(format, ...) printf(ANSI_COLOR_GREEN "{OK} " ANSI_COLOR_RESET format "\n", ##__VA_ARGS__)

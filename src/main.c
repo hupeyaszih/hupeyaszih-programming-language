@@ -4,7 +4,7 @@
 #include <stdlib.h>
 
 static inline struct lexer_file *lexer_test(struct parser_t *restrict parser, char fl[]){
-    C_LOG("file: %s", fl);
+    C_LOG("file: \n==========\n%s\n%s", fl, "\n==========");
 
     LOG_M("Lexer started...");
     struct lexer_file *file = malloc(sizeof(struct lexer_file));
@@ -37,7 +37,7 @@ int main() {
 
     struct parser_t *parser = parser_create_parser();
 
-    struct lexer_file *file_2 = lexer_test(parser, "(5 + (10 * (2 == 3)));");
+    struct lexer_file *file_2 = lexer_test(parser, "1>=1;\n(5 + (10 * (2 == 3)));\n5==5;\n!1;\n((-5));");
 
     parser_delete_parser(&parser);
 

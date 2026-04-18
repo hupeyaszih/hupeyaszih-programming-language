@@ -141,7 +141,7 @@ int lexer_is_double_operator_token(const char *chr);
 
 static inline int lexer_is_type(const char *restrict token){
     for(int i = 0;i < LEXER_PRIMITIVE_TYPE_COUNT; ++i){
-        if(strcmp(token, language_primitive_types[i]) == 0) return LEXER_KEYWORD_COUNT + i;
+        if(0 == strcmp(token, language_primitive_types[i])) return LEXER_KEYWORD_COUNT + i;
     }
     return -1;
 }

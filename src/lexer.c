@@ -12,7 +12,7 @@ const char language_primitive_types[LEXER_PRIMITIVE_TYPE_COUNT][LEXER_MAX_PRIMIT
 
 
 int lexer_is_double_operator_token(const char *chr){
-    if((chr+1) && (*(chr+1))=='=') {
+    if((chr+1) && '=' == (*(chr+1))) {
         switch (*chr) {
             case '=':
                 return 0;
@@ -30,7 +30,7 @@ int lexer_is_double_operator_token(const char *chr){
 }
 
 static inline enum token_type lexer_get_symbol_type(const char *chr) {
-    if(lexer_is_double_operator_token(chr) == 0){
+    if(0 == lexer_is_double_operator_token(chr)){
         switch (*chr) {
             case '=':
                 return LEXER_TOKEN_TYPE_EQUAL_EQUAL;
@@ -100,11 +100,11 @@ static inline int lexer_is_number(const char chr) {
 
 static inline int lexer_is_keyword(const char *restrict token){
     for(int i = 0;i < LEXER_KEYWORD_COUNT; ++i){
-        if(strcmp(token, language_keywords[i]) == 0) return i;
+        if(0 == strcmp(token, language_keywords[i])) return i;
     }
     
     for(int i = 0;i < LEXER_PRIMITIVE_TYPE_COUNT; ++i){
-        if(strcmp(token, language_primitive_types[i]) == 0) return LEXER_KEYWORD_COUNT + i;
+        if(0 == strcmp(token, language_primitive_types[i])) return LEXER_KEYWORD_COUNT + i;
     }
     return -1;
 }
@@ -113,7 +113,7 @@ static inline int lexer_is_keyword(const char *restrict token){
 int lexer_compare_keyword(const char *restrict word){ //Returns Keyword ID
     for(int i = 0;i < LEXER_KEYWORD_COUNT; ++i){
         const char *restrict keyword = language_keywords[i];
-        if(strcmp(word, keyword) == 0) return i;
+        if(0 == strcmp(word, keyword)) return i;
     }
     return -1;
 }
@@ -121,18 +121,18 @@ int lexer_compare_keyword(const char *restrict word){ //Returns Keyword ID
 int lexer_compare_primitive_type(const char *restrict word){ // Returns Primitive Type ID
     for(int i = 0;i < LEXER_PRIMITIVE_TYPE_COUNT; ++i){
         const char *restrict primitive_type = language_primitive_types[i];
-        if(strcmp(word, primitive_type) == 0) return i;
+        if(0 == strcmp(word, primitive_type)) return i;
     }
     return -1;
 }
 
 static inline int calculate_line_count(const char *restrict str) {
-    if (!str || str[0] == '\0') return 0;
+    if (!str || '\0' == str[0]) return 0;
 
     int line_count = 1;
     const char *ptr = str;
 
-    while ((ptr = strchr(ptr, '\n')) != NULL) {
+    while (NULL != (ptr = strchr(ptr, '\n'))) {
         line_count++;
         ptr++; 
     }
@@ -148,7 +148,7 @@ static inline int calculate_statement_count(const struct lexer_file *restrict fi
     const int count = file->token_count;
 
     for (int i = 0; i < count; ++i) {
-        if (tokens[i].type == LEXER_TOKEN_TYPE_SEMICOLON) {
+        if (LEXER_TOKEN_TYPE_SEMICOLON == tokens[i].type) {
             statement_count++;
         }
     }
@@ -210,11 +210,11 @@ int lexer_tokenize(char *restrict str, struct lexer_token **restrict tokens, int
             }
         }
         char curr = str[i];
-        if(curr == '\n') line_index++;
+        if('\n' == curr) line_index++;
         if(isspace(curr)) {i++;continue;}
         if(isalpha(curr)){
             int start = i;
-            while(i < str_len && (!isspace(str[i]) && lexer_get_symbol_type(&str[i]) == LEXER_TOKEN_TYPE_UNKNOWN) ){
+            while(i < str_len && (!isspace(str[i]) && LEXER_TOKEN_TYPE_UNKNOWN == lexer_get_symbol_type(&str[i])) ){
                 i++;
             }
 
@@ -222,7 +222,7 @@ int lexer_tokenize(char *restrict str, struct lexer_token **restrict tokens, int
             (*tokens)[token_id].line = line_index;
             int is_keyword = lexer_is_keyword((*tokens)[token_id].token);
 
-            if(is_keyword == -1){
+            if(-1 == is_keyword){
                 (*tokens)[token_id].type = LEXER_TOKEN_TYPE_IDENTIFIER;
             }else {
                 (*tokens)[token_id].type = LEXER_TOKEN_TYPE_KEYWORD;
@@ -247,7 +247,7 @@ int lexer_tokenize(char *restrict str, struct lexer_token **restrict tokens, int
         }
 
         int symbol_type = lexer_get_symbol_type(&str[i]);
-        int is_double_operator_token = (lexer_is_double_operator_token(&str[i]) == 0);
+        int is_double_operator_token = (0 == lexer_is_double_operator_token(&str[i]));
         if (symbol_type != -1) {
             (*tokens)[token_id].type = symbol_type;
             (*tokens)[token_id].token = strndup(&str[i], 1 + is_double_operator_token);
