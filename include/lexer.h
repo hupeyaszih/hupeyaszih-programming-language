@@ -1,7 +1,6 @@
 #ifndef LEXER_H
 #define LEXER_H
 
-#include <ctype.h>
 #include <string.h>
 
 enum token_type{

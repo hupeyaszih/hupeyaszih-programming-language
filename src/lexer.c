@@ -1,5 +1,4 @@
 #include "lexer.h"
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -167,7 +166,7 @@ int lexer_create_lexer_file(struct lexer_file *restrict file, char *restrict str
     int token_count = lexer_tokenize(str, &file->tokens, &current_capacity);
     file->token_count = token_count;
     if(token_count <= 0) {
-        LOG_ERR("lexer_create_lexer_file - \"token_count<=0\"\n");
+        C_LOG_ERR("lexer_create_lexer_file - \"token_count<=0\"\n");
         lexer_delete_lexer_file(file);
         return -1;
     }
