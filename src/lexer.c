@@ -1,4 +1,5 @@
 #include "lexer.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -68,8 +69,10 @@ static inline enum token_type lexer_get_symbol_type(const char *chr) {
             return LEXER_TOKEN_TYPE_LESS;
         case '=':
             return LEXER_TOKEN_TYPE_EQUAL;
+        case '\'':
+            return LEXER_TOKEN_TYPE_SINGLE_QUOTE;
         case '\"':
-            return LEXER_TOKEN_TYPE_STRING_LITERAL;
+            return LEXER_TOKEN_TYPE_DOUBLE_QUOTES;
         case ',':
             return LEXER_TOKEN_TYPE_COMMA;
         case '.':
@@ -106,7 +109,7 @@ static inline int lexer_is_keyword(const char *restrict token){
     for(int i = 0;i < LEXER_PRIMITIVE_TYPE_COUNT; ++i){
         if(0 == strcmp(token, language_primitive_types[i])) return LEXER_KEYWORD_COUNT + i;
     }
-    return -1;
+    return 0;
 }
 
 
@@ -166,9 +169,9 @@ int lexer_create_lexer_file(struct lexer_file *restrict file, char *restrict str
     int token_count = lexer_tokenize(str, &file->tokens, &current_capacity);
     file->token_count = token_count;
     if(token_count <= 0) {
-        C_LOG_ERR("lexer_create_lexer_file - \"token_count<=0\"\n");
+        C_LOG_ERR("\"lexer_create_lexer_file\" function failed to create lexer file because \"token_count<=0\"\n");
         lexer_delete_lexer_file(file);
-        return -1;
+        return 0;
     }
 
     struct lexer_token *temp = realloc(file->tokens, sizeof(struct lexer_token) * (file->token_count + 1));
@@ -209,9 +212,16 @@ int lexer_tokenize(char *restrict str, struct lexer_token **restrict tokens, int
                 return -1;
             }
         }
+
+        if('/' == str[i] && (i+1 < str_len && '/' == str[i+1])) {
+            while(str[i] != '\n') {
+                if(str[i] == '\0') break;
+                i++;
+            }
+        }
         char curr = str[i];
         if('\n' == curr) line_index++;
-        if(isspace(curr)) {i++;continue;}
+        if(isspace(curr)) {i++; continue;}
         if(isalpha(curr)){
             int start = i;
             while(i < str_len && (!isspace(str[i]) && LEXER_TOKEN_TYPE_UNKNOWN == lexer_get_symbol_type(&str[i])) ){
@@ -222,7 +232,7 @@ int lexer_tokenize(char *restrict str, struct lexer_token **restrict tokens, int
             (*tokens)[token_id].line = line_index;
             int is_keyword = lexer_is_keyword((*tokens)[token_id].token);
 
-            if(-1 == is_keyword){
+            if(!is_keyword){
                 (*tokens)[token_id].type = LEXER_TOKEN_TYPE_IDENTIFIER;
             }else {
                 (*tokens)[token_id].type = LEXER_TOKEN_TYPE_KEYWORD;
@@ -249,6 +259,28 @@ int lexer_tokenize(char *restrict str, struct lexer_token **restrict tokens, int
         int symbol_type = lexer_get_symbol_type(&str[i]);
         int is_double_operator_token = (0 == lexer_is_double_operator_token(&str[i]));
         if (symbol_type != -1) {
+            
+            if(LEXER_TOKEN_TYPE_DOUBLE_QUOTES == symbol_type){
+                int start = i;
+                i++;
+                while (i < str_len) {
+                    if('\\' == str[i]) {
+                        i+=2;
+                        continue;
+                    }else if('"' == str[i]) {
+                        i++;
+                        break;
+                    }
+                    i++;
+                }
+
+                (*tokens)[token_id].type = LEXER_TOKEN_TYPE_STRING_LITERAL;
+                (*tokens)[token_id].token = strndup(&str[start], i - start);
+                (*tokens)[token_id].line = line_index;
+                token_id++;
+                continue;
+            }
+
             (*tokens)[token_id].type = symbol_type;
             (*tokens)[token_id].token = strndup(&str[i], 1 + is_double_operator_token);
             (*tokens)[token_id].line = line_index;

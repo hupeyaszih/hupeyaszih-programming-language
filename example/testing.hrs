@@ -1,0 +1,8 @@
+9 * (5 != 5) + 10 * (5 == 5);
+5==5;
+
+// "Hupeyaszih Programming Language (.hrs)" supports comment lines
+
+// var year:int32 = 2026;
+// "Hello World! \"Hupeyaszih\"";
+// Lexer supports String Literals but parser doesn't understand them yet :)

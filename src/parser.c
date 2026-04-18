@@ -111,7 +111,11 @@ int parser_parse(struct parser_t *restrict parser, struct lexer_file *restrict f
         struct parser_node *node = parser_parse_boolean_logic(parser, file->tokens, file->token_count, &cursor);
         if(NULL == node) return 0;
         if(NULL == eat(file->tokens, file->token_count, &cursor, LEXER_TOKEN_TYPE_SEMICOLON)) {
-            C_LOG_ERR("expected \";\" on line: %d", file->tokens[cursor].line);
+            if(cursor >= file->token_count) {
+                C_LOG_ERR("expected \";\" on line: %d", file->tokens[cursor].line);
+            }else {
+                C_LOG_ERR("expected \";\" instead of \"%s\" on line: %d", file->tokens[cursor].token, file->tokens[cursor].line);
+            }
             return 0;
         }
         parser_parser_add_node(parser, node);

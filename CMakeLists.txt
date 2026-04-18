@@ -10,6 +10,7 @@ add_executable(HupeyaszihProgrammingLanguage
     src/main.c
     src/lexer.c
     src/parser.c
+    src/hrs_file_io.c
 )
 
 target_include_directories(HupeyaszihProgrammingLanguage

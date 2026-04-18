@@ -27,6 +27,7 @@
 #define LOG_M_INFO(format, ...) printf(ANSI_COLOR_BLUE "{INFO} " ANSI_COLOR_RESET format "\n", ##__VA_ARGS__)
 #else
 #define LOG_M(format, ...) 
+#define LOG_M_OK(format, ...)
 #define LOG_M_ERR(format, ...) 
 #define LOG_M_WARN(format, ...) 
 #define LOG_M_INFO(format, ...) 

@@ -40,6 +40,8 @@ enum token_type{
     LEXER_TOKEN_TYPE_RBRACE,       // }
     LEXER_TOKEN_TYPE_LBRACKET,     // [
     LEXER_TOKEN_TYPE_RBRACKET,     // ]
+    LEXER_TOKEN_TYPE_DOUBLE_QUOTES,// "
+    LEXER_TOKEN_TYPE_SINGLE_QUOTE, // '
     LEXER_TOKEN_TYPE_COMMA,        // ,
     LEXER_TOKEN_TYPE_DOT,          // .
     LEXER_TOKEN_TYPE_SEMICOLON,    // ;
@@ -130,6 +132,8 @@ static const char* lexer_token_type_to_string(enum token_type type) {
         case LEXER_TOKEN_TYPE_RBRACKET:        return "RBRACKET";
         case LEXER_TOKEN_TYPE_COMMA:           return "COMMA";
         case LEXER_TOKEN_TYPE_DOT:             return "DOT";
+        case LEXER_TOKEN_TYPE_DOUBLE_QUOTES:   return "DOUBLE_QUOTES";
+        case LEXER_TOKEN_TYPE_SINGLE_QUOTE:    return "SINGLE_QUOTE";
         case LEXER_TOKEN_TYPE_SEMICOLON:       return "SEMICOLON";
         case LEXER_TOKEN_TYPE_COLON:           return "COLON";
 
