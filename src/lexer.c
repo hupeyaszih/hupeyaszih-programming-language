@@ -9,8 +9,15 @@
 const char LEXER_DELIM[] = " \t\r\n";
 
 const char language_keywords[LEXER_KEYWORD_COUNT][LEXER_MAX_KEYWORD_CHAR_LENGHT] = {"return", "var", "for", "while", "loop"};
-const char language_primitive_types[LEXER_PRIMITIVE_TYPE_COUNT][LEXER_MAX_PRIMITIVE_TYPE_CHAR_LENGHT] = {"int8", "int16", "int32", "int64", "char", "float", "void"};
 
+
+static inline enum token_type get_keyword_type(const char *chr){
+    if(0 == strcmp("var", chr)) {
+        return LEXER_TOKEN_TYPE_VAR;
+    }else{
+        return LEXER_TOKEN_TYPE_KEYWORD;
+    }
+}
 
 int lexer_is_double_operator_token(const char *chr){
     if((chr+1) && '=' == (*(chr+1))) {
@@ -105,11 +112,7 @@ static inline int lexer_is_keyword(const char *restrict token){
     for(int i = 0;i < LEXER_KEYWORD_COUNT; ++i){
         if(0 == strcmp(token, language_keywords[i])) return i;
     }
-    
-    for(int i = 0;i < LEXER_PRIMITIVE_TYPE_COUNT; ++i){
-        if(0 == strcmp(token, language_primitive_types[i])) return LEXER_KEYWORD_COUNT + i;
-    }
-    return 0;
+    return -1;
 }
 
 
@@ -117,14 +120,6 @@ int lexer_compare_keyword(const char *restrict word){ //Returns Keyword ID
     for(int i = 0;i < LEXER_KEYWORD_COUNT; ++i){
         const char *restrict keyword = language_keywords[i];
         if(0 == strcmp(word, keyword)) return i;
-    }
-    return -1;
-}
-
-int lexer_compare_primitive_type(const char *restrict word){ // Returns Primitive Type ID
-    for(int i = 0;i < LEXER_PRIMITIVE_TYPE_COUNT; ++i){
-        const char *restrict primitive_type = language_primitive_types[i];
-        if(0 == strcmp(word, primitive_type)) return i;
     }
     return -1;
 }
@@ -232,10 +227,10 @@ int lexer_tokenize(char *restrict str, struct lexer_token **restrict tokens, int
             (*tokens)[token_id].line = line_index;
             int is_keyword = lexer_is_keyword((*tokens)[token_id].token);
 
-            if(!is_keyword){
+            if(-1 == is_keyword){
                 (*tokens)[token_id].type = LEXER_TOKEN_TYPE_IDENTIFIER;
             }else {
-                (*tokens)[token_id].type = LEXER_TOKEN_TYPE_KEYWORD;
+                (*tokens)[token_id].type = get_keyword_type((*tokens)[token_id].token);
             }
 
             token_id++;

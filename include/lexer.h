@@ -15,6 +15,7 @@ enum token_type{
     LEXER_TOKEN_TYPE_CHAR_LITERAL,
 
     LEXER_TOKEN_TYPE_KEYWORD,
+    LEXER_TOKEN_TYPE_VAR,
 
     LEXER_TOKEN_TYPE_PLUS,         // +
     LEXER_TOKEN_TYPE_MINUS,        // -
@@ -66,18 +67,14 @@ struct lexer_file{
 };
 
 #define LEXER_MAX_KEYWORD_CHAR_LENGHT 10
-#define LEXER_MAX_PRIMITIVE_TYPE_CHAR_LENGHT 10
 
 #define LEXER_KEYWORD_COUNT 5
-#define LEXER_PRIMITIVE_TYPE_COUNT 7
 
 extern const char LEXER_DELIM[];
 
 extern const char language_keywords[LEXER_KEYWORD_COUNT][LEXER_MAX_KEYWORD_CHAR_LENGHT];
-extern const char language_primitive_types[LEXER_PRIMITIVE_TYPE_COUNT][LEXER_MAX_PRIMITIVE_TYPE_CHAR_LENGHT];
 
 int lexer_compare_keyword(const char *restrict word);
-int lexer_compare_primitive_type(const char *restrict word);
 
 
 int lexer_create_lexer_file(struct lexer_file *restrict file, char *restrict str);
@@ -87,22 +84,19 @@ int lexer_tokenize(char *restrict str, struct lexer_token **restrict tokens, int
 
 static const char* lexer_token_type_to_string(enum token_type type) {
     switch (type) {
-        // Sistem ve Hata Tipleri
         case LEXER_TOKEN_TYPE_EOF:             return "EOF";
         case LEXER_TOKEN_TYPE_ERROR:           return "ERROR";
         case LEXER_TOKEN_TYPE_UNKNOWN:         return "UNKNOWN";
 
-        // Tanımlayıcılar ve Literaller
         case LEXER_TOKEN_TYPE_IDENTIFIER:      return "IDENTIFIER";
         case LEXER_TOKEN_TYPE_INT_LITERAL:     return "INT_LITERAL";
         case LEXER_TOKEN_TYPE_FLOAT_LITERAL:   return "FLOAT_LITERAL";
         case LEXER_TOKEN_TYPE_STRING_LITERAL:  return "STRING_LITERAL";
         case LEXER_TOKEN_TYPE_CHAR_LITERAL:    return "CHAR_LITERAL";
 
-        // Anahtar Kelimeler (Keywords)
         case LEXER_TOKEN_TYPE_KEYWORD:         return "KEYWORD";
+        case LEXER_TOKEN_TYPE_VAR:         return "VAR";
 
-        // Tek Karakterli Operatörler
         case LEXER_TOKEN_TYPE_PLUS:            return "PLUS";
         case LEXER_TOKEN_TYPE_MINUS:           return "MINUS";
         case LEXER_TOKEN_TYPE_STAR:            return "STAR";
@@ -111,7 +105,6 @@ static const char* lexer_token_type_to_string(enum token_type type) {
         case LEXER_TOKEN_TYPE_EQUAL:           return "EQUAL";
         case LEXER_TOKEN_TYPE_BANG:            return "BANG";
 
-        // Karşılaştırma Operatörleri
         case LEXER_TOKEN_TYPE_EQUAL_EQUAL:     return "EQUAL_EQUAL";
         case LEXER_TOKEN_TYPE_BANG_EQUAL:      return "BANG_EQUAL";
         case LEXER_TOKEN_TYPE_LESS:            return "LESS";
@@ -119,11 +112,9 @@ static const char* lexer_token_type_to_string(enum token_type type) {
         case LEXER_TOKEN_TYPE_GREATER:         return "GREATER";
         case LEXER_TOKEN_TYPE_GREATER_EQUAL:   return "GREATER_EQUAL";
 
-        // Mantıksal Operatörler
         case LEXER_TOKEN_TYPE_AND_AND:         return "AND_AND";
         case LEXER_TOKEN_TYPE_OR_OR:           return "OR_OR";
 
-        // Ayraçlar ve Noktalama İşaretleri
         case LEXER_TOKEN_TYPE_LPAREN:          return "LPAREN";
         case LEXER_TOKEN_TYPE_RPAREN:          return "RPAREN";
         case LEXER_TOKEN_TYPE_LBRACE:          return "LBRACE";
@@ -143,11 +134,5 @@ static const char* lexer_token_type_to_string(enum token_type type) {
 
 int lexer_is_double_operator_token(const char *chr);
 
-static inline int lexer_is_type(const char *restrict token){
-    for(int i = 0;i < LEXER_PRIMITIVE_TYPE_COUNT; ++i){
-        if(0 == strcmp(token, language_primitive_types[i])) return LEXER_KEYWORD_COUNT + i;
-    }
-    return -1;
-}
 #endif
 
