@@ -12,6 +12,7 @@ add_executable(HupeyaszihProgrammingLanguage
     src/parser.c
     src/hrs_file_io.c
     src/symbol_table.c
+    src/codegen.c
 )
 
 target_include_directories(HupeyaszihProgrammingLanguage

@@ -16,6 +16,7 @@ enum token_type{
 
     LEXER_TOKEN_TYPE_KEYWORD,
     LEXER_TOKEN_TYPE_VAR,
+    LEXER_TOKEN_TYPE_FN,
 
     LEXER_TOKEN_TYPE_PLUS,         // +
     LEXER_TOKEN_TYPE_MINUS,        // -
@@ -68,7 +69,7 @@ struct lexer_file{
 
 #define LEXER_MAX_KEYWORD_CHAR_LENGHT 10
 
-#define LEXER_KEYWORD_COUNT 5
+#define LEXER_KEYWORD_COUNT 6
 
 extern const char LEXER_DELIM[];
 
@@ -95,7 +96,8 @@ static const char* lexer_token_type_to_string(enum token_type type) {
         case LEXER_TOKEN_TYPE_CHAR_LITERAL:    return "CHAR_LITERAL";
 
         case LEXER_TOKEN_TYPE_KEYWORD:         return "KEYWORD";
-        case LEXER_TOKEN_TYPE_VAR:         return "VAR";
+        case LEXER_TOKEN_TYPE_VAR:             return "VAR";
+        case LEXER_TOKEN_TYPE_FN:              return "FN";
 
         case LEXER_TOKEN_TYPE_PLUS:            return "PLUS";
         case LEXER_TOKEN_TYPE_MINUS:           return "MINUS";

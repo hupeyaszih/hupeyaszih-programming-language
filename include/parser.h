@@ -4,11 +4,6 @@
 #include "lexer.h"
 #include "symbol_table.h"
 
-struct eval_result { // for debugging
-    struct type_info *type;
-    void *raw_data; 
-};
-
 enum parser_node_type {
     PARSER_NODE_EQUAL_EQUAL = 1,
     PARSER_NODE_BANG_EQUAL = 2,
@@ -26,6 +21,9 @@ enum parser_node_type {
     PARSER_NODE_IDENTIFIER,
     PARSER_NODE_VARIABLE_DECLARATION,
     PARSER_NODE_VARIABLE_ASSIGMENT,
+    PARSER_NODE_PARAMETER_LIST,
+    PARSER_NODE_FUNCTION,
+    PARSER_NODE_CALL,
     PARSER_NODE_BLOCK,
     PARSER_NODE_UNDEFINED
 };
@@ -37,19 +35,32 @@ struct parser_node{
 
    union {
        char *variable_name;
-       void *literal_data;
+       char *literal_data;
 
        struct {
            struct parser_node **statements;
            int count;
            struct symbol_table *scope;
        } block;
+
+       struct {
+           char *name;
+           struct parser_node *params;
+           int param_count;
+           struct parser_node *body;
+           struct type_info *return_type;
+       } function;
+
+       struct {
+           char *name;
+           struct parser_node **args;
+           int arg_count;
+       } call;
    } data;
 
    struct type_info *type_info;
 
-   // char* value; // literal or variable name
-   int line; // Line which our node points at (for debugging)
+   int line; 
 };
 
 static inline int is_node_type_operator(struct parser_node *restrict node){
@@ -85,7 +96,10 @@ void parser_parser_add_node(struct parser_t *parser, struct parser_node *node);
 
 int parser_parse(struct parser_t *restrict parser, struct lexer_file *restrict file);
 struct parser_node *parser_parse_statement(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
-struct parser_node *parser_parse_block(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
+struct parser_node *parser_parse_parse_parameters(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
+struct parser_node *parser_parse_function(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
+struct parser_node *parser_parse_call(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor, char *func_name);
+struct parser_node *parser_parse_block(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor, int create_new_scope);
 struct parser_node *parser_parse_variable_declaration(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
 struct parser_node *parser_parse_assignment(struct parser_t *parser, struct lexer_token *tokens, int token_count, int *cursor);
 struct parser_node *parser_parse_boolean_logic(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
@@ -96,5 +110,5 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
 
 int parser_parse_control_depth(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int cursor);
 
-struct eval_result parser_eval(struct parser_node *node, struct type_table *restrict type_table, struct symbol_table *restrict current_scope);  // For testing
+void parser_print_tree(struct parser_node *node, int depth);
 #endif

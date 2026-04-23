@@ -6,205 +6,51 @@
 #include <stdlib.h>
 #include <string.h>
 
+void parser_print_tree(struct parser_node *node, int depth) {
+    if (NULL == node || depth > 20) return; 
 
-struct eval_result parser_eval(struct parser_node *node, struct type_table *restrict type_table, struct symbol_table *restrict current_scope) { // For testing
-    struct eval_result res = {NULL, NULL};
-    if (NULL == node) return res;
-    if (PARSER_NODE_NUMBER == node->type) {
-        res.type = type_table_get_type_info(type_table, "int32");
-
-        res.raw_data = malloc(res.type->size); 
-
-        if (res.raw_data) {
-            int value = atoi(node->data.literal_data);
-            memcpy(res.raw_data, &value, res.type->size);
-        }
-
-        return res;
-    }
-
-    if (PARSER_NODE_IDENTIFIER == node->type) {
-
-        struct symbol_t *sym = symbol_table_look_up(current_scope, node->data.variable_name);
-
-        if (sym) {
-            if (NULL != sym->value) {
-                res.type = sym->type;
-                res.raw_data = malloc(sym->type->size);
-                if (res.raw_data) {
-                    memcpy(res.raw_data, sym->value, sym->type->size);
-                }
-            } else {
-                C_LOG_ERR("Variable '%s' is null", node->data.variable_name);
-            }
-        } else {
-            C_LOG_ERR("Variable '%s' is undefined!", node->data.variable_name);
-        }
-
-        return res; 
-    }
-
-    if (PARSER_NODE_VARIABLE_ASSIGMENT == node->type) {
-        struct eval_result right_res = parser_eval(node->right_node, type_table, current_scope);
-        struct symbol_t *sym = symbol_table_look_up(current_scope, node->data.variable_name);
-
-        if (sym && right_res.raw_data) {
-            symbol_table_assign(sym, right_res.raw_data); 
-        }
-        return right_res; 
-    }
-
-
-    if (PARSER_NODE_BLOCK == node->type) {
-        struct eval_result block_res = {NULL, NULL};
-        for (int i = 0; i < node->data.block.count; i++) {
-            if(block_res.raw_data) free(block_res.raw_data); 
-            block_res = parser_eval(node->data.block.statements[i], type_table, node->data.block.scope);
-        }
-        return block_res;
-    }
-
-
-    if (PARSER_NODE_VARIABLE_DECLARATION == node->type) {
-        struct eval_result right_res = parser_eval(node->right_node, type_table, current_scope);
-
-        if (NULL != right_res.raw_data) {
-            struct symbol_t *sym = symbol_table_look_up(current_scope, node->data.variable_name);
-
-            if (sym) {
-                symbol_table_assign(sym, right_res.raw_data);
-            }else {
-                LOG_M_ERR("Couldn't get the symbol: '%s'", node->data.variable_name);
-            }
-        }
-        return right_res; 
-    }
-
-    if (PARSER_NODE_UNARY_BANG == node->type) {
-        res = parser_eval(node->right_node, type_table, current_scope);
-
-        if (res.raw_data && res.type) {
-            if (0 == strcmp(res.type->name, "int32")) {
-                *(int*)res.raw_data = !(*(int*)res.raw_data);
-            } 
-        }
-        return res;
-    }else if (PARSER_NODE_UNARY_MINUS == node->type) {
-        res = parser_eval(node->right_node, type_table, current_scope);
-
-        if (res.raw_data && res.type) {
-            if (0 == strcmp(res.type->name, "int32")) {
-                *(int*)res.raw_data = -(*(int*)res.raw_data);
-            } else if (0 == strcmp(res.type->name, "float64")) {
-                *(double*)res.raw_data = -(*(double*)res.raw_data);
-            }
-        }
-        return res;
-    }
-
-    struct eval_result left = parser_eval(node->left_node, type_table, current_scope);
-    struct eval_result right = parser_eval(node->right_node, type_table, current_scope);
-
-    if (left.type != right.type) {
-        C_LOG_ERR("Types don't match: %s and %s!", left.type->name, right.type->name);
-        goto exit_parser_eval;
-    }
-
-    res.raw_data = malloc(left.type->size);
-    res.type = left.type;
+    for (int i = 0; i < depth; i++) printf("  ");
 
     switch (node->type) {
-        case PARSER_NODE_PLUS:   
-            if (0 == strcmp(left.type->name, "int32")) {
-                *(int*)res.raw_data = *(int*)left.raw_data + *(int*)right.raw_data;
-            } else if (0 == strcmp(left.type->name, "float64")) {
-                *(double*)res.raw_data = *(double*)left.raw_data + *(double*)right.raw_data;
+        case PARSER_NODE_NUMBER:
+            printf("[Number: %s]\n", node->data.literal_data);
+            break;
+        case PARSER_NODE_CALL:
+            printf("[Call: %s, %d args]\n", node->data.call.name, node->data.call.arg_count);
+            for (int i = 0; i < node->data.call.arg_count; i++) {
+                parser_print_tree(node->data.call.args[i], depth + 1);
             }
-            goto exit_parser_eval;
-        case PARSER_NODE_MINUS:  
-            if (0 == strcmp(left.type->name, "int32")) {
-                *(int*)res.raw_data = *(int*)left.raw_data - *(int*)right.raw_data;
-            } else if (0 == strcmp(left.type->name, "float64")) {
-                *(double*)res.raw_data = *(double*)left.raw_data - *(double*)right.raw_data;
+            break;
+        case PARSER_NODE_IDENTIFIER:
+            printf("[Identifier: %s]\n", node->data.variable_name);
+            break;
+        case PARSER_NODE_VARIABLE_DECLARATION:
+            printf("[Var Decl: %s]\n", node->data.variable_name);
+            if (node->right_node) parser_print_tree(node->right_node, depth + 1);
+            break;
+        case PARSER_NODE_BLOCK:
+            printf("[Block: %d statements]\n", node->data.block.count);
+            for (int i = 0; i < node->data.block.count; i++) {
+                parser_print_tree(node->data.block.statements[i], depth + 1);
             }
-            goto exit_parser_eval;
+            break;
+        case PARSER_NODE_FUNCTION:
+            printf("[Function: %s]\n", node->data.function.name);
+            if (node->data.function.params) parser_print_tree(node->data.function.params, depth + 1);
+            if (node->data.function.body) parser_print_tree(node->data.function.body, depth + 1);
+            break;
+        case PARSER_NODE_PLUS:
+        case PARSER_NODE_MINUS:
         case PARSER_NODE_MUL:
-            if (0 == strcmp(left.type->name, "int32")) {
-                *(int*)res.raw_data = *(int*)left.raw_data * *(int*)right.raw_data;
-            } else if (0 == strcmp(left.type->name, "float64")) {
-                *(double*)res.raw_data = *(double*)left.raw_data * *(double*)right.raw_data;
-            }
-            goto exit_parser_eval;
-        case PARSER_NODE_DIVIDE: 
-            if (0 == strcmp(left.type->name, "int32")) {
-                if(0 == (*(int*)right.raw_data)){
-                    C_LOG_ERR("cannot divide 0 by 0!");
-                    free(res.raw_data);
-                    goto exit_parser_eval;
-                }
-                *(int*)res.raw_data = *(int*)left.raw_data / *(int*)right.raw_data;
-            } else if (0 == strcmp(left.type->name, "float64")) {
-                if(0 == (*(double*)right.raw_data)){
-                    C_LOG_ERR("cannot divide 0.0 by 0.0!");
-                    free(res.raw_data);
-                    goto exit_parser_eval;
-                }
-                *(double*)res.raw_data = *(double*)left.raw_data / *(double*)right.raw_data;
-            }
-            goto exit_parser_eval;
-        case PARSER_NODE_EQUAL_EQUAL: 
-            if (0 == strcmp(left.type->name, "int32")) {
-                *(int*)res.raw_data = *(int*)left.raw_data == *(int*)right.raw_data;
-            } else if (0 == strcmp(left.type->name, "float64")) {
-                *(int*)res.raw_data = *(double*)left.raw_data == *(double*)right.raw_data;
-            }
-            goto exit_parser_eval;
-        case PARSER_NODE_BANG_EQUAL: 
-            if (0 == strcmp(left.type->name, "int32")) {
-                *(int*)res.raw_data = *(int*)left.raw_data != *(int*)right.raw_data;
-            } else if (0 == strcmp(left.type->name, "float64")) {
-                *(int*)res.raw_data = *(double*)left.raw_data != *(double*)right.raw_data;
-            }
-            goto exit_parser_eval;
-        case PARSER_NODE_GREATER_EQUAL: 
-            if (0 == strcmp(left.type->name, "int32")) {
-                *(int*)res.raw_data = *(int*)left.raw_data >= *(int*)right.raw_data;
-            } else if (0 == strcmp(left.type->name, "float64")) {
-                *(int*)res.raw_data = *(double*)left.raw_data >= *(double*)right.raw_data;
-            }
-            goto exit_parser_eval;
-        case PARSER_NODE_LESS_EQUAL: 
-            if (0 == strcmp(left.type->name, "int32")) {
-                *(int*)res.raw_data = *(int*)left.raw_data <= *(int*)right.raw_data;
-            } else if (0 == strcmp(left.type->name, "float64")) {
-                *(int*)res.raw_data = *(double*)left.raw_data <= *(double*)right.raw_data;
-            }
-            goto exit_parser_eval;
-        case PARSER_NODE_GREATER: 
-            if (0 == strcmp(left.type->name, "int32")) {
-                *(int*)res.raw_data = *(int*)left.raw_data > *(int*)right.raw_data;
-            } else if (0 == strcmp(left.type->name, "float64")) {
-                *(int*)res.raw_data = *(double*)left.raw_data > *(double*)right.raw_data;
-            }
-            goto exit_parser_eval;
-        case PARSER_NODE_LESS: 
-            if (0 == strcmp(left.type->name, "int32")) {
-                *(int*)res.raw_data = *(int*)left.raw_data < *(int*)right.raw_data;
-            } else if (0 == strcmp(left.type->name, "float64")) {
-                *(int*)res.raw_data = *(double*)left.raw_data < *(double*)right.raw_data;
-            }
-            goto exit_parser_eval;
+        case PARSER_NODE_DIVIDE:
+            printf("[Binary Op: %d]\n", node->type);
+            if (node->left_node) parser_print_tree(node->left_node, depth + 1);
+            if (node->right_node) parser_print_tree(node->right_node, depth + 1);
+            break;
         default:
-            C_LOG_ERR("parser_eval - UNDEFINED NODE TYPE");
-            free(res.raw_data);
-            goto exit_parser_eval;
+            printf("[Raw Node Type: %d] - Stopping recursion here.\n", node->type);
+            break;
     }
-
-exit_parser_eval:
-    free(left.raw_data);
-    free(right.raw_data);
-    return res;
-
 }
 
 static inline int is_boolean_logic_token(enum token_type type){ // returns token ID 
@@ -276,6 +122,7 @@ static inline struct lexer_token* eat(struct lexer_token *tokens, int token_coun
     if (*cursor >= token_count || tokens[*cursor].type != expected_type) {
         if (*cursor >= token_count) {C_LOG_ERR("unexpected token type on line %d", tokens[*cursor].line);}
         else {C_LOG_ERR("unexpected token type (\"%s\") on line %d", lexer_token_type_to_string(tokens[*cursor].type),tokens[*cursor].line);}
+        (*cursor)++;
         return NULL;
     }
     return &tokens[(*cursor)++];
@@ -312,7 +159,7 @@ struct parser_node *parser_parse_variable_declaration(struct parser_t *restrict 
     char *type_name = NULL;
     if(tokens[*cursor].type == LEXER_TOKEN_TYPE_COLON) {
         eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_COLON);
-        type_name = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER)->token; // int32, float32 vb.
+        type_name = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER)->token; 
     }
 
     struct type_info *type_info = type_table_get_type_info(parser->type_table, type_name);
@@ -321,11 +168,7 @@ struct parser_node *parser_parse_variable_declaration(struct parser_t *restrict 
         return NULL;
     }
 
-    symbol_table_define(parser->current_scope, var_name, type_info);
-    if(tokens[*cursor].type != LEXER_TOKEN_TYPE_EQUAL) {
-        LOG_M_ERR("Expected '=' in variable declaration, line: %d", tokens[*cursor].line);
-        return NULL;
-    }
+    symbol_table_define(parser->current_scope, var_name, type_info, SYMBOL_KIND_VARIABLE);
     eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_EQUAL);
 
     struct parser_node *value_node = parser_parse_boolean_logic(parser, tokens, token_count, cursor);
@@ -339,7 +182,9 @@ struct parser_node *parser_parse_variable_declaration(struct parser_t *restrict 
 
 struct parser_node *parser_parse_statement(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor) {
     if (tokens[*cursor].type == LEXER_TOKEN_TYPE_LBRACE) {
-        return parser_parse_block(parser, tokens, token_count, cursor);
+        return parser_parse_block(parser, tokens, token_count, cursor, 1);
+    }else if(tokens[*cursor].type == LEXER_TOKEN_TYPE_FN){
+        return parser_parse_function(parser, tokens, token_count, cursor);
     }
 
     struct parser_node *node = NULL;
@@ -380,11 +225,145 @@ struct parser_node *parser_parse_assignment(struct parser_t *parser, struct lexe
     
     return node;
 }
+struct parser_node *parser_parse_call(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor, char *func_name) {
+    if(NULL == parser) {LOG_M_ERR("parser_parse_call - \"struct parser_t *restrict parser\" is null"); return NULL;}
+    struct parser_node *call_node = parser_create_node(PARSER_NODE_CALL, tokens[*cursor].line);
+    if(NULL == call_node){
+        LOG_M_ERR("parser_parse_call - \"struct parser_node *call_node\" is null");
+        return NULL;
+    }
+    call_node->data.call.name = strdup(func_name);
 
-struct parser_node *parser_parse_block(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor) {
-    struct parser_node *block_node = parser_create_node(PARSER_NODE_BLOCK, tokens[*cursor].line);
+    eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_LPAREN);
+
+    int capacity = 4;
+    call_node->data.call.args = malloc(sizeof(struct parser_node*) * capacity);
+    call_node->data.call.arg_count = 0;
+
+    while (*cursor < token_count && tokens[*cursor].type != LEXER_TOKEN_TYPE_RPAREN) {
+        if (call_node->data.call.arg_count >= capacity) {
+            capacity *= 2;
+            call_node->data.call.args = realloc(call_node->data.call.args, sizeof(struct parser_node*) * capacity);
+        }
+
+        struct parser_node *arg = parser_parse_boolean_logic(parser, tokens, token_count, cursor);
+        call_node->data.call.args[call_node->data.call.arg_count++] = arg;
+
+        if (tokens[*cursor].type == LEXER_TOKEN_TYPE_COMMA) {
+            eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_COMMA);
+        }
+    }
+
+    eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_RPAREN);
+
+    struct symbol_t *func_sym = symbol_table_look_up(parser->current_scope, func_name);
+    if (func_sym) {
+        call_node->type_info = func_sym->type; 
+    }
+
+    return call_node;
+}
+
+struct parser_node *parser_parse_parameters(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor) {
+    if(NULL == parser) {LOG_M_ERR("parser_parse_parameters - \"struct parser_t *restrict parser\" is null"); return NULL;}
+    struct parser_node *params_node = parser_create_node(PARSER_NODE_BLOCK, tokens[*cursor].line);
+    if(NULL == params_node){
+        LOG_M_ERR("parser_parse_parameters - \"struct parser_node *params_node\" is null");
+        return NULL;
+    }
+    int capacity = 4;
+    params_node->data.block.statements = malloc(sizeof(struct parser_node*) * capacity);
+    params_node->data.block.count = 0;
+
+    while (*cursor < token_count && tokens[*cursor].type != LEXER_TOKEN_TYPE_RPAREN) {
+        struct parser_node *p_node = parser_create_node(PARSER_NODE_VARIABLE_DECLARATION, tokens[*cursor].line);
+        p_node->left_node = NULL;
+        p_node->right_node = NULL;
+
+        p_node->data.variable_name = strdup(tokens[*cursor].token);
+        eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER);
+
+        eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_COLON);
+
+        p_node->type_info = type_table_get_type_info(parser->type_table, tokens[*cursor].token);
+        eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER);
+
+        if (params_node->data.block.count >= capacity) {
+            capacity *= 2;
+            params_node->data.block.statements = realloc(params_node->data.block.statements, sizeof(struct parser_node*) * capacity);
+        }
+        params_node->data.block.statements[params_node->data.block.count++] = p_node;
+
+        if (*cursor < token_count && tokens[*cursor].type == LEXER_TOKEN_TYPE_COMMA) {
+            eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_COMMA);
+            
+            if (tokens[*cursor].type == LEXER_TOKEN_TYPE_RPAREN) {
+                C_LOG_ERR("Trailing comma in parameters is not allowed!");
+                break;
+            }
+        }
+    }
+    return params_node;
+}
+
+struct parser_node *parser_parse_function(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor) {
+    if(NULL == parser) {LOG_M_ERR("parser_parse_function - \"struct parser_t *restrict parser\" is null"); return NULL;}
+    struct parser_node *function_node = parser_create_node(PARSER_NODE_FUNCTION, tokens[*cursor].line);
+    if(NULL == function_node){
+        LOG_M_ERR("parser_parse_function - \"struct parser_node *function_node\" is null");
+        return NULL;
+    }
+
+    eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_FN);
+    char *name = strdup(tokens[*cursor].token); 
+    eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER);
     
-    parser->current_scope = symbol_table_create_symbol_table(parser->current_scope);
+    eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_LPAREN);
+    struct parser_node *parameters = parser_parse_parameters(parser, tokens, token_count, cursor);
+    eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_RPAREN);
+
+    eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_COLON);
+    char *return_type_name = tokens[*cursor].token;
+    struct type_info *ret_type = type_table_get_type_info(parser->type_table, return_type_name);
+    eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER);
+
+    struct symbol_table *body_scope = symbol_table_create_symbol_table(parser->current_scope);
+    
+    for(int i = 0; i < parameters->data.block.count; i++) {
+        struct parser_node *p = parameters->data.block.statements[i];
+        symbol_table_define(body_scope, p->data.variable_name, p->type_info, SYMBOL_KIND_FUNCTION);
+    }
+
+    struct symbol_table *old_scope = parser->current_scope;
+    parser->current_scope = body_scope;
+
+    function_node->data.function.body = parser_parse_block(parser, tokens, token_count, cursor, 0);
+    
+    parser->current_scope = old_scope;
+
+    function_node->data.function.params = parameters;
+    function_node->data.function.name = name;
+    function_node->data.function.return_type = ret_type;
+    function_node->data.function.param_count = parameters->data.block.count;
+
+    for(int i = 0;i < function_node->data.function.param_count; ++i) {
+        printf("param %d - %s\n", i, function_node->data.function.params->data.block.statements[i]->data.variable_name);
+    }
+
+    return function_node;
+}
+
+struct parser_node *parser_parse_block(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor, int create_new_scope) {
+    if(NULL == parser) {LOG_M_ERR("parser_parse_block - \"struct parser_t *restrict parser\" is null"); return NULL;}
+    struct parser_node *block_node = parser_create_node(PARSER_NODE_BLOCK, tokens[*cursor].line);
+    if(NULL == block_node){
+        LOG_M_ERR("parser_parse_block - \"struct parser_node *block_node\" is null");
+        return NULL;
+    }
+    
+    if(1 == create_new_scope) {
+        parser->current_scope = symbol_table_create_symbol_table(parser->current_scope);
+    }
     block_node->data.block.scope = parser->current_scope;
 
     eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_LBRACE);
@@ -397,7 +376,6 @@ struct parser_node *parser_parse_block(struct parser_t *restrict parser, struct 
         struct parser_node *stmt = parser_parse_statement(parser, tokens, token_count, cursor);
         if (stmt) {
             if (block_node->data.block.count >= capacity) {
-                printf("yep\n");
                 capacity *= 2;
                 block_node->data.block.statements = realloc(block_node->data.block.statements, sizeof(struct parser_node*) * capacity);
             }
@@ -409,7 +387,9 @@ struct parser_node *parser_parse_block(struct parser_t *restrict parser, struct 
         C_LOG_ERR("expected '}' on line: %d", tokens[*cursor].line);
     }
 
-    parser->current_scope = parser->current_scope->parent;
+    if(1 == create_new_scope){
+        parser->current_scope = parser->current_scope->parent;
+    }
 
     return block_node;
 }
@@ -523,6 +503,11 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
         }
         return node;
     }else if(LEXER_TOKEN_TYPE_IDENTIFIER == tokens[*cursor].type){
+        if((*cursor)+1 < token_count && tokens[(*cursor)+1].type == LEXER_TOKEN_TYPE_LPAREN) {
+            char *name_to_pass = tokens[*cursor].token;
+            eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER);
+            return parser_parse_call(parser, tokens, token_count, cursor, name_to_pass);
+        }
         struct parser_node *node = parser_create_node(PARSER_NODE_IDENTIFIER, tokens[*cursor].line);
         struct lexer_token *t = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER);
 
@@ -547,6 +532,7 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
         return node;
     }else {
         C_LOG_ERR("parser_parse_factor - current token (%s) is not literal or identifier (unexpected token), line: %d", tokens[*cursor].token ,tokens[*cursor].line);
+        (*cursor)++;
         return NULL;
     }
     return NULL;

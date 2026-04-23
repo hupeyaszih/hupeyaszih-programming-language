@@ -37,10 +37,6 @@ struct symbol_t{
     enum symbol_kind kind;
     struct type_info *type;
 
-    // For Interpreter
-    void *value;
-
-    // For Compiler
     int stack_offset;
 };
 
@@ -49,15 +45,17 @@ struct symbol_table{
     int symbol_count;
     int symbol_capacity;
     int scope_level;
+    int total_stack_size;
+    int current_total_offset;
 
     struct symbol_table *parent;
 };
 
 struct symbol_table *symbol_table_create_symbol_table(struct symbol_table *restrict parent);
 
-struct symbol_t *symbol_table_define(struct symbol_table *restrict table, char *restrict name, struct type_info *restrict type);
+struct symbol_t *symbol_table_define(struct symbol_table *restrict table, char *restrict name, struct type_info *restrict type, enum symbol_kind kind);
 
-void symbol_table_assign(struct symbol_t *restrict symbol, void *data);
+void symbol_table_assign(struct symbol_t *restrict symbol, int *current_stack_offset);
 struct symbol_t* symbol_table_look_up(const struct symbol_table *table, const char *name);
 
 

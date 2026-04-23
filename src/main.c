@@ -1,5 +1,7 @@
 #include "main.h"
+#include "codegen.h"
 #include "hrs_file_io.h"
+#include "parser.h"
 #include "symbol_table.h"
 #include <stdio.h>
 
@@ -25,18 +27,15 @@ int main() {
     struct lexer_file *file_2 = lexer_test(parser, input);
 
 
+    struct codegen_t *codegen = codegen_create_codegen(parser, "build/testing.asm");
+    codegen_generate(codegen, parser, global_scope);
 
-    for(int i = 0; i < parser->node_count; ++i){
-        struct eval_result res = parser_eval(parser->nodes[i], type_table, global_scope);
-        if(NULL != res.type) {
-            if(0 == strcmp(res.type->name, "int32")){
-                C_LOG_OK("Result: %d", *(int*)res.raw_data);
-            }
-            if(res.raw_data) free(res.raw_data);
-        }
-    }
+    // for(int i = 0; i < parser->node_count; ++i){
+    //     parser_print_tree(parser->nodes[i], parser->current_scope->scope_level);
+    // }
 
     // Free
+    codegen_delete_codegen(codegen);
     symbol_table_delete_symbol_table(&global_scope);
     type_table_delete_type_table(&type_table);
     parser_delete_parser(&parser);

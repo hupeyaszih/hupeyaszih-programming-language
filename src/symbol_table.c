@@ -12,10 +12,12 @@ struct symbol_table *symbol_table_create_symbol_table(struct symbol_table *restr
     table->symbol_count = 0;
     table->parent = parent;
     table->scope_level = (parent == NULL) ? 0 : parent->scope_level + 1;
+    table->total_stack_size = 0;
+    table->current_total_offset = 0;
     return table;
 }
 
-struct symbol_t *symbol_table_define(struct symbol_table *restrict table, char *restrict name, struct type_info *restrict type){
+struct symbol_t *symbol_table_define(struct symbol_table *restrict table, char *restrict name, struct type_info *restrict type, enum symbol_kind kind){
     if(NULL == table){
         LOG_M_ERR("symbol_table_define - \"struct symbol_table *restrict table\" is null");
         return NULL;
@@ -48,21 +50,9 @@ struct symbol_t *symbol_table_define(struct symbol_table *restrict table, char *
     struct symbol_t *s = &table->symbols[table->symbol_count++];
     s->name = strdup(name);
     s->type = type;
-    // stack_offset hesaplaması burada yapılabilir (size_t size kullanarak)
-    return s;
-}
+    s->kind = kind;
 
-void symbol_table_assign(struct symbol_t *restrict symbol, void *data){
-    if(NULL == symbol){
-        C_LOG_ERR("Cannot assign data to undeclared variable");
-    }
-    if(NULL == data) {
-        C_LOG_ERR("the data that you want to assign to \"%s\" is null", symbol->name);
-    }
-    if (symbol->value == NULL) {
-        symbol->value = malloc(symbol->type->size);
-    }
-    memcpy(symbol->value, data, symbol->type->size);
+    return s;
 }
 
 struct symbol_t* symbol_table_look_up(const struct symbol_table *table, const char *name) {
