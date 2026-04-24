@@ -1,6 +1,6 @@
-// fn test(x:int32): int32 {
-//    x;
-// }
+fn calc_area(x:int32, y:int32): int32 {
+   x*y;
+}
 
 fn main(): int32 {
     var x: int32 = 10;
@@ -15,6 +15,6 @@ fn main(): int32 {
 
     var res:int32 = x + y + z + 5;
     res;
-    // var ress:int32 = test(10);
-    // ress;
+    var ress:int32 = calc_area(res, 5);
+    ress;
 }

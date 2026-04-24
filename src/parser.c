@@ -303,6 +303,7 @@ struct parser_node *parser_parse_parameters(struct parser_t *restrict parser, st
             }
         }
     }
+
     return params_node;
 }
 
@@ -331,7 +332,7 @@ struct parser_node *parser_parse_function(struct parser_t *restrict parser, stru
     
     for(int i = 0; i < parameters->data.block.count; i++) {
         struct parser_node *p = parameters->data.block.statements[i];
-        symbol_table_define(body_scope, p->data.variable_name, p->type_info, SYMBOL_KIND_FUNCTION);
+        symbol_table_define(body_scope, p->data.variable_name, p->type_info, SYMBOL_KIND_VARIABLE);
     }
 
     struct symbol_table *old_scope = parser->current_scope;
@@ -345,10 +346,6 @@ struct parser_node *parser_parse_function(struct parser_t *restrict parser, stru
     function_node->data.function.name = name;
     function_node->data.function.return_type = ret_type;
     function_node->data.function.param_count = parameters->data.block.count;
-
-    for(int i = 0;i < function_node->data.function.param_count; ++i) {
-        printf("param %d - %s\n", i, function_node->data.function.params->data.block.statements[i]->data.variable_name);
-    }
 
     return function_node;
 }
