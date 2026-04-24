@@ -15,6 +15,7 @@ struct codegen_t{
     struct parser_t *parser;
     struct pending_function_t *pending_functions;
     int pending_function_count;
+    int pending_function_capacity;
     int label_count;
     int function_depth;
     char *current_processing_function_name;

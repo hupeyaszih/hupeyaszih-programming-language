@@ -6,6 +6,9 @@ fn calc_area(x:int32, y:int32): int32 {
    fn is_greater_than_zero(y:int32):int32{
        y>0;
    }
+   fn issss_greater_than_zero(y:int32):int32{
+       y>0;
+   }
    x * is_greater_than_zero(x) * y * is_greater_than_zero(y);
 }
 
