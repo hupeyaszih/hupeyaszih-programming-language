@@ -8,7 +8,7 @@
 
 const char LEXER_DELIM[] = " \t\r\n";
 
-const char language_keywords[LEXER_KEYWORD_COUNT][LEXER_MAX_KEYWORD_CHAR_LENGHT] = {"return", "fn", "var", "for", "while", "loop"};
+const char language_keywords[LEXER_KEYWORD_COUNT][LEXER_MAX_KEYWORD_CHAR_LENGHT] = {"fn", "var", "loop", "break", "continue"};
 
 
 static inline enum token_type get_keyword_type(const char *chr){

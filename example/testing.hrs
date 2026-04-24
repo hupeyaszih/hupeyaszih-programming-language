@@ -1,5 +1,12 @@
+fn is_greater_than_zero(y:int32):int32{ //fake (for debugging)
+    8392;
+}
+
 fn calc_area(x:int32, y:int32): int32 {
-   x*y;
+   fn is_greater_than_zero(y:int32):int32{
+       y>0;
+   }
+   x * is_greater_than_zero(x) * y * is_greater_than_zero(y);
 }
 
 fn main(): int32 {
@@ -12,6 +19,7 @@ fn main(): int32 {
     }
 
     var z: int32 = !(-(100 > 10)); 
+
 
     var res:int32 = x + y + z + 5;
     res;

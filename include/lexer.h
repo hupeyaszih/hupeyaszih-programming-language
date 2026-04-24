@@ -69,7 +69,7 @@ struct lexer_file{
 
 #define LEXER_MAX_KEYWORD_CHAR_LENGHT 10
 
-#define LEXER_KEYWORD_COUNT 6
+#define LEXER_KEYWORD_COUNT 5
 
 extern const char LEXER_DELIM[];
 

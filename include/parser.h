@@ -45,6 +45,7 @@ struct parser_node{
 
        struct {
            char *name;
+           char *mangled_name;
            struct parser_node *params;
            int param_count;
            struct parser_node *body;

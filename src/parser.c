@@ -344,9 +344,11 @@ struct parser_node *parser_parse_function(struct parser_t *restrict parser, stru
 
     function_node->data.function.params = parameters;
     function_node->data.function.name = name;
+    function_node->data.function.mangled_name = name;
     function_node->data.function.return_type = ret_type;
     function_node->data.function.param_count = parameters->data.block.count;
 
+    symbol_table_define(parser->current_scope, function_node->data.function.name, type_table_get_type_info(parser->type_table, "fn"), SYMBOL_KIND_FUNCTION);
     return function_node;
 }
 

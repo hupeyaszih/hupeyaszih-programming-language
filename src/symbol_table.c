@@ -49,8 +49,10 @@ struct symbol_t *symbol_table_define(struct symbol_table *restrict table, char *
     
     struct symbol_t *s = &table->symbols[table->symbol_count++];
     s->name = strdup(name);
+    s->mangled_name = strdup(name);
     s->type = type;
     s->kind = kind;
+
 
     return s;
 }

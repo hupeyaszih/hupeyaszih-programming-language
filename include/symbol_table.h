@@ -34,6 +34,7 @@ struct type_table{
 
 struct symbol_t{
     char *name;
+    char *mangled_name;
     enum symbol_kind kind;
     struct type_info *type;
 
@@ -74,7 +75,8 @@ static inline void type_table_init_builtins(struct type_table *table) {
     type_table_insert(table, type_table_create_type_info("int32", TYPE_CATEGORY_BASIC, 4, NULL));
     type_table_insert(table, type_table_create_type_info("float64", TYPE_CATEGORY_BASIC, 8, NULL));
     type_table_insert(table, type_table_create_type_info("bool", TYPE_CATEGORY_BASIC, 1, NULL));
-    // type_table_insert(table, type_table_create_type_info("string", TYPE_CATEGORY_POINTER, 8, NULL)); //Pointers are not available
+    type_table_insert(table, type_table_create_type_info("fn", TYPE_CATEGORY_BASIC, 8, NULL));
+    // type_table_insert(table, type_table_create_type_info("string", TYPE_CATEGORY_BASIC, 8, NULL)); //Pointers are not available
 }
 
 #endif
