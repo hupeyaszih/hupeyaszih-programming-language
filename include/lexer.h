@@ -1,8 +1,6 @@
 #ifndef LEXER_H
 #define LEXER_H
 
-#include <string.h>
-
 enum token_type{
     LEXER_TOKEN_TYPE_EOF = 0,
     LEXER_TOKEN_TYPE_ERROR,

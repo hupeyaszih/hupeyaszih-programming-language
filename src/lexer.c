@@ -185,7 +185,10 @@ void lexer_delete_lexer_file(struct lexer_file *restrict file){
    if (!file) return;
    if (file->tokens) {
        for (int i = 0; i < file->token_count; i++) {
-           free(file->tokens[i].token);
+           if (file->tokens[i].token != NULL) {
+               free(file->tokens[i].token);
+               file->tokens[i].token = NULL; 
+           }
        }
        free(file->tokens);
    }

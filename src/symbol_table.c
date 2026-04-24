@@ -92,6 +92,8 @@ void type_table_delete_type_table(struct type_table **table){
         type_table_delete_type_info(&(*table)->types[i]);
     }
     free((*table)->types);
+    (*table)->types = NULL;
+    free((*table));
     (*table) = NULL;
 }
 
@@ -127,6 +129,7 @@ void symbol_table_delete_symbol_table(struct symbol_table **table){
     }
     for (int i = 0; i < (*table)->symbol_count; i++) {
         free((*table)->symbols[i].name);
+        free((*table)->symbols[i].mangled_name);
     }
     free((*table)->symbols);
     free(*table);

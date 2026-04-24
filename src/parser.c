@@ -69,39 +69,77 @@ static inline int is_boolean_logic_token(enum token_type type){ // returns token
 }
 
 struct parser_t *parser_create_parser(){
-    struct parser_t *parser = malloc(sizeof(struct parser_t));
+    struct parser_t *parser = calloc(1, sizeof(struct parser_t));
     if(!parser) {C_LOG_ERR("parser_create_parser - couldn't create parser"); free(parser); return NULL;}
     parser->node_count = 0;
-    parser->nodes = NULL;
-    parser->current_scope = NULL;
 
     return parser;
 }
 void parser_delete_parser(struct parser_t **parser){
     if(NULL == parser || NULL == *parser) {C_LOG_ERR("parser_delete_parser - \"struct parser_t **parser\" or \"*parser\" is null"); return;}
+    for (int i = 0; i < (*parser)->node_count; i++) {
+        if ((*parser)->nodes[i]) {
+            parser_delete_node(&((*parser)->nodes[i]));
+        }
+    }
     free((*parser)->nodes);
     free((*parser));
     *parser = NULL;
 }
 
 struct parser_node *parser_create_node(enum parser_node_type type, int line){
-    struct parser_node *node = malloc(sizeof(struct parser_node));
+    struct parser_node *node = calloc(1, sizeof(struct parser_node));
     node->type = type;
     node->line = line;
 
     return node;
 }
-void parser_delete_node(struct parser_node **node){
-    if(NULL == node || NULL == (*node)) {LOG_M_ERR("parser_delete_node - \"struct parser_node *node\" is null"); return;}
-    if((*node)->left_node) parser_delete_node(&((*node)->left_node));
-    if((*node)->right_node) parser_delete_node(&((*node)->right_node));
-    if ((*node)->type == PARSER_NODE_BLOCK) {
-        if ((*node)->data.block.scope) {
-            symbol_table_delete_symbol_table(&((*node)->data.block.scope));
-        }
+void parser_delete_node(struct parser_node **node) {
+    if (NULL == node || NULL == (*node)) return;
+
+    if ((*node)->left_node) parser_delete_node(&((*node)->left_node));
+    if ((*node)->right_node) parser_delete_node(&((*node)->right_node));
+
+    switch ((*node)->type) {
+        case PARSER_NODE_BLOCK:
+            for (int i = 0; i < (*node)->data.block.count; i++) {
+                parser_delete_node(&((*node)->data.block.statements[i]));
+            }
+            free((*node)->data.block.statements);
+            if ((*node)->data.block.scope) {
+                symbol_table_delete_symbol_table(&((*node)->data.block.scope));
+            }
+            break;
+
+        case PARSER_NODE_FUNCTION:
+            free((*node)->data.function.name);
+            free((*node)->data.function.mangled_name);
+            if ((*node)->data.function.params) {
+                parser_delete_node(&((*node)->data.function.params));
+            }
+            if ((*node)->data.function.body) {
+                parser_delete_node(&((*node)->data.function.body));
+            }
+            break;
+            
+        case PARSER_NODE_CALL:
+            free((*node)->data.call.name);
+            for (int i = 0; i < (*node)->data.call.arg_count; i++) {
+                parser_delete_node(&((*node)->data.call.args[i]));
+            }
+            free((*node)->data.call.args);
+            break;
+        case PARSER_NODE_VARIABLE_DECLARATION:
+            if ((*node)->data.variable_name != NULL) {
+                free((*node)->data.variable_name);
+                (*node)->data.variable_name = NULL; 
+            }
+
+
+        default: break;
     }
 
-    free((*node));
+    free(*node);
     *node = NULL;
 }
 
@@ -173,7 +211,7 @@ struct parser_node *parser_parse_variable_declaration(struct parser_t *restrict 
 
     struct parser_node *value_node = parser_parse_boolean_logic(parser, tokens, token_count, cursor);
     struct parser_node *decl_node = parser_create_node(PARSER_NODE_VARIABLE_DECLARATION, name_token.line);
-    decl_node->data.variable_name = var_name;
+    decl_node->data.variable_name = strdup(var_name);
     
     decl_node->right_node = value_node; 
 
@@ -316,7 +354,7 @@ struct parser_node *parser_parse_function(struct parser_t *restrict parser, stru
     }
 
     eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_FN);
-    char *name = strdup(tokens[*cursor].token); 
+    char *name = tokens[*cursor].token; 
     eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER);
     
     eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_LPAREN);
@@ -343,8 +381,8 @@ struct parser_node *parser_parse_function(struct parser_t *restrict parser, stru
     parser->current_scope = old_scope;
 
     function_node->data.function.params = parameters;
-    function_node->data.function.name = name;
-    function_node->data.function.mangled_name = name;
+    function_node->data.function.name = strdup(name);
+    function_node->data.function.mangled_name = strdup(name);
     function_node->data.function.return_type = ret_type;
     function_node->data.function.param_count = parameters->data.block.count;
 

@@ -4,6 +4,7 @@
 #include "parser.h"
 #include "symbol_table.h"
 #include <stdio.h>
+#include <stdlib.h>
 
 int main() {
     LOG_M_INFO("The compiler uses \"{}\" for internal compiler logs and \"[]\" for user-facing output");
@@ -36,10 +37,11 @@ int main() {
 
     // Free
     codegen_delete_codegen(codegen);
+    parser_delete_parser(&parser);
     symbol_table_delete_symbol_table(&global_scope);
     type_table_delete_type_table(&type_table);
-    parser_delete_parser(&parser);
     lexer_delete_lexer_file(file_2);
+    free(input);
 
     return 0;
 }
