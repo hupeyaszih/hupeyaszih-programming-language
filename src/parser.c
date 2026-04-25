@@ -160,7 +160,7 @@ void parser_parser_add_node(struct parser_t *parser, struct parser_node *node){
 static inline struct lexer_token* eat(struct lexer_token *tokens, int token_count, int *cursor, enum token_type expected_type) {
     if (*cursor >= token_count || tokens[*cursor].type != expected_type) {
         if (*cursor >= token_count) {C_LOG_ERR("unexpected token type on line %d", tokens[*cursor].line);}
-        else {C_LOG_ERR("unexpected token type (\"%s\") on line %d", lexer_token_type_to_string(tokens[*cursor].type),tokens[*cursor].line);}
+        else {C_LOG_ERR("expected token type (\"%s\") instead of token type (\"%s\") on line %d", lexer_token_type_to_string(expected_type) ,lexer_token_type_to_string(tokens[*cursor].type),tokens[*cursor].line);}
         (*cursor)++;
         return NULL;
     }
@@ -569,7 +569,7 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
 
         return node;
     }else {
-        C_LOG_ERR("parser_parse_factor - current token (%s) is not literal or identifier (unexpected token), line: %d", tokens[*cursor].token ,tokens[*cursor].line);
+        LOG_M_ERR("parser_parse_factor - current token (%s) is not literal or identifier (unexpected token), line: %d", tokens[*cursor].token ,tokens[*cursor].line);
         (*cursor)++;
         return NULL;
     }

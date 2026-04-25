@@ -1,43 +1,55 @@
-fn is_greater_than_zero(y:int32):int32{ //fake (for debugging)
-    8392;
+// Hupeyaszih Programming Language (.hrs)
+
+fn check_logic(a: int32, b: int32, c: int32): int32 {
+    var r1: int32 = (a > b) * (b > c);
+    var r2: int32 = (c > a) + (a == b);
+    r1 + r2;
 }
 
-fn calc_area(x:int32, y:int32): int32 {
-   fn is_greater_than_zero(y:int32):int32{
-       y>0;
-   }
-   {
-       fn is_greater_than_zero(y:int32):int32{
-           254;
-       }
-
-       is_greater_than_zero(x);
-   }
-   {
-       fn is_greater_than_zero(y:int32):int32{
-           111;
-       }
-
-       is_greater_than_zero(x);
-   }
-
-   x * is_greater_than_zero(x) * y * is_greater_than_zero(y);
+fn math_crusher(n: int32): int32 {
+    var x: int32 = n * 2;
+    
+    fn layer_1(p: int32): int32 {
+        var x: int32 = p + 5;
+        
+        fn layer_2(q: int32): int32 {
+            var x: int32 = q * 3;
+            
+            fn layer_3(r: int32): int32 {
+                var val: int32 = r + 10;
+                val;
+            }
+            
+            layer_3(x) + x;
+        }
+        
+        layer_2(x) * x;
+    }
+    
+    layer_1(x) - n;
 }
 
 fn main(): int32 {
-    var x: int32 = 10;
-    var y: int32 = 2;
+    var v1: int32 = 1;
+    var v2: int32 = 2;
+    var v3: int32 = 3;
+    var v4: int32 = 4;
+    var v5: int32 = 5;
     
     {
-        var x: int32 = 50; 
-        y = (x / 2) + !0; 
+        var v1: int32 = 10;
+        {
+            var v1: int32 = 100;
+            {
+                var v1: int32 = 1000;
+                v1 = v1 + v2 + v3 + v4 + v5;
+            }
+            v1 = v1 + v2;
+        }
+        v1 = v1 + v3;
     }
 
-    var z: int32 = !(-(100 > 10)); 
-
-
-    var res:int32 = x + y + z + 5;
-    res;
-    var ress:int32 = calc_area(res, 5);
-    ress;
+    var result: int32 = math_crusher(v5) + check_logic(v1, v2, v3);
+    
+    result / 10; 
 }

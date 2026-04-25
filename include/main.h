@@ -6,8 +6,8 @@
 #include "parser.h"
 #include <stdlib.h>
 
-static inline struct lexer_file *lexer_test(struct parser_t *restrict parser, char fl[]){
-    C_LOG("file: \n==========\n%s%s", fl, "==========");
+static inline struct lexer_file *lexer_test(struct parser_t *restrict parser, char fl[], int *parser_error){
+    // C_LOG("file: \n==========\n%s%s", fl, "==========");
 
     LOG_M("Lexer started...");
     struct lexer_file *file = malloc(sizeof(struct lexer_file));
@@ -23,8 +23,10 @@ static inline struct lexer_file *lexer_test(struct parser_t *restrict parser, ch
     int result = parser_parse(parser, file);
     if(result){
         C_LOG_OK("Parser finished successfully");
+        (*parser_error) = 0;
     }else {
         C_LOG_ERR("Parser failed");
+        (*parser_error) = 1;
     }
 
     return file;

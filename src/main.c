@@ -25,11 +25,14 @@ int main() {
     parser->current_scope = global_scope;
 
     char *input = hrs_file_io_read_file("../example/testing.hrs");
-    struct lexer_file *file_2 = lexer_test(parser, input);
+    int parser_error = 0;
+    struct lexer_file *file_2 = lexer_test(parser, input, &parser_error);
 
 
     struct codegen_t *codegen = codegen_create_codegen(parser, "build/testing.asm");
-    codegen_generate(codegen, parser, global_scope);
+    if(parser_error == 0){
+        codegen_generate(codegen, parser, global_scope);
+    }
 
     // for(int i = 0; i < parser->node_count; ++i){
     //     parser_print_tree(parser->nodes[i], parser->current_scope->scope_level);
