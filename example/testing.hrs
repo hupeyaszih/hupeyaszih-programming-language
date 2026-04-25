@@ -1,55 +1,26 @@
 // Hupeyaszih Programming Language (.hrs)
 
-fn check_logic(a: int32, b: int32, c: int32): int32 {
-    var r1: int32 = (a > b) * (b > c);
-    var r2: int32 = (c > a) + (a == b);
-    r1 + r2;
-}
-
-fn math_crusher(n: int32): int32 {
-    var x: int32 = n * 2;
+fn analyze_range(val: int32, min: int32, max: int32): int32 {
+    var is_inside: int32 = (val > min - 1) * (max > val - 1);
     
-    fn layer_1(p: int32): int32 {
-        var x: int32 = p + 5;
-        
-        fn layer_2(q: int32): int32 {
-            var x: int32 = q * 3;
-            
-            fn layer_3(r: int32): int32 {
-                var val: int32 = r + 10;
-                val;
-            }
-            
-            layer_3(x) + x;
-        }
-        
-        layer_2(x) * x;
+    fn compute_power(v: int32): int32 {
+        var base: int32 = v * v;
+        base + 10;
     }
-    
-    layer_1(x) - n;
+
+    is_inside * compute_power(val);
 }
 
 fn main(): int32 {
-    var v1: int32 = 1;
-    var v2: int32 = 2;
-    var v3: int32 = 3;
-    var v4: int32 = 4;
-    var v5: int32 = 5;
-    
-    {
-        var v1: int32 = 10;
-        {
-            var v1: int32 = 100;
-            {
-                var v1: int32 = 1000;
-                v1 = v1 + v2 + v3 + v4 + v5;
-            }
-            v1 = v1 + v2;
-        }
-        v1 = v1 + v3;
-    }
+    var target: int32 = 42;
+    var low: int32 = 10;
+    var high: int32 = 50;
 
-    var result: int32 = math_crusher(v5) + check_logic(v1, v2, v3);
+    var result1: int32 = analyze_range(target, low, high);
+
+    var result2: int32 = analyze_range(5, low, high);
+
+    var final_score: int32 = (result1 + result2) / 10;
     
-    result / 10; 
+    final_score; 
 }

@@ -104,6 +104,7 @@ void codegen_pre_codegen_analysis(struct parser_node *node, struct symbol_table 
             break;
         }
         case PARSER_NODE_FUNCTION: {
+            if(NULL == node->data.function.return_type) return;
             codegen_pre_codegen_analysis(node->data.function.body, node->data.function.body->data.block.scope);
             break;
         }
@@ -121,6 +122,7 @@ void codegen_visit_node(struct codegen_t *restrict codegen, struct parser_node *
             fprintf(codegen->output_file, "    mov rax, %s\n", node->data.literal_data);
             break;
         case PARSER_NODE_FUNCTION:{
+            if(NULL == node->data.function.return_type) return;
             char *new_mangled_name = node->data.function.name;
             if(flush_mode == 0){
                 new_mangled_name = generate_mangled_function_name(codegen, node->data.function.name, codegen->current_scope->scope_id);
@@ -182,6 +184,7 @@ void codegen_visit_node(struct codegen_t *restrict codegen, struct parser_node *
             break;
         }
         case PARSER_NODE_CALL: {
+            if(NULL == node->type_info) return;
             const char *arg_regs[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
             int arg_count = node->data.call.arg_count;
 
@@ -208,6 +211,7 @@ void codegen_visit_node(struct codegen_t *restrict codegen, struct parser_node *
             fprintf(codegen->output_file, "    mov [rbp-%d], rax\n", symbol_table_look_up(codegen->current_scope, node->data.variable_name)->stack_offset);
             break;
         case PARSER_NODE_VARIABLE_ASSIGMENT:
+            if(NULL == node->data.variable_name) return;
             if(node->right_node) codegen_visit_node(codegen, node->right_node, global_scope, 0);
             fprintf(codegen->output_file, "    mov [rbp-%d], rax\n", symbol_table_look_up(codegen->current_scope, node->data.variable_name)->stack_offset);
             break;

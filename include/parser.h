@@ -86,6 +86,7 @@ struct parser_t{
     struct type_table *type_table;
     int node_count;
     int scope_counter;
+    int successfull;
 };
 
 struct parser_t *parser_create_parser();
