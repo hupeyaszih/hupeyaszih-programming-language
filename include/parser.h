@@ -83,6 +83,7 @@ static inline int is_node_type_operator(struct parser_node *restrict node){
 struct parser_t{
     struct parser_node **nodes;
     int node_count;
+    int scope_counter;
     struct symbol_table *current_scope;
     struct type_table *type_table;
 };

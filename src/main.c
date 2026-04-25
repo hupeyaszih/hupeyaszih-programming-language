@@ -13,14 +13,14 @@ int main() {
     C_LOG_INFO("To enable internal compiler logs, define \"DEBUG\" in globals.h");
 #endif
 
-    // Symbol Table & Type Table
-    struct symbol_table *global_scope = symbol_table_create_symbol_table(NULL);
+    struct parser_t *parser = parser_create_parser();
+
+    struct symbol_table *global_scope = symbol_table_create_symbol_table(NULL, &parser->scope_counter);
     struct type_table *type_table = type_table_create_type_table();
     type_table_init_builtins(type_table);
 
 
     // Lexer & Parser
-    struct parser_t *parser = parser_create_parser();
     parser->type_table = type_table;
     parser->current_scope = global_scope;
 

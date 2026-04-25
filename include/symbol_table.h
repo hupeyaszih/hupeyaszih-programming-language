@@ -48,11 +48,13 @@ struct symbol_table{
     int scope_level;
     int total_stack_size;
     int current_total_offset;
+    int scope_id;
 
     struct symbol_table *parent;
 };
 
-struct symbol_table *symbol_table_create_symbol_table(struct symbol_table *restrict parent);
+// struct symbol_table *symbol_table_create_symbol_table(struct symbol_table *restrict parent);
+struct symbol_table *symbol_table_create_symbol_table(struct symbol_table *restrict parent, int *global_scope_counter);
 
 struct symbol_t *symbol_table_define(struct symbol_table *restrict table, char *restrict name, struct type_info *restrict type, enum symbol_kind kind);
 

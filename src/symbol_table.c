@@ -5,7 +5,7 @@
 #include <string.h>
 
 
-struct symbol_table *symbol_table_create_symbol_table(struct symbol_table *restrict parent){
+struct symbol_table *symbol_table_create_symbol_table(struct symbol_table *restrict parent, int *global_scope_counter){
     struct symbol_table *table = malloc(sizeof(struct symbol_table));
     table->symbol_capacity = 16;
     table->symbols = malloc(sizeof(struct symbol_t) * table->symbol_capacity);
@@ -14,6 +14,7 @@ struct symbol_table *symbol_table_create_symbol_table(struct symbol_table *restr
     table->scope_level = (parent == NULL) ? 0 : parent->scope_level + 1;
     table->total_stack_size = 0;
     table->current_total_offset = 0;
+    table->scope_id = (*global_scope_counter)++;
     return table;
 }
 

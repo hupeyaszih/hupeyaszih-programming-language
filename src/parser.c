@@ -72,6 +72,7 @@ struct parser_t *parser_create_parser(){
     struct parser_t *parser = calloc(1, sizeof(struct parser_t));
     if(!parser) {C_LOG_ERR("parser_create_parser - couldn't create parser"); free(parser); return NULL;}
     parser->node_count = 0;
+    parser->scope_counter = 0;
 
     return parser;
 }
@@ -366,7 +367,7 @@ struct parser_node *parser_parse_function(struct parser_t *restrict parser, stru
     struct type_info *ret_type = type_table_get_type_info(parser->type_table, return_type_name);
     eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER);
 
-    struct symbol_table *body_scope = symbol_table_create_symbol_table(parser->current_scope);
+    struct symbol_table *body_scope = symbol_table_create_symbol_table(parser->current_scope, &parser->scope_counter);
     
     for(int i = 0; i < parameters->data.block.count; i++) {
         struct parser_node *p = parameters->data.block.statements[i];
@@ -399,7 +400,7 @@ struct parser_node *parser_parse_block(struct parser_t *restrict parser, struct 
     }
     
     if(1 == create_new_scope) {
-        parser->current_scope = symbol_table_create_symbol_table(parser->current_scope);
+        parser->current_scope = symbol_table_create_symbol_table(parser->current_scope, &parser->scope_counter);
     }
     block_node->data.block.scope = parser->current_scope;
 

@@ -22,14 +22,14 @@ static inline void add_pending_function(struct codegen_t *codegen, struct parser
     codegen->pending_function_count++;
 }
 
-static inline char *generate_mangled_function_name(struct codegen_t *codegen, char *original_name) {
+static inline char *generate_mangled_function_name(struct codegen_t *codegen, char *original_name, int scope_id) {
     if (codegen->function_depth > 0 && codegen->current_processing_function_name) {
-        
-        size_t new_len = strlen(codegen->current_processing_function_name) + strlen(original_name) + 2;
-        char *mangled_name = malloc(new_len);
-        
+        int required_len = snprintf(NULL, 0, "%s_%s_S_%d", codegen->current_processing_function_name, original_name, scope_id);
+
+        char *mangled_name = malloc(required_len + 1);
+
         if (mangled_name) {
-            sprintf(mangled_name, "%s_%s", codegen->current_processing_function_name, original_name);
+            sprintf(mangled_name, "%s_%s_S_%d", codegen->current_processing_function_name, original_name, scope_id);
             return mangled_name;
         }
     }
@@ -123,7 +123,7 @@ void codegen_visit_node(struct codegen_t *restrict codegen, struct parser_node *
         case PARSER_NODE_FUNCTION:{
             char *new_mangled_name = node->data.function.name;
             if(flush_mode == 0){
-                new_mangled_name = generate_mangled_function_name(codegen, node->data.function.name);
+                new_mangled_name = generate_mangled_function_name(codegen, node->data.function.name, codegen->current_scope->scope_id);
                 free(node->data.function.mangled_name);
                 node->data.function.mangled_name = new_mangled_name;
                 struct symbol_t *func_sym = symbol_table_look_up(codegen->current_scope, node->data.function.name);
