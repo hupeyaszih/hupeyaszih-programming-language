@@ -73,6 +73,7 @@ struct symbol_t* symbol_table_look_up(const struct symbol_table *table, const ch
         }
         table = table->parent; 
     }
+    LOG_M_ERR("variable/function \"%s\" is not defined", name);
     return NULL; 
 }
 

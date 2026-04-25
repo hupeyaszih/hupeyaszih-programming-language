@@ -81,10 +81,14 @@ void codegen_generate(struct codegen_t *restrict codegen, struct parser_t *restr
         codegen_visit_node(codegen, parser->nodes[i], global_scope, 0);
     }
     codegen_flush_pending_functions(codegen, global_scope);
+
+    C_LOG_OK("Codegen finished successfully");
 }
 
 void codegen_pre_codegen_analysis(struct parser_node *node, struct symbol_table *current_scope) {
     if (!node) return;
+    if(node->left_node) codegen_pre_codegen_analysis(node->left_node, current_scope);
+    if(node->right_node) codegen_pre_codegen_analysis(node->right_node, current_scope);
 
     switch (node->type) {
         case PARSER_NODE_BLOCK: {
@@ -107,6 +111,13 @@ void codegen_pre_codegen_analysis(struct parser_node *node, struct symbol_table 
             if(NULL == node->data.function.return_type) return;
             codegen_pre_codegen_analysis(node->data.function.body, node->data.function.body->data.block.scope);
             break;
+        }case PARSER_NODE_CALL:{
+            struct symbol_t *sym = symbol_table_look_up(current_scope, node->data.call.name);
+            if(NULL == sym){
+                C_LOG_ERR("function \"%s\" is not defined, line %d", node->data.call.name, node->line);
+                break;
+            }
+            node->type_info = sym->type; 
         }
         default: break;
     }
@@ -129,6 +140,7 @@ void codegen_visit_node(struct codegen_t *restrict codegen, struct parser_node *
                 free(node->data.function.mangled_name);
                 node->data.function.mangled_name = new_mangled_name;
                 struct symbol_t *func_sym = symbol_table_look_up(codegen->current_scope, node->data.function.name);
+
                 if (func_sym) {
                     free(func_sym->mangled_name);
                     func_sym->mangled_name = strdup(new_mangled_name); 
@@ -198,8 +210,12 @@ void codegen_visit_node(struct codegen_t *restrict codegen, struct parser_node *
             }
 
             struct symbol_t *sym = symbol_table_look_up(codegen->current_scope, node->data.call.name);
-    
-            if (sym && sym->mangled_name) {
+            if(NULL == sym){
+                C_LOG_ERR("function \"%s\" is not defined, line %d", node->data.call.name, node->line);
+                break;
+            }
+
+            if (sym->mangled_name) {
                 fprintf(codegen->output_file, "    call %s\n", sym->mangled_name);
             } else {
                 fprintf(codegen->output_file, "    call %s\n", node->data.call.name);
@@ -208,16 +224,24 @@ void codegen_visit_node(struct codegen_t *restrict codegen, struct parser_node *
         }
         case PARSER_NODE_VARIABLE_DECLARATION:
             if(node->right_node) codegen_visit_node(codegen, node->right_node, global_scope, 0);
-            fprintf(codegen->output_file, "    mov [rbp-%d], rax\n", symbol_table_look_up(codegen->current_scope, node->data.variable_name)->stack_offset);
+            struct symbol_t *symbol = symbol_table_look_up(codegen->current_scope, node->data.variable_name);
+            if(NULL == symbol) {C_LOG_ERR("variable \"%s\" is not defined, line: %d", node->data.variable_name, node->line); break;}
+            fprintf(codegen->output_file, "    mov [rbp-%d], rax\n", symbol->stack_offset);
             break;
-        case PARSER_NODE_VARIABLE_ASSIGMENT:
+        case PARSER_NODE_VARIABLE_ASSIGMENT:{
             if(NULL == node->data.variable_name) return;
             if(node->right_node) codegen_visit_node(codegen, node->right_node, global_scope, 0);
-            fprintf(codegen->output_file, "    mov [rbp-%d], rax\n", symbol_table_look_up(codegen->current_scope, node->data.variable_name)->stack_offset);
+            struct symbol_t *symbol = symbol_table_look_up(codegen->current_scope, node->data.variable_name);
+            if(NULL == symbol) {C_LOG_ERR("variable \"%s\" is not defined, line: %d", node->data.variable_name, node->line); break;}
+            fprintf(codegen->output_file, "    mov [rbp-%d], rax\n", symbol->stack_offset);
             break;
-        case PARSER_NODE_IDENTIFIER:
-            fprintf(codegen->output_file, "    mov rax, [rbp-%d]\n", symbol_table_look_up(codegen->current_scope, node->data.variable_name)->stack_offset);
+        }
+        case PARSER_NODE_IDENTIFIER:{
+            struct symbol_t *symbol = symbol_table_look_up(codegen->current_scope, node->data.variable_name);
+            if(NULL == symbol) {C_LOG_ERR("variable \"%s\" is not defined, line: %d", node->data.variable_name, node->line); break;}
+            fprintf(codegen->output_file, "    mov rax, [rbp-%d]\n", symbol->stack_offset);
             break;
+        }
         case PARSER_NODE_UNARY_MINUS:
             if(node->right_node) codegen_visit_node(codegen, node->right_node, global_scope, 0);
             fprintf(codegen->output_file, "    neg rax\n");

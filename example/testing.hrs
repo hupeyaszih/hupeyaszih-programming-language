@@ -2,7 +2,7 @@
 
 fn analyze_range(val: int32, min: int32, max: int32): int32 {
     var is_inside: int32 = (val > min - 1) * (max > val - 1);
-    
+
     fn compute_power(v: int32): int32 {
         var base: int32 = v * v;
         base + 10;

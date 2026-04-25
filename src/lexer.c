@@ -1,5 +1,4 @@
 #include "lexer.h"
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -156,9 +155,10 @@ static inline int calculate_statement_count(const struct lexer_file *restrict fi
     return statement_count;
 }
 
-int lexer_create_lexer_file(struct lexer_file *restrict file, char *restrict str){
+int lexer_create_lexer_file(struct lexer_file *restrict file, char *restrict str, const char *restrict file_name){
     int current_capacity = 16;
     file->tokens = malloc(sizeof(struct lexer_token) * current_capacity);
+    file->file_name = strdup(file_name);
 
     file->char_count = strlen(str);
     file->line_count = calculate_line_count(str);
@@ -177,7 +177,8 @@ int lexer_create_lexer_file(struct lexer_file *restrict file, char *restrict str
     }
 
     file->statement_count = calculate_statement_count(file);
-    
+
+    C_LOG_OK("Lexer tokenized \"%s\" successfully", file->file_name);
     return 0;
 }
 
@@ -193,6 +194,7 @@ void lexer_delete_lexer_file(struct lexer_file *restrict file){
        free(file->tokens);
    }
 
+   free(file->file_name);
    free(file);
 }
 

@@ -24,13 +24,13 @@ int main() {
     parser->type_table = type_table;
     parser->current_scope = global_scope;
 
+    const char file_path[] = "../example/testing.hrs";
     char *input = hrs_file_io_read_file("../example/testing.hrs");
-    int parser_error = 0;
-    struct lexer_file *file_2 = lexer_test(parser, input, &parser_error);
+    struct lexer_file *file = lexer_test(parser, input, file_path);
 
 
     struct codegen_t *codegen = codegen_create_codegen(parser, "build/testing.asm");
-    if(parser_error == 0){
+    if(parser->successful == 1){
         codegen_generate(codegen, parser, global_scope);
     }
 
@@ -43,7 +43,7 @@ int main() {
     parser_delete_parser(&parser);
     symbol_table_delete_symbol_table(&global_scope);
     type_table_delete_type_table(&type_table);
-    lexer_delete_lexer_file(file_2);
+    lexer_delete_lexer_file(file);
     free(input);
 
     return 0;

@@ -56,13 +56,15 @@ struct lexer_token{
 
 
 struct lexer_file{
+    struct lexer_token *tokens;
+
     int char_count;
     int token_count;
 
     int line_count; 
     int statement_count; // Ex: "4+3; 2=1; 3+6;" line_count = 1, statement_count = 3
 
-    struct lexer_token *tokens;
+    char *file_name;
 };
 
 #define LEXER_MAX_KEYWORD_CHAR_LENGHT 10
@@ -76,7 +78,7 @@ extern const char language_keywords[LEXER_KEYWORD_COUNT][LEXER_MAX_KEYWORD_CHAR_
 int lexer_compare_keyword(const char *restrict word);
 
 
-int lexer_create_lexer_file(struct lexer_file *restrict file, char *restrict str);
+int lexer_create_lexer_file(struct lexer_file *restrict file, char *restrict str, const char *restrict file_name);
 void lexer_delete_lexer_file(struct lexer_file *restrict file);
 
 int lexer_tokenize(char *restrict str, struct lexer_token **restrict tokens, int *current_token_capacity); //Returns token count
