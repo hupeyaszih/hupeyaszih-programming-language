@@ -15,6 +15,12 @@ static inline enum token_type get_keyword_type(const char *chr){
         return LEXER_TOKEN_TYPE_VAR;
     }else if(0 == strcmp("fn", chr)){
         return LEXER_TOKEN_TYPE_FN;
+    }else if(0 == strcmp("loop", chr)){
+        return LEXER_TOKEN_TYPE_LOOP;
+    }else if(0 == strcmp("break", chr)){
+        return LEXER_TOKEN_TYPE_BREAK;
+    }else if(0 == strcmp("continue", chr)){
+        return LEXER_TOKEN_TYPE_CONTINUE;
     }else{
         return LEXER_TOKEN_TYPE_KEYWORD;
     }

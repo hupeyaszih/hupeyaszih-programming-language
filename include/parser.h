@@ -23,6 +23,9 @@ enum parser_node_type {
     PARSER_NODE_VARIABLE_ASSIGMENT,
     PARSER_NODE_PARAMETER_LIST,
     PARSER_NODE_FUNCTION,
+    PARSER_NODE_LOOP,
+    PARSER_NODE_BREAK,
+    PARSER_NODE_CONTINUE,
     PARSER_NODE_CALL,
     PARSER_NODE_BLOCK,
     PARSER_NODE_UNDEFINED
@@ -51,6 +54,21 @@ struct parser_node{
            struct parser_node *body;
            struct type_info *return_type;
        } function;
+
+       struct {
+           char *mangled_name;
+           struct parser_node *body;
+           int loop_id;
+       } loop;
+
+       struct {
+           char *mangled_loop_control_name;
+           char *mangled_loop_name;
+           struct parser_node *condition;
+           struct parser_node *body;
+           int loop_control_id;
+           int loop_id;
+       } loop_control;
 
        struct {
            char *name;
@@ -86,6 +104,12 @@ struct parser_t{
     struct type_table *type_table;
     int node_count;
     int scope_counter;
+    int loop_depth_counter;
+    int loop_id_counter;
+    int loop_control_depth_counter;
+    int loop_control_id_counter;
+
+    int current_loop_id;
     int successful;
 };
 
@@ -101,6 +125,9 @@ int parser_parse(struct parser_t *restrict parser, struct lexer_file *restrict f
 struct parser_node *parser_parse_statement(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
 struct parser_node *parser_parse_parse_parameters(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
 struct parser_node *parser_parse_function(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
+struct parser_node *parser_parse_loop(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
+struct parser_node *parser_parse_break(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
+struct parser_node *parser_parse_continue(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
 struct parser_node *parser_parse_call(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor, char *func_name);
 struct parser_node *parser_parse_block(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor, int create_new_scope);
 struct parser_node *parser_parse_variable_declaration(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);

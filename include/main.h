@@ -7,7 +7,6 @@
 #include <stdlib.h>
 
 static inline struct lexer_file *lexer_test(struct parser_t *restrict parser, char fl[], const char *file_name){
-    // C_LOG("file: \n==========\n%s%s", fl, "==========");
 
     LOG_M("Lexer started...");
     struct lexer_file *file = malloc(sizeof(struct lexer_file));

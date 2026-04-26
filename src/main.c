@@ -3,7 +3,6 @@
 #include "hrs_file_io.h"
 #include "parser.h"
 #include "symbol_table.h"
-#include <stdio.h>
 #include <stdlib.h>
 
 int main() {
@@ -34,9 +33,6 @@ int main() {
         codegen_generate(codegen, parser, global_scope);
     }
 
-    // for(int i = 0; i < parser->node_count; ++i){
-    //     parser_print_tree(parser->nodes[i], parser->current_scope->scope_level);
-    // }
 
     // Free
     codegen_delete_codegen(codegen);

@@ -26,6 +26,11 @@ struct parser_t *parser_create_parser(){
     if(!parser) {C_LOG_ERR("parser_create_parser - couldn't create parser"); free(parser); return NULL;}
     parser->node_count = 0;
     parser->scope_counter = 0;
+    parser->loop_depth_counter = 0;
+    parser->loop_id_counter = 0;
+    parser->loop_control_depth_counter = 0;
+    parser->loop_control_id_counter = 0;
+    parser->current_loop_id = 0;
     parser->successful = 1;
 
     return parser;
@@ -84,11 +89,28 @@ void parser_delete_node(struct parser_node **node) {
             }
             free((*node)->data.call.args);
             break;
+        case PARSER_NODE_LOOP:
+            parser_delete_node(&((*node)->data.loop.body));
+            free((*node)->data.loop.mangled_name);
+            break;
+        case PARSER_NODE_BREAK:
+            parser_delete_node(&((*node)->data.loop_control.condition));
+            parser_delete_node(&((*node)->data.loop_control.body));
+            free((*node)->data.loop_control.mangled_loop_control_name);
+            free((*node)->data.loop_control.mangled_loop_name);
+            break;
+        case PARSER_NODE_CONTINUE:
+            parser_delete_node(&((*node)->data.loop_control.condition));
+            parser_delete_node(&((*node)->data.loop_control.body));
+            free((*node)->data.loop_control.mangled_loop_control_name);
+            free((*node)->data.loop_control.mangled_loop_name);
+            break;
         case PARSER_NODE_VARIABLE_DECLARATION:
             if ((*node)->data.variable_name != NULL) {
                 free((*node)->data.variable_name);
                 (*node)->data.variable_name = NULL; 
             }
+            break;
         default: break;
     }
 
@@ -203,7 +225,11 @@ struct parser_node *parser_parse_variable_declaration(struct parser_t *restrict 
     }
     
     decl_node->right_node = value_node; 
-    symbol_table_define(parser->current_scope, var_name, type_info, SYMBOL_KIND_VARIABLE);
+    if(NULL == symbol_table_define(parser->current_scope, var_name, type_info, SYMBOL_KIND_VARIABLE)) {
+        parser_delete_node(&decl_node);
+        parser->successful = 0;
+        return NULL;
+    }
 
     return decl_node;
 }
@@ -217,6 +243,12 @@ struct parser_node *parser_parse_statement(struct parser_t *restrict parser, str
         return parser_parse_block(parser, tokens, token_count, cursor, 1);
     }else if(tokens[*cursor].type == LEXER_TOKEN_TYPE_FN){
         return parser_parse_function(parser, tokens, token_count, cursor);
+    }else if(tokens[*cursor].type == LEXER_TOKEN_TYPE_LOOP){
+        return parser_parse_loop(parser, tokens, token_count, cursor);
+    }else if(tokens[*cursor].type == LEXER_TOKEN_TYPE_BREAK){
+        return parser_parse_break(parser, tokens, token_count, cursor);
+    }else if(tokens[*cursor].type == LEXER_TOKEN_TYPE_CONTINUE){
+        return parser_parse_continue(parser, tokens, token_count, cursor);
     }
 
     struct parser_node *node = NULL;
@@ -234,7 +266,7 @@ struct parser_node *parser_parse_statement(struct parser_t *restrict parser, str
 
     if (NULL == node) {parser->successful = 0; return NULL;}
 
-    if (node->type != PARSER_NODE_BLOCK && node->type != PARSER_NODE_FUNCTION) {
+    if (node->type != PARSER_NODE_BLOCK && node->type != PARSER_NODE_FUNCTION && node->type != PARSER_NODE_LOOP && node->type != PARSER_NODE_BREAK && node->type != PARSER_NODE_CONTINUE) {
         if (NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_SEMICOLON)) {
             parser->successful = 0;
             parser_delete_node(&node);
@@ -408,6 +440,102 @@ struct parser_node *parser_parse_parameters(struct parser_t *restrict parser, st
     return params_node;
 }
 
+struct parser_node *parser_parse_loop(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor){
+    if(NULL == parser) {LOG_M_ERR("parser_parse_loop - \"struct parser_t *restrict parser\" is null"); return NULL;}
+    struct parser_node *loop_node = parser_create_node(PARSER_NODE_LOOP, tokens[*cursor].line);
+    if(NULL == loop_node){
+        LOG_M_ERR("parser_parse_loop - \"struct parser_node *loop_node\" is null");
+        parser->successful = 0;
+        return NULL;
+    }
+    if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_LOOP)) goto cleanup_err_level_0;
+    parser->loop_depth_counter++;
+    parser->loop_id_counter++;
+    loop_node->data.loop.loop_id = parser->loop_id_counter;
+
+    int old_current_loop_id = parser->current_loop_id;
+    parser->current_loop_id = loop_node->data.loop.loop_id;
+
+    struct parser_node *loop_body = parser_parse_block(parser, tokens, token_count, cursor, 1);
+    if(NULL == loop_body) goto cleanup_err_level_0;
+    loop_node->data.loop.body = loop_body;
+
+    parser->loop_depth_counter--;
+    parser->current_loop_id = old_current_loop_id;
+    return loop_node;
+
+cleanup_err_level_0:
+    parser_delete_node(&loop_node);
+    parser->successful = 0;
+    return NULL;
+}
+
+struct parser_node *parser_parse_break(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor){
+    if(NULL == parser) {LOG_M_ERR("parser_parse_break - \"struct parser_t *restrict parser\" is null"); return NULL;}
+    struct parser_node *break_node = parser_create_node(PARSER_NODE_BREAK, tokens[*cursor].line);
+    if(NULL == break_node){
+        LOG_M_ERR("parser_parse_break - \"struct parser_node *break_node\" is null");
+        parser->successful = 0;
+        return NULL;
+    }
+    if(parser->loop_depth_counter <= 0) {C_LOG_ERR("\"break\" can only be used in loops"); goto cleanup_err_level_0;}
+    if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_BREAK)) goto cleanup_err_level_0;
+    parser->loop_control_id_counter++;
+    parser->loop_control_depth_counter++;
+    break_node->data.loop_control.loop_control_id = parser->loop_control_id_counter;
+    break_node->data.loop_control.loop_id = parser->current_loop_id;
+
+    struct parser_node *condition_node = parser_parse_boolean_logic(parser, tokens, token_count, cursor);
+    if(NULL == condition_node) goto cleanup_err_level_0;
+    break_node->data.loop_control.condition = condition_node;
+
+    struct parser_node *body_node = parser_parse_block(parser, tokens, token_count, cursor, 1);
+    if(NULL == body_node) goto cleanup_err_level_0;
+    break_node->data.loop_control.body = body_node;
+
+
+    parser->loop_control_depth_counter--;
+    return break_node;
+cleanup_err_level_0:
+    parser->loop_control_depth_counter--;
+    parser_delete_node(&break_node);
+    parser->successful = 0;
+    return NULL;
+}
+
+struct parser_node *parser_parse_continue(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor){
+    if(NULL == parser) {LOG_M_ERR("parser_parse_continue - \"struct parser_t *restrict parser\" is null"); return NULL;}
+    struct parser_node *continue_node = parser_create_node(PARSER_NODE_CONTINUE, tokens[*cursor].line);
+    if(NULL == continue_node){
+        LOG_M_ERR("parser_parse_continue - \"struct parser_node *continue_node\" is null");
+        parser->successful = 0;
+        return NULL;
+    }
+    if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_CONTINUE)) goto cleanup_err_level_0;
+    parser->loop_control_id_counter++;
+    parser->loop_control_depth_counter++;
+    continue_node->data.loop_control.loop_control_id = parser->loop_control_id_counter;
+    continue_node->data.loop_control.loop_id = parser->current_loop_id;
+
+    struct parser_node *condition_node = parser_parse_boolean_logic(parser, tokens, token_count, cursor);
+    if(NULL == condition_node) goto cleanup_err_level_0;
+    continue_node->data.loop_control.condition = condition_node;
+
+    struct parser_node *body_node = parser_parse_block(parser, tokens, token_count, cursor, 1);
+    if(NULL == body_node) goto cleanup_err_level_0;
+    continue_node->data.loop_control.body = body_node;
+
+
+    parser->loop_control_depth_counter--;
+    return continue_node;
+cleanup_err_level_0:
+    parser->loop_control_depth_counter--;
+    parser_delete_node(&continue_node);
+    parser->successful = 0;
+    return NULL;
+}
+
+
 struct parser_node *parser_parse_function(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor) {
     if(NULL == parser) {LOG_M_ERR("parser_parse_function - \"struct parser_t *restrict parser\" is null"); return NULL;}
     struct parser_node *function_node = parser_create_node(PARSER_NODE_FUNCTION, tokens[*cursor].line);
@@ -441,7 +569,7 @@ struct parser_node *parser_parse_function(struct parser_t *restrict parser, stru
     
     for(int i = 0; i < parameters->data.block.count; i++) {
         struct parser_node *p = parameters->data.block.statements[i];
-        symbol_table_define(body_scope, p->data.variable_name, p->type_info, SYMBOL_KIND_VARIABLE);
+        if(NULL == symbol_table_define(body_scope, p->data.variable_name, p->type_info, SYMBOL_KIND_VARIABLE)) {symbol_table_delete_symbol_table(&body_scope); parser_delete_node(&parameters); parser_delete_node(&function_node); parser->successful = 0;return NULL;}
     }
 
     struct symbol_table *old_scope = parser->current_scope;
@@ -464,7 +592,7 @@ struct parser_node *parser_parse_function(struct parser_t *restrict parser, stru
     function_node->data.function.return_type = ret_type;
     function_node->data.function.param_count = parameters->data.block.count;
 
-    symbol_table_define(parser->current_scope, function_node->data.function.name, type_table_get_type_info(parser->type_table, "fn"), SYMBOL_KIND_FUNCTION);
+    if(NULL == symbol_table_define(parser->current_scope, function_node->data.function.name, type_table_get_type_info(parser->type_table, "fn"), SYMBOL_KIND_FUNCTION)) {symbol_table_delete_symbol_table(&body_scope); parser_delete_node(&parameters); parser_delete_node(&function_node); parser->successful = 0;return NULL;}
     return function_node;
 }
 

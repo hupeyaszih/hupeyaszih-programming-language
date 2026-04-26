@@ -1,26 +1,30 @@
 // Hupeyaszih Programming Language (.hrs)
 
-fn analyze_range(val: int32, min: int32, max: int32): int32 {
-    var is_inside: int32 = (val > min - 1) * (max > val - 1);
-
-    fn compute_power(v: int32): int32 {
-        var base: int32 = v * v;
-        base + 10;
-    }
-
-    is_inside * compute_power(val);
+fn get_weight(n: int32): int32 {
+    1 + (n - ((n / 2) * 2) == 0);
 }
 
 fn main(): int32 {
-    var target: int32 = 42;
-    var low: int32 = 10;
-    var high: int32 = 50;
+    var total: int32 = 0;
+    var x: int32 = 1;
 
-    var result1: int32 = analyze_range(target, low, high);
+    fn calculate_bonus(val: int32): int32 {
+        var bonus: int32 = 0;
+        bonus = (val > 4) * 10;
+        bonus;
+    }
 
-    var result2: int32 = analyze_range(5, low, high);
 
-    var final_score: int32 = (result1 + result2) / 10;
-    
-    final_score; 
+    loop {
+        continue(x - ((x / 3) * 3) == 0) {
+            x = x + 1;
+        }
+
+        total = total + (get_weight(x) + calculate_bonus(x));
+
+        break(x == 5) {
+            total;
+        }
+        x = x + 1;
+    }
 }

@@ -37,6 +37,31 @@ static inline char *generate_mangled_function_name(struct codegen_t *codegen, ch
     return strdup(original_name);
 }
 
+static inline char *generate_mangled_loop_name(struct codegen_t *codegen, int loop_id) {
+    int required_len = snprintf(NULL, 0, "LOOP_S_%d", loop_id);
+
+    char *mangled_name = malloc(required_len + 1);
+
+    if (mangled_name) {
+        sprintf(mangled_name, "LOOP_S_%d", loop_id);
+        return mangled_name;
+    }
+
+    return NULL;
+}
+
+static inline char *generate_mangled_loop_control_name(struct codegen_t *codegen, int loop_control_id) {
+    int required_len = snprintf(NULL, 0, "LOOP_CONTROL_S_%d", loop_control_id);
+
+    char *mangled_name = malloc(required_len + 1);
+
+    if (mangled_name) {
+        sprintf(mangled_name, "LOOP_CONTROL_S_%d", loop_control_id);
+        return mangled_name;
+    }
+
+    return NULL;
+}
 
 struct codegen_t *codegen_create_codegen(struct parser_t *restrict parser, const char *restrict out_filename) {
     struct codegen_t *cg = calloc(1, sizeof(struct codegen_t));
@@ -110,6 +135,23 @@ void codegen_pre_codegen_analysis(struct parser_node *node, struct symbol_table 
         case PARSER_NODE_FUNCTION: {
             if(NULL == node->data.function.return_type) return;
             codegen_pre_codegen_analysis(node->data.function.body, node->data.function.body->data.block.scope);
+            break;
+        }
+        case PARSER_NODE_LOOP: {
+            if(NULL == node->data.loop.body) return;
+            codegen_pre_codegen_analysis(node->data.loop.body, node->data.loop.body->data.block.scope);
+            break;
+        }case PARSER_NODE_BREAK: {
+            if(NULL == node->data.loop_control.condition) return;
+            codegen_pre_codegen_analysis(node->data.loop_control.condition, node->data.loop_control.condition->data.block.scope);
+            if(NULL == node->data.loop_control.body) return;
+            codegen_pre_codegen_analysis(node->data.loop_control.body, node->data.loop_control.body->data.block.scope);
+            break;
+        }case PARSER_NODE_CONTINUE: {
+            if(NULL == node->data.loop_control.condition) return;
+            codegen_pre_codegen_analysis(node->data.loop_control.condition, node->data.loop_control.condition->data.block.scope);
+            if(NULL == node->data.loop_control.body) return;
+            codegen_pre_codegen_analysis(node->data.loop_control.body, node->data.loop_control.body->data.block.scope);
             break;
         }case PARSER_NODE_CALL:{
             struct symbol_t *sym = symbol_table_look_up(current_scope, node->data.call.name);
@@ -221,14 +263,49 @@ void codegen_visit_node(struct codegen_t *restrict codegen, struct parser_node *
                 fprintf(codegen->output_file, "    call %s\n", node->data.call.name);
             }
             break;
-        }
-        case PARSER_NODE_VARIABLE_DECLARATION:
+        }case PARSER_NODE_LOOP: {
+            if(NULL == node->data.loop.body) return;
+            node->data.loop.mangled_name = generate_mangled_loop_name(codegen, node->data.loop.loop_id);
+            fprintf(codegen->output_file, "%s_START:\n", node->data.loop.mangled_name);
+            codegen_visit_node(codegen, node->data.loop.body, global_scope, 0);
+            fprintf(codegen->output_file, "    jmp %s_START\n", node->data.loop.mangled_name);
+            fprintf(codegen->output_file, "%s_END:\n", node->data.loop.mangled_name);
+            break;
+        }case PARSER_NODE_BREAK:{
+            if(NULL == node->data.loop_control.body || NULL == node->data.loop_control.condition) return;
+            node->data.loop_control.mangled_loop_name = generate_mangled_loop_name(codegen, node->data.loop_control.loop_id);
+            node->data.loop_control.mangled_loop_control_name = generate_mangled_loop_control_name(codegen, node->data.loop_control.loop_control_id);
+            
+            codegen_visit_node(codegen, node->data.loop_control.condition, global_scope, 0);
+            fprintf(codegen->output_file, "    test rax, rax\n");
+            fprintf(codegen->output_file, "    jz %s_BREAK_SKIP\n", node->data.loop_control.mangled_loop_control_name);
+
+            fprintf(codegen->output_file, "%s_BREAK_START:\n", node->data.loop_control.mangled_loop_control_name);
+            codegen_visit_node(codegen, node->data.loop_control.body, global_scope, 0);
+            fprintf(codegen->output_file, "    jmp %s_END\n", node->data.loop_control.mangled_loop_name);
+            fprintf(codegen->output_file, "%s_BREAK_SKIP:\n", node->data.loop_control.mangled_loop_control_name);
+            break;
+        }case PARSER_NODE_CONTINUE:{
+            if(NULL == node->data.loop_control.body || NULL == node->data.loop_control.condition) return;
+            node->data.loop_control.mangled_loop_name = generate_mangled_loop_name(codegen, node->data.loop_control.loop_id);
+            node->data.loop_control.mangled_loop_control_name = generate_mangled_loop_control_name(codegen, node->data.loop_control.loop_control_id);
+            
+            codegen_visit_node(codegen, node->data.loop_control.condition, global_scope, 0);
+            fprintf(codegen->output_file, "    test rax, rax\n");
+            fprintf(codegen->output_file, "    jz %s_CONTINUE_SKIP\n", node->data.loop_control.mangled_loop_control_name);
+
+            fprintf(codegen->output_file, "%s_CONTINUE_START:\n", node->data.loop_control.mangled_loop_control_name);
+            codegen_visit_node(codegen, node->data.loop_control.body, global_scope, 0);
+            fprintf(codegen->output_file, "    jmp %s_START\n", node->data.loop_control.mangled_loop_name);
+            fprintf(codegen->output_file, "%s_CONTINUE_SKIP:\n", node->data.loop_control.mangled_loop_control_name);
+            break;
+        }case PARSER_NODE_VARIABLE_DECLARATION:{
             if(node->right_node) codegen_visit_node(codegen, node->right_node, global_scope, 0);
             struct symbol_t *symbol = symbol_table_look_up(codegen->current_scope, node->data.variable_name);
             if(NULL == symbol) {C_LOG_ERR("variable \"%s\" is not defined, line: %d", node->data.variable_name, node->line); break;}
             fprintf(codegen->output_file, "    mov [rbp-%d], rax\n", symbol->stack_offset);
             break;
-        case PARSER_NODE_VARIABLE_ASSIGMENT:{
+        }case PARSER_NODE_VARIABLE_ASSIGMENT:{
             if(NULL == node->data.variable_name) return;
             if(node->right_node) codegen_visit_node(codegen, node->right_node, global_scope, 0);
             struct symbol_t *symbol = symbol_table_look_up(codegen->current_scope, node->data.variable_name);
