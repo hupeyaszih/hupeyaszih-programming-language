@@ -2,6 +2,7 @@
 #include "globals.h"
 #include "lexer.h"
 #include "symbol_table.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -104,6 +105,9 @@ void parser_delete_node(struct parser_node **node) {
             parser_delete_node(&((*node)->data.loop_control.body));
             free((*node)->data.loop_control.mangled_loop_control_name);
             free((*node)->data.loop_control.mangled_loop_name);
+            break;
+        case PARSER_NODE_ASM:
+            free((*node)->data.assembly.assembly_data);
             break;
         case PARSER_NODE_VARIABLE_DECLARATION:
             if ((*node)->data.variable_name != NULL) {
@@ -249,6 +253,8 @@ struct parser_node *parser_parse_statement(struct parser_t *restrict parser, str
         return parser_parse_break(parser, tokens, token_count, cursor);
     }else if(tokens[*cursor].type == LEXER_TOKEN_TYPE_CONTINUE){
         return parser_parse_continue(parser, tokens, token_count, cursor);
+    }else if(tokens[*cursor].type == LEXER_TOKEN_TYPE_ASM){
+        return parser_parse_asm(parser, tokens, token_count, cursor);
     }
 
     struct parser_node *node = NULL;
@@ -366,14 +372,6 @@ struct parser_node *parser_parse_call(struct parser_t *restrict parser, struct l
         parser->successful = 0;
         return NULL;
     }
-
-    // struct symbol_t *func_sym = symbol_table_look_up(parser->current_scope, func_name);
-    // if (func_sym) {
-    //     call_node->type_info = func_sym->type; 
-    // }else {
-    //     parser->successful = 0;
-    //     C_LOG_ERR("function \"%s\" is not defined, line: %d", call_node->data.call.name, call_node->line);
-    // }
 
     return call_node;
 }
@@ -547,6 +545,33 @@ cleanup_err_level_0:
     return NULL;
 }
 
+struct parser_node *parser_parse_asm(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor){
+
+    if(NULL == parser) {LOG_M_ERR("parser_parse_asm - \"struct parser_t *restrict parser\" is null"); return NULL;}
+    struct parser_node *asm_node = parser_create_node(PARSER_NODE_ASM, tokens[*cursor].line);
+    if(NULL == asm_node){
+        LOG_M_ERR("parser_parse_asm - \"struct parser_node *continue_node\" is null");
+        parser->successful = 0;
+        return NULL;
+    }
+    if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_ASM)) goto cleanup_err_level_0;
+
+    struct lexer_token *assembly_data = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_STRING_LITERAL);
+    if(NULL == assembly_data) {C_LOG_ERR("String Literal (assembly) expected, line %d", asm_node->line); goto cleanup_err_level_0;}
+    char *ptr = assembly_data->token;
+    while (*ptr == ' ' || *ptr == '\t' || *ptr == '\n' || *ptr == '\r') {
+        ptr++;
+    }
+    asm_node->data.assembly.assembly_data = strdup(assembly_data->token);
+
+    if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_SEMICOLON)) {C_LOG_ERR("expected \";\" on line %d", asm_node->line); goto cleanup_err_level_0;}
+
+    return asm_node;
+cleanup_err_level_0:
+    parser_delete_node(&asm_node);
+    parser->successful = 0;
+    return NULL;
+}
 
 struct parser_node *parser_parse_function(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor) {
     if(NULL == parser) {LOG_M_ERR("parser_parse_function - \"struct parser_t *restrict parser\" is null"); return NULL;}

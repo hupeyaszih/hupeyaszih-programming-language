@@ -6,9 +6,9 @@
 
 
 struct symbol_table *symbol_table_create_symbol_table(struct symbol_table *restrict parent, int *global_scope_counter){
-    struct symbol_table *table = malloc(sizeof(struct symbol_table));
+    struct symbol_table *table = calloc(1, sizeof(struct symbol_table));
     table->symbol_capacity = 16;
-    table->symbols = malloc(sizeof(struct symbol_t) * table->symbol_capacity);
+    table->symbols = calloc(table->symbol_capacity, sizeof(struct symbol_t));
     table->symbol_count = 0;
     table->parent = parent;
     table->scope_level = (parent == NULL) ? 0 : parent->scope_level + 1;
@@ -53,7 +53,6 @@ struct symbol_t *symbol_table_define(struct symbol_table *restrict table, char *
     s->mangled_name = strdup(name);
     s->type = type;
     s->kind = kind;
-
 
     return s;
 }

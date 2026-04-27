@@ -1,6 +1,37 @@
 // Hupeyaszih Programming Language (.hrs)
 
+fn print_char(c: char): int32 {
+    asm "
+        mov rax, 1          
+        mov rdi, 1          
+        lea rsi, [rbp-8]    
+        mov rdx, 1          
+        syscall
+    ";
+    0;
+}
+
 fn main(): int32 {
+    {
+        var start_index: int32 = 65; // A = 65
+        var index: int32 = start_index-1;
+        var create_new_line:int32 = 1;
+            loop {
+                index = index + 1;
+
+                var is_invalid: int32 = (index > 90) * (index < 97);
+                continue(is_invalid) { // You can directly use "continue(index == 91) {index = index + 5; print_char(10);}"
+                    print_char(10 * create_new_line);
+                    create_new_line = 0;
+                }
+
+                print_char(index);
+                break(index == start_index + 57) {
+                    print_char(10);
+                }
+            }
+    }
+
     var total: int32 = 0;
     var x: int32 = 1;
 
@@ -20,6 +51,7 @@ fn main(): int32 {
 
         break(x == 5) {
             total;
+
         }
         x = x + 1;
     }

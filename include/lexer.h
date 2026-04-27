@@ -18,6 +18,7 @@ enum token_type{
     LEXER_TOKEN_TYPE_LOOP,
     LEXER_TOKEN_TYPE_BREAK,
     LEXER_TOKEN_TYPE_CONTINUE,
+    LEXER_TOKEN_TYPE_ASM,
 
     LEXER_TOKEN_TYPE_PLUS,         // +
     LEXER_TOKEN_TYPE_MINUS,        // -
@@ -72,7 +73,7 @@ struct lexer_file{
 
 #define LEXER_MAX_KEYWORD_CHAR_LENGHT 10
 
-#define LEXER_KEYWORD_COUNT 6
+#define LEXER_KEYWORD_COUNT 7
 
 extern const char LEXER_DELIM[];
 
@@ -104,6 +105,7 @@ static const char* lexer_token_type_to_string(enum token_type type) {
         case LEXER_TOKEN_TYPE_LOOP:            return "LOOP";
         case LEXER_TOKEN_TYPE_BREAK:           return "BREAK";
         case LEXER_TOKEN_TYPE_CONTINUE:        return "CONTINUE";
+        case LEXER_TOKEN_TYPE_ASM:             return "ASM";
 
         case LEXER_TOKEN_TYPE_PLUS:            return "PLUS";
         case LEXER_TOKEN_TYPE_MINUS:           return "MINUS";

@@ -2,6 +2,7 @@
 #include "parser.h"
 #include "symbol_table.h"
 #include "globals.h"
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -313,6 +314,33 @@ void codegen_visit_node(struct codegen_t *restrict codegen, struct parser_node *
             codegen_visit_node(codegen, node->data.loop_control.body, global_scope, 0);
             fprintf(codegen->output_file, "    jmp %s_START\n", node->data.loop_control.mangled_loop_name);
             fprintf(codegen->output_file, "%s_CONTINUE_SKIP:\n", node->data.loop_control.mangled_loop_control_name);
+            break;
+        }case PARSER_NODE_ASM:{
+            if(NULL == node->data.assembly.assembly_data) {
+                codegen->successful = 0;
+                C_LOG_ERR("String Literal (assembly) expected, line %d", node->line);
+                return;
+            }
+            char *ptr = node->data.assembly.assembly_data;
+            char line_buffer[1024];
+
+            while (*ptr != '\0') {
+                int i = 0;
+                while (*ptr != '\0' && *ptr != '\n' && i < 1023) {
+                    line_buffer[i++] = *ptr++;
+                }
+                line_buffer[i] = '\0';
+                if (*ptr == '\n') ptr++;
+
+                char *trimmed = line_buffer;
+                while (isspace((unsigned char)*trimmed)) {
+                    trimmed++;
+                }
+
+                if (*trimmed != '\0') {
+                    fprintf(codegen->output_file, "\t%s\n", trimmed);
+                }
+            }
             break;
         }case PARSER_NODE_VARIABLE_DECLARATION:{
             if(node->right_node) codegen_visit_node(codegen, node->right_node, global_scope, 0);

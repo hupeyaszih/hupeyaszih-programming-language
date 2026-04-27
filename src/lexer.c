@@ -7,7 +7,7 @@
 
 const char LEXER_DELIM[] = " \t\r\n";
 
-const char language_keywords[LEXER_KEYWORD_COUNT][LEXER_MAX_KEYWORD_CHAR_LENGHT] = {"fn", "var", "loop", "break", "continue"};
+const char language_keywords[LEXER_KEYWORD_COUNT][LEXER_MAX_KEYWORD_CHAR_LENGHT] = {"fn", "var", "loop", "break", "continue", "asm"};
 
 
 static inline enum token_type get_keyword_type(const char *chr){
@@ -21,6 +21,8 @@ static inline enum token_type get_keyword_type(const char *chr){
         return LEXER_TOKEN_TYPE_BREAK;
     }else if(0 == strcmp("continue", chr)){
         return LEXER_TOKEN_TYPE_CONTINUE;
+    }else if(0 == strcmp("asm", chr)){
+        return LEXER_TOKEN_TYPE_ASM;
     }else{
         return LEXER_TOKEN_TYPE_KEYWORD;
     }
@@ -283,7 +285,7 @@ int lexer_tokenize(char *restrict str, struct lexer_token **restrict tokens, int
                 }
 
                 (*tokens)[token_id].type = LEXER_TOKEN_TYPE_STRING_LITERAL;
-                (*tokens)[token_id].token = strndup(&str[start], i - start);
+                (*tokens)[token_id].token = strndup(&str[start+1], i - start - 3);
                 (*tokens)[token_id].line = line_index;
                 token_id++;
                 continue;
