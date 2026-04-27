@@ -18,6 +18,7 @@ struct codegen_t{
     int pending_function_capacity;
     int label_count;
     int function_depth;
+    int successful;
     char *current_processing_function_name;
 };
 

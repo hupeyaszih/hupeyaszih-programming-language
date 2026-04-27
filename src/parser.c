@@ -355,13 +355,13 @@ struct parser_node *parser_parse_call(struct parser_t *restrict parser, struct l
         return NULL;
     }
 
-    struct symbol_t *func_sym = symbol_table_look_up(parser->current_scope, func_name);
-    if (func_sym) {
-        call_node->type_info = func_sym->type; 
-    }else {
-        parser->successful = 0;
-        C_LOG_ERR("function \"%s\" is not defined, line: %d", call_node->data.call.name, call_node->line);
-    }
+    // struct symbol_t *func_sym = symbol_table_look_up(parser->current_scope, func_name);
+    // if (func_sym) {
+    //     call_node->type_info = func_sym->type; 
+    // }else {
+    //     parser->successful = 0;
+    //     C_LOG_ERR("function \"%s\" is not defined, line: %d", call_node->data.call.name, call_node->line);
+    // }
 
     return call_node;
 }
