@@ -289,8 +289,20 @@ struct parser_node *parser_parse_assignment(struct parser_t *parser, struct lexe
     
     struct parser_node *node = parser_create_node(PARSER_NODE_VARIABLE_ASSIGMENT, line);
     if(NULL == node) {parser_delete_node(&value_node); parser->successful = 0;return NULL;}
+    struct symbol_t *sym = symbol_table_look_up(parser->current_scope, var_name);
+    if(NULL == sym || NULL == sym->type){
+        C_LOG_ERR("cannot assign to undefined variable (%s), line: %d", var_name,node->line);
+        parser_delete_node(&value_node);
+        parser_delete_node(&node);
+        parser->successful = 0;
+        return NULL;
+    }
+
+    node->type_info = sym->type;
+
     node->data.variable_name = var_name;
     node->right_node = value_node;
+
     
     return node;
 }
@@ -820,6 +832,14 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
         struct parser_node *node = parser_create_node(PARSER_NODE_IDENTIFIER, line_number);
         if(NULL == node) {parser->successful = 0; return NULL;}
         node->data.variable_name = t->token;
+
+        struct symbol_t *sym = symbol_table_look_up(parser->current_scope, node->data.variable_name);
+        if(NULL == sym || NULL == sym->type){
+            C_LOG_ERR("undefined variable (%s), line: %d", node->data.variable_name, node->line);
+            parser->successful = 0;
+            parser_delete_node(&node);
+            return NULL;
+        }
         return node;
     }else if(LEXER_TOKEN_TYPE_LPAREN == tokens[*cursor].type){
         if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_LPAREN)) {parser->successful = 0; return NULL;}
