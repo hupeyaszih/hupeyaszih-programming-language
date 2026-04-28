@@ -1,17 +1,9 @@
 // Hupeyaszih Programming Language (.hrs)
 
-fn print_char(c: char): int32 {
-    asm "
-        mov rax, 1          
-        mov rdi, 1          
-        lea rsi, [rbp-8]    
-        mov rdx, 1          
-        syscall
-    ";
-    0;
-}
-
 fn main(): int32 {
+    var test_pointer_val: int32 = 10;
+    var test_pointer: ptr = &test_pointer_val;
+    *test_pointer = (*test_pointer) + 1*alignof(int32);
     {
         var start_index: int32 = 65; // A = 65
         var index: int32 = start_index-1;
@@ -30,6 +22,7 @@ fn main(): int32 {
                     print_char(10);
                 }
             }
+
     }
 
     var total: int32 = 0;
@@ -55,8 +48,21 @@ fn main(): int32 {
         }
         x = x + 1;
     }
+    test_pointer_val + total;
 }
 
 fn get_weight(n: int32): int32 {
     1 + (n - ((n / 2) * 2) == 0);
 }
+
+fn print_char(c: char): int32 {
+    asm "
+        mov rax, 1          
+        mov rdi, 1          
+        lea rsi, [rbp-8]    
+        mov rdx, 1          
+        syscall
+    ";
+    0;
+}
+

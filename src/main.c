@@ -24,7 +24,7 @@ int main() {
     parser->current_scope = global_scope;
 
     const char file_path[] = "../example/testing.hrs";
-    char *input = hrs_file_io_read_file("../example/testing.hrs");
+    char *input = hrs_file_io_read_file(file_path);
     struct lexer_file *file = lexer_test(parser, input, file_path);
 
 

@@ -20,9 +20,15 @@ enum token_type{
     LEXER_TOKEN_TYPE_CONTINUE,
     LEXER_TOKEN_TYPE_ASM,
 
+
+    LEXER_TOKEN_TYPE_ALIGNOF,
+    LEXER_TOKEN_TYPE_SIZEOF,
+
+
     LEXER_TOKEN_TYPE_PLUS,         // +
     LEXER_TOKEN_TYPE_MINUS,        // -
     LEXER_TOKEN_TYPE_STAR,         // *
+    LEXER_TOKEN_TYPE_AMPERSAND,    // &
     LEXER_TOKEN_TYPE_SLASH,        // /
     LEXER_TOKEN_TYPE_PERCENT,      // %
     LEXER_TOKEN_TYPE_EQUAL,        // =
@@ -73,7 +79,7 @@ struct lexer_file{
 
 #define LEXER_MAX_KEYWORD_CHAR_LENGHT 10
 
-#define LEXER_KEYWORD_COUNT 7
+#define LEXER_KEYWORD_COUNT 8
 
 extern const char LEXER_DELIM[];
 
@@ -107,9 +113,15 @@ static const char* lexer_token_type_to_string(enum token_type type) {
         case LEXER_TOKEN_TYPE_CONTINUE:        return "CONTINUE";
         case LEXER_TOKEN_TYPE_ASM:             return "ASM";
 
+
+        case LEXER_TOKEN_TYPE_ALIGNOF:         return "ALIGNOF";
+        case LEXER_TOKEN_TYPE_SIZEOF:          return "SIZEOF";
+
+
         case LEXER_TOKEN_TYPE_PLUS:            return "PLUS";
         case LEXER_TOKEN_TYPE_MINUS:           return "MINUS";
         case LEXER_TOKEN_TYPE_STAR:            return "STAR";
+        case LEXER_TOKEN_TYPE_AMPERSAND:       return "AMPERSAND";
         case LEXER_TOKEN_TYPE_SLASH:           return "SLASH";
         case LEXER_TOKEN_TYPE_PERCENT:         return "PERCENT";
         case LEXER_TOKEN_TYPE_EQUAL:           return "EQUAL";

@@ -19,6 +19,7 @@ struct codegen_t{
     int label_count;
     int function_depth;
     int successful;
+    int is_lvalue;
     char *current_processing_function_name;
 };
 

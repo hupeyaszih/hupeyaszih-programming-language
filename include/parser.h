@@ -13,6 +13,8 @@ enum parser_node_type {
     PARSER_NODE_GREATER = 6,
     PARSER_NODE_UNARY_BANG,
     PARSER_NODE_UNARY_MINUS,
+    PARSER_NODE_UNARY_ADDRESS_OF,
+    PARSER_NODE_UNARY_DEREFERENCE,
     PARSER_NODE_PLUS,
     PARSER_NODE_MINUS,
     PARSER_NODE_DIVIDE,
@@ -81,6 +83,8 @@ struct parser_node{
            char *assembly_data;
        } assembly;
    } data;
+
+   int is_literal_data_created_by_parser;
 
    struct type_info *type_info;
 
