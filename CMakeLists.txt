@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(HupeyaszihProgrammingLanguage LANGUAGES C)
+project(hrsc LANGUAGES C)
 
 set(CMAKE_C\_STANDARD 11)
 set(CMAKE_C\_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_executable(HupeyaszihProgrammingLanguage
+add_executable(hrsc
     src/main.c
     src/lexer.c
     src/parser.c
@@ -15,7 +15,7 @@ add_executable(HupeyaszihProgrammingLanguage
     src/codegen.c
 )
 
-target_include_directories(HupeyaszihProgrammingLanguage
+target_include_directories(hrsc
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )

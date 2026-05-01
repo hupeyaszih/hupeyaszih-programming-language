@@ -6,7 +6,11 @@
 #include "parser.h"
 #include <stdlib.h>
 
-static inline struct lexer_file *lexer_test(struct parser_t *restrict parser, char fl[], const char *file_name){
+static inline struct lexer_file *lexer_test(struct parser_t *restrict parser, char fl[], const char *file_name, int *build_successful){
+    if(NULL == fl) {
+        *build_successful = 0;
+        return NULL;
+    }
 
     LOG_M("Lexer started...");
     struct lexer_file *file = malloc(sizeof(struct lexer_file));

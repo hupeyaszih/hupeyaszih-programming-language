@@ -28,7 +28,7 @@ void codegen_generate(struct codegen_t *restrict codegen, struct parser_t *restr
 void codegen_pre_codegen_analysis(struct parser_node *node, struct symbol_table *current_scope);
 
 void codegen_visit_node(struct codegen_t *restrict codegen, struct parser_node *restrict node, struct symbol_table *global_scope, int flush_mode);
-void codegen_delete_codegen(struct codegen_t *restrict cg);
+void codegen_delete_codegen(struct codegen_t **restrict cg);
 
 void codegen_calculate_offsets(struct symbol_table *scope, int base_offset);
 void codegen_flush_pending_functions(struct codegen_t* codegen, struct symbol_table *global_scope);
