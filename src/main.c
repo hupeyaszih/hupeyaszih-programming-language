@@ -4,40 +4,10 @@
 #include "hrs_file_io.h"
 #include "parser.h"
 #include "symbol_table.h"
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-static inline void run_flag_func(const char *restrict file_path){
-    char base_path[512];
-    strncpy(base_path, file_path, sizeof(base_path));
 
-    char *dot = strrchr(base_path, '.');
-    if (dot != NULL && strcmp(dot, ".asm") == 0) {
-        *dot = '\0';
-    }
-
-    char nasm_cmd[512];
-    snprintf(nasm_cmd, sizeof(nasm_cmd), "nasm -f elf64 %s.asm -o %s.o", base_path, base_path);
-
-    if (system(nasm_cmd) != 0) {
-        LOG_M_ERR("NASM failed!\n");
-        return;
-    }
-
-    char ld_cmd[512];
-    snprintf(ld_cmd, sizeof(ld_cmd), "ld %s.o -o %s.bin", base_path, base_path);
-
-    if (system(ld_cmd) != 0) {
-        LOG_M_ERR("Linker (ld) failed!");
-        return;
-    }
-
-    char run_cmd[512];
-    snprintf(run_cmd, sizeof(run_cmd), "./%s.bin; echo \"\nProcess finished with exit code: $?\"", base_path);
-    printf("--- Running Output ---\n");
-    system(run_cmd);
-}
 
 int main(int argc, char *argv[]) {
     C_LOG_INFO("Usage: %s [-i input] [-o output] [--run] [--clean]", argv[0]);
@@ -98,19 +68,22 @@ int main(int argc, char *argv[]) {
 
     struct codegen_t *codegen = NULL;
     if(1 == build_successful){
-        codegen = codegen_create_codegen(parser, output_path);
+        // codegen = codegen_create_codegen(parser, output_path);
+        //
+        // codegen_generate(codegen, parser, global_scope);
+        // if(NULL != codegen) {
+        //     build_successful *= codegen->successful;
+        // }else {
+        //     build_successful = 0;
+        // }
 
-        codegen_generate(codegen, parser, global_scope);
-        if(NULL != codegen) {
-            build_successful *= codegen->successful;
-        }else {
-            build_successful = 0;
-        }
+
+        ir_test(parser, global_scope);
     }
 
 
     // Free
-    codegen_delete_codegen(&codegen);
+    // codegen_delete_codegen(&codegen);
     parser_delete_parser(&parser);
     symbol_table_delete_symbol_table(&global_scope);
     type_table_delete_type_table(&type_table);

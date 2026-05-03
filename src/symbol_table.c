@@ -53,6 +53,7 @@ struct symbol_t *symbol_table_define(struct symbol_table *restrict table, char *
     s->mangled_name = strdup(name);
     s->type = type;
     s->kind = kind;
+    s->ir_operand = NULL;
 
     return s;
 }

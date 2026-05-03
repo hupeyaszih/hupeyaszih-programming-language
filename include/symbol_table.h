@@ -1,6 +1,7 @@
 #ifndef SYMBOL_TABLE_H
 #define SYMBOL_TABLE_H
 
+#include "ir_gen.h"
 #include <stddef.h>
 #include <stdlib.h>
 
@@ -39,6 +40,7 @@ struct symbol_t{
     struct type_info *type;
 
     int stack_offset;
+    struct IR_Operand *ir_operand;
 };
 
 struct symbol_table{  

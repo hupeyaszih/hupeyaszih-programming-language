@@ -658,7 +658,7 @@ struct parser_node *parser_parse_block(struct parser_t *restrict parser, struct 
     }
 
     int capacity = 16;
-    block_node->data.block.statements = malloc(sizeof(struct parser_node*) * capacity); 
+    block_node->data.block.statements = calloc(capacity, sizeof(struct parser_node*)); 
     block_node->data.block.count = 0;
 
     while (*cursor < token_count && tokens[*cursor].type != LEXER_TOKEN_TYPE_RBRACE) {

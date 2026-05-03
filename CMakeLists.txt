@@ -13,6 +13,10 @@ add_executable(hrsc
     src/hrs_file_io.c
     src/symbol_table.c
     src/codegen.c
+    src/h_vector.c
+    src/ir_gen.c
+    src/ir_lower.c
+    src/ir_dumper.c
 )
 
 target_include_directories(hrsc
