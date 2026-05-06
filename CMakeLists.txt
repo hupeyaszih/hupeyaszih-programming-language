@@ -7,16 +7,17 @@ set(CMAKE_C\_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_executable(hrsc
-    src/main.c
-    src/lexer.c
-    src/parser.c
-    src/hrs_file_io.c
-    src/symbol_table.c
-    src/codegen.c
+    src/core/main.c
+    src/core/lexer.c
+    src/core/parser.c
+    src/core/hrs_file_io.c
+    src/core/symbol_table.c
     src/h_vector.c
-    src/ir_gen.c
-    src/ir_lower.c
-    src/ir_dumper.c
+    src/core/ir_gen.c
+    src/core/ir_lower.c
+    src/core/ir_dumper.c
+    src/opt/opt.c
+    src/backend/x86_64/codegen_x86_64.c
 )
 
 target_include_directories(hrsc

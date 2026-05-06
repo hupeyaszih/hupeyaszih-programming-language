@@ -1,7 +1,7 @@
-#include "parser.h"
-#include "globals.h"
-#include "lexer.h"
-#include "symbol_table.h"
+#include "core/parser.h"
+#include "core/globals.h"
+#include "core/lexer.h"
+#include "core/symbol_table.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

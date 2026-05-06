@@ -115,10 +115,18 @@ Hupeyaszih aims to empower developers to create branchless, high-performance sof
 # Project structures
 ```
 .
-├── src/            # Compiler source code (C)
-├── example/        # .hrs example files
 ├── build/          # Where you build the compiler (cmake)
-└── out/            # Default output directory for compiled assembly
+│   
+├── example/        # .hrs example files
+├── include/
+│   ├── backend/
+│   ├── core/
+│   └── opt/
+├── out/            # Default output directory for compiled assembly
+└── src/            # Compiler source code (C)
+    ├── backend/
+    ├── core/
+    └── opt/
 ```
 
 # Installation

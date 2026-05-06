@@ -1,8 +1,8 @@
-#include "ir_lower.h"
-#include "globals.h"
-#include "ir_gen.h"
-#include "parser.h"
-#include "symbol_table.h"
+#include "core/ir_lower.h"
+#include "core/globals.h"
+#include "core/ir_gen.h"
+#include "core/parser.h"
+#include "core/symbol_table.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

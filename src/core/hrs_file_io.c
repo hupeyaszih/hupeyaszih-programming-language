@@ -1,5 +1,5 @@
-#include "hrs_file_io.h"
-#include "globals.h"
+#include "core/hrs_file_io.h"
+#include "core/globals.h"
 #include <stddef.h>
 #include <stdlib.h>
 

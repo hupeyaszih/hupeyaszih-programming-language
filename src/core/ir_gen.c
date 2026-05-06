@@ -1,6 +1,5 @@
-#include "ir_gen.h"
+#include "core/ir_gen.h"
 #include "h_vector.h"
-#include <stdio.h>
 #include <stdlib.h>
 
 /// Create & Delete Functions

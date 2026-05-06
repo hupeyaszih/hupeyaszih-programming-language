@@ -1,9 +1,9 @@
-#include "lexer.h"
+#include "core/lexer.h"
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 
-#include "globals.h"
+#include "core/globals.h"
 
 const char LEXER_DELIM[] = " \t\r\n";
 

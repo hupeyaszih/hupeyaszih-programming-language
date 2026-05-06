@@ -1,5 +1,5 @@
-#include "symbol_table.h"
-#include "globals.h"
+#include "core/symbol_table.h"
+#include "core/globals.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

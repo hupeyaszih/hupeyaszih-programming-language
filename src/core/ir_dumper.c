@@ -1,4 +1,4 @@
-#include "ir_dumper.h"
+#include "core/ir_dumper.h"
 #include <stdio.h>
 
 void IR_dump_operand(struct IR_Operand *op) {
