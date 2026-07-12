@@ -12,12 +12,10 @@ add_executable(hrsc
     src/core/parser.c
     src/core/hrs_file_io.c
     src/core/symbol_table.c
-    src/h_vector.c
     src/core/ir_gen.c
-    src/core/ir_lower.c
-    src/core/ir_dumper.c
-    src/opt/opt.c
-    src/backend/x86_64/codegen_x86_64.c
+    src/h_vector.c
+    src/h_bitset.c
+    # src/opt/opt.c
 )
 
 target_include_directories(hrsc

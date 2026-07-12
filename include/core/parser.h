@@ -26,8 +26,6 @@ enum parser_node_type {
     PARSER_NODE_PARAMETER_LIST,
     PARSER_NODE_FUNCTION,
     PARSER_NODE_LOOP,
-    PARSER_NODE_BREAK,
-    PARSER_NODE_CONTINUE,
     PARSER_NODE_ASM,
     PARSER_NODE_CALL,
     PARSER_NODE_BLOCK,
@@ -60,7 +58,9 @@ struct parser_node{
 
        struct {
            char *mangled_name;
-           struct parser_node *body;
+           struct parser_node *body_block;
+           struct parser_node *return_block;
+           struct parser_node *continue_block;
            int loop_id;
        } loop;
 
@@ -135,8 +135,6 @@ struct parser_node *parser_parse_statement(struct parser_t *restrict parser, str
 struct parser_node *parser_parse_parse_parameters(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
 struct parser_node *parser_parse_function(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
 struct parser_node *parser_parse_loop(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
-struct parser_node *parser_parse_break(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
-struct parser_node *parser_parse_continue(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
 struct parser_node *parser_parse_asm(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
 struct parser_node *parser_parse_call(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor, char *func_name);
 struct parser_node *parser_parse_block(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor, int create_new_scope);

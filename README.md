@@ -157,4 +157,5 @@ ld <file_name>.o -o <file_name>
 ./<file_name>; echo $?
 ```
 
-
+## Notes
+> **Note:** Development was on pause for the past two months due to exams :D

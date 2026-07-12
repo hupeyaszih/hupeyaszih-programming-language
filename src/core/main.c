@@ -3,6 +3,7 @@
 #include "core/hrs_file_io.h"
 #include "core/parser.h"
 #include "core/symbol_table.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -18,6 +19,7 @@ int main(int argc, char *argv[]) {
     for(int i = 1; i < argc; ++i) {
         if(0 == strcmp("-o", argv[i])) {
             if(i + 1 < argc) {
+                
                 output_path = argv[i+1];
                 i++;
             }else {

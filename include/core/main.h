@@ -2,10 +2,6 @@
 #define MAIN_H
 
 #include "globals.h"
-#include "h_vector.h"
-#include "ir_dumper.h"
-#include "ir_gen.h"
-#include "ir_lower.h"
 #include "lexer.h"
 #include "parser.h"
 #include <stdlib.h>
@@ -72,13 +68,13 @@ static inline void run_flag_func(const char *restrict file_path){
 
 
 static inline void ir_test(struct parser_t *parser, struct symbol_table *global_scope) {
-    struct IR_Builder *builder = IRL_create_IR_Builder();
-    struct IR_Module *module = IRLower_program(builder, parser);
+    // struct IR_Builder *builder = IRL_create_IR_Builder();
+    // struct IR_Module *module = IRLower_program(builder, parser);
 
-    IR_dump_module(module);
+    // IR_dump_module(module);
 
-    IRL_delete_IR_Builder(&builder);
-    IR_delete_IR_Module(&module);
+    // IRL_delete_IR_Builder(&builder);
+    // IR_delete_IR_Module(&module);
 }
 
 

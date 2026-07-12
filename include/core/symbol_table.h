@@ -1,7 +1,6 @@
 #ifndef SYMBOL_TABLE_H
 #define SYMBOL_TABLE_H
 
-#include "ir_gen.h"
 #include <stddef.h>
 #include <stdlib.h>
 

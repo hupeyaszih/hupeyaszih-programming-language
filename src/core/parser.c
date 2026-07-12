@@ -92,20 +92,10 @@ void parser_delete_node(struct parser_node **node) {
             free((*node)->data.call.args);
             break;
         case PARSER_NODE_LOOP:
-            parser_delete_node(&((*node)->data.loop.body));
+            parser_delete_node(&((*node)->data.loop.body_block));
+            parser_delete_node(&((*node)->data.loop.return_block));
+            parser_delete_node(&((*node)->data.loop.continue_block));
             free((*node)->data.loop.mangled_name);
-            break;
-        case PARSER_NODE_BREAK:
-            parser_delete_node(&((*node)->data.loop_control.condition));
-            parser_delete_node(&((*node)->data.loop_control.body));
-            free((*node)->data.loop_control.mangled_loop_control_name);
-            free((*node)->data.loop_control.mangled_loop_name);
-            break;
-        case PARSER_NODE_CONTINUE:
-            parser_delete_node(&((*node)->data.loop_control.condition));
-            parser_delete_node(&((*node)->data.loop_control.body));
-            free((*node)->data.loop_control.mangled_loop_control_name);
-            free((*node)->data.loop_control.mangled_loop_name);
             break;
         case PARSER_NODE_ASM:
             free((*node)->data.assembly.assembly_data);
@@ -253,10 +243,6 @@ struct parser_node *parser_parse_statement(struct parser_t *restrict parser, str
         return parser_parse_function(parser, tokens, token_count, cursor);
     }else if(tokens[*cursor].type == LEXER_TOKEN_TYPE_LOOP){
         return parser_parse_loop(parser, tokens, token_count, cursor);
-    }else if(tokens[*cursor].type == LEXER_TOKEN_TYPE_BREAK){
-        return parser_parse_break(parser, tokens, token_count, cursor);
-    }else if(tokens[*cursor].type == LEXER_TOKEN_TYPE_CONTINUE){
-        return parser_parse_continue(parser, tokens, token_count, cursor);
     }else if(tokens[*cursor].type == LEXER_TOKEN_TYPE_ASM){
         return parser_parse_asm(parser, tokens, token_count, cursor);
     }
@@ -270,7 +256,7 @@ struct parser_node *parser_parse_statement(struct parser_t *restrict parser, str
 
     if (NULL == node) {parser->successful = 0; return NULL;}
 
-    if (node->type != PARSER_NODE_BLOCK && node->type != PARSER_NODE_FUNCTION && node->type != PARSER_NODE_LOOP && node->type != PARSER_NODE_BREAK && node->type != PARSER_NODE_CONTINUE) {
+    if (node->type != PARSER_NODE_BLOCK && node->type != PARSER_NODE_FUNCTION && node->type != PARSER_NODE_LOOP) {
         if (NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_SEMICOLON)) {
             parser->successful = 0;
             parser_delete_node(&node);
@@ -468,7 +454,19 @@ struct parser_node *parser_parse_loop(struct parser_t *restrict parser, struct l
 
     struct parser_node *loop_body = parser_parse_block(parser, tokens, token_count, cursor, 1);
     if(NULL == loop_body) goto cleanup_err_level_0;
-    loop_node->data.loop.body = loop_body;
+    loop_node->data.loop.body_block = loop_body;
+
+    if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_RETURN)) goto cleanup_err_level_0;
+
+    struct parser_node *return_block = parser_parse_block(parser, tokens, token_count, cursor, 1);
+    if(NULL == return_block) goto cleanup_err_level_0;
+    loop_node->data.loop.return_block = return_block;
+
+    if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_CONTINUE)) goto cleanup_err_level_0;
+
+    struct parser_node *continue_block = parser_parse_block(parser, tokens, token_count, cursor, 1);
+    if(NULL == continue_block) goto cleanup_err_level_0;
+    loop_node->data.loop.continue_block = continue_block;
 
     parser->loop_depth_counter--;
     parser->current_loop_id = old_current_loop_id;
@@ -480,70 +478,6 @@ cleanup_err_level_0:
     return NULL;
 }
 
-struct parser_node *parser_parse_break(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor){
-    if(NULL == parser) {LOG_M_ERR("parser_parse_break - \"struct parser_t *restrict parser\" is null"); return NULL;}
-    struct parser_node *break_node = parser_create_node(PARSER_NODE_BREAK, tokens[*cursor].line);
-    if(NULL == break_node){
-        LOG_M_ERR("parser_parse_break - \"struct parser_node *break_node\" is null");
-        parser->successful = 0;
-        return NULL;
-    }
-    if(parser->loop_depth_counter <= 0) {C_LOG_ERR("\"break\" can only be used in loops"); goto cleanup_err_level_0;}
-    if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_BREAK)) goto cleanup_err_level_0;
-    parser->loop_control_id_counter++;
-    parser->loop_control_depth_counter++;
-    break_node->data.loop_control.loop_control_id = parser->loop_control_id_counter;
-    break_node->data.loop_control.loop_id = parser->current_loop_id;
-
-    struct parser_node *condition_node = parser_parse_boolean_logic(parser, tokens, token_count, cursor);
-    if(NULL == condition_node) goto cleanup_err_level_0;
-    break_node->data.loop_control.condition = condition_node;
-
-    struct parser_node *body_node = parser_parse_block(parser, tokens, token_count, cursor, 1);
-    if(NULL == body_node) goto cleanup_err_level_0;
-    break_node->data.loop_control.body = body_node;
-
-
-    parser->loop_control_depth_counter--;
-    return break_node;
-cleanup_err_level_0:
-    parser->loop_control_depth_counter--;
-    parser_delete_node(&break_node);
-    parser->successful = 0;
-    return NULL;
-}
-
-struct parser_node *parser_parse_continue(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor){
-    if(NULL == parser) {LOG_M_ERR("parser_parse_continue - \"struct parser_t *restrict parser\" is null"); return NULL;}
-    struct parser_node *continue_node = parser_create_node(PARSER_NODE_CONTINUE, tokens[*cursor].line);
-    if(NULL == continue_node){
-        LOG_M_ERR("parser_parse_continue - \"struct parser_node *continue_node\" is null");
-        parser->successful = 0;
-        return NULL;
-    }
-    if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_CONTINUE)) goto cleanup_err_level_0;
-    parser->loop_control_id_counter++;
-    parser->loop_control_depth_counter++;
-    continue_node->data.loop_control.loop_control_id = parser->loop_control_id_counter;
-    continue_node->data.loop_control.loop_id = parser->current_loop_id;
-
-    struct parser_node *condition_node = parser_parse_boolean_logic(parser, tokens, token_count, cursor);
-    if(NULL == condition_node) goto cleanup_err_level_0;
-    continue_node->data.loop_control.condition = condition_node;
-
-    struct parser_node *body_node = parser_parse_block(parser, tokens, token_count, cursor, 1);
-    if(NULL == body_node) goto cleanup_err_level_0;
-    continue_node->data.loop_control.body = body_node;
-
-
-    parser->loop_control_depth_counter--;
-    return continue_node;
-cleanup_err_level_0:
-    parser->loop_control_depth_counter--;
-    parser_delete_node(&continue_node);
-    parser->successful = 0;
-    return NULL;
-}
 
 struct parser_node *parser_parse_asm(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor){
 
@@ -967,6 +901,9 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
         char buf[32];
         snprintf(buf, sizeof(buf), "%zu", type_table_size_padding(type_info->size));
         node->data.literal_data = strdup(buf);
+        return node;
+    }else if(LEXER_TOKEN_TYPE_LOOP == tokens[*cursor].type){
+        struct parser_node *node = parser_parse_loop(parser, tokens, token_count, cursor);
         return node;
     }else {
         C_LOG_ERR("parser_parse_factor - current token (%s) is not literal or identifier (unexpected token), line: %d", tokens[*cursor].token ,tokens[*cursor].line);

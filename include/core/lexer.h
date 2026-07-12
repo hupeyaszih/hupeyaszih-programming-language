@@ -16,7 +16,7 @@ enum token_type{
     LEXER_TOKEN_TYPE_VAR,
     LEXER_TOKEN_TYPE_FN,
     LEXER_TOKEN_TYPE_LOOP,
-    LEXER_TOKEN_TYPE_BREAK,
+    LEXER_TOKEN_TYPE_RETURN,
     LEXER_TOKEN_TYPE_CONTINUE,
     LEXER_TOKEN_TYPE_ASM,
 
@@ -109,7 +109,7 @@ static const char* lexer_token_type_to_string(enum token_type type) {
         case LEXER_TOKEN_TYPE_VAR:             return "VAR";
         case LEXER_TOKEN_TYPE_FN:              return "FN";
         case LEXER_TOKEN_TYPE_LOOP:            return "LOOP";
-        case LEXER_TOKEN_TYPE_BREAK:           return "BREAK";
+        case LEXER_TOKEN_TYPE_RETURN:          return "RETURN";
         case LEXER_TOKEN_TYPE_CONTINUE:        return "CONTINUE";
         case LEXER_TOKEN_TYPE_ASM:             return "ASM";
 
