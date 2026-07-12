@@ -7,10 +7,12 @@ fn something(x:int32, y:int32):int32 {
 fn main():int32 {
     var i:int32 = 0;
     var res:int32 = loop {
+        var x:int32 = 0;
         i <= 10;
     } return {
         i;
     } continue { 
+        x = i;
         i = i + 1;
     };
 

@@ -68,7 +68,7 @@ void parser_delete_node(struct parser_node **node) {
                 parser_delete_node(&((*node)->data.block.statements[i]));
             }
             free((*node)->data.block.statements);
-            if ((*node)->data.block.scope) {
+            if (1 == (*node)->data.block.own_its_scope && (*node)->data.block.scope) {
                 symbol_table_delete_symbol_table(&((*node)->data.block.scope));
             }
             break;
@@ -457,17 +457,20 @@ struct parser_node *parser_parse_loop(struct parser_t *restrict parser, struct l
     loop_node->data.loop.body_block = loop_body;
 
     if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_RETURN)) goto cleanup_err_level_0;
+    parser->current_scope = loop_body->data.block.scope;
 
-    struct parser_node *return_block = parser_parse_block(parser, tokens, token_count, cursor, 1);
+    struct parser_node *return_block = parser_parse_block(parser, tokens, token_count, cursor, 0);
     if(NULL == return_block) goto cleanup_err_level_0;
     loop_node->data.loop.return_block = return_block;
 
     if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_CONTINUE)) goto cleanup_err_level_0;
+    parser->current_scope = loop_body->data.block.scope;
 
-    struct parser_node *continue_block = parser_parse_block(parser, tokens, token_count, cursor, 1);
+    struct parser_node *continue_block = parser_parse_block(parser, tokens, token_count, cursor, 0);
     if(NULL == continue_block) goto cleanup_err_level_0;
     loop_node->data.loop.continue_block = continue_block;
 
+    parser->current_scope = loop_body->data.block.scope->parent;
     parser->loop_depth_counter--;
     parser->current_loop_id = old_current_loop_id;
     return loop_node;
@@ -582,6 +585,7 @@ struct parser_node *parser_parse_block(struct parser_t *restrict parser, struct 
     if(1 == create_new_scope) {
         parser->current_scope = symbol_table_create_symbol_table(parser->current_scope, &parser->scope_counter);
     }
+    block_node->data.block.own_its_scope = create_new_scope;
     block_node->data.block.scope = parser->current_scope;
 
     if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_LBRACE)) {

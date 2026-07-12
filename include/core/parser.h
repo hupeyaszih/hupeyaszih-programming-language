@@ -43,8 +43,9 @@ struct parser_node{
 
        struct {
            struct parser_node **statements;
-           int count;
            struct symbol_table *scope;
+           int count;
+           int own_its_scope;
        } block;
 
        struct {
