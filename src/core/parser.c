@@ -68,7 +68,7 @@ void parser_delete_node(struct parser_node **node) {
                 parser_delete_node(&((*node)->data.block.statements[i]));
             }
             free((*node)->data.block.statements);
-            if (1 == (*node)->data.block.own_its_scope && (*node)->data.block.scope) {
+            if (1 == (*node)->data.block.owns_scope && (*node)->data.block.scope) {
                 symbol_table_delete_symbol_table(&((*node)->data.block.scope));
             }
             break;
@@ -585,7 +585,7 @@ struct parser_node *parser_parse_block(struct parser_t *restrict parser, struct 
     if(1 == create_new_scope) {
         parser->current_scope = symbol_table_create_symbol_table(parser->current_scope, &parser->scope_counter);
     }
-    block_node->data.block.own_its_scope = create_new_scope;
+    block_node->data.block.owns_scope = create_new_scope;
     block_node->data.block.scope = parser->current_scope;
 
     if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_LBRACE)) {
