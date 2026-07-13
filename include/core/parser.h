@@ -27,6 +27,9 @@ enum parser_node_type {
     PARSER_NODE_FUNCTION,
     PARSER_NODE_LOOP,
     PARSER_NODE_ASM,
+    PARSER_NODE_PURE,
+    PARSER_NODE_APPROX,
+    PARSER_NODE_RESILIENT,
     PARSER_NODE_CALL,
     PARSER_NODE_BLOCK,
     PARSER_NODE_UNDEFINED
@@ -46,15 +49,19 @@ struct parser_node{
            struct symbol_table *scope;
            int count;
            int owns_scope;
+           int is_resilient;
        } block;
 
        struct {
            char *name;
            char *mangled_name;
+
            struct parser_node *params;
-           int param_count;
            struct parser_node *body;
            struct type_info *return_type;
+
+           int param_count;
+           int is_pure;
        } function;
 
        struct {
@@ -63,6 +70,7 @@ struct parser_node{
            struct parser_node *return_block;
            struct parser_node *continue_block;
            int loop_id;
+           int approx_value;
        } loop;
 
        struct {
@@ -139,6 +147,7 @@ struct parser_node *parser_parse_loop(struct parser_t *restrict parser, struct l
 struct parser_node *parser_parse_asm(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
 struct parser_node *parser_parse_call(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor, char *func_name);
 struct parser_node *parser_parse_block(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor, int create_new_scope);
+struct parser_node *parser_parse_resilient_block(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor, int create_new_scope);
 struct parser_node *parser_parse_variable_declaration(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
 struct parser_node *parser_parse_assignment(struct parser_t *parser, struct lexer_token *tokens, int token_count, int *cursor);
 struct parser_node *parser_parse_boolean_logic(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);

@@ -239,6 +239,8 @@ struct parser_node *parser_parse_statement(struct parser_t *restrict parser, str
     }
     if (tokens[*cursor].type == LEXER_TOKEN_TYPE_LBRACE) {
         return parser_parse_block(parser, tokens, token_count, cursor, 1);
+    }else if(tokens[*cursor].type == LEXER_TOKEN_TYPE_RESILIENT){
+        return parser_parse_resilient_block(parser, tokens, token_count, cursor, 1);
     }else if(tokens[*cursor].type == LEXER_TOKEN_TYPE_FN){
         return parser_parse_function(parser, tokens, token_count, cursor);
     }else if(tokens[*cursor].type == LEXER_TOKEN_TYPE_LOOP){
@@ -452,9 +454,19 @@ struct parser_node *parser_parse_loop(struct parser_t *restrict parser, struct l
     int old_current_loop_id = parser->current_loop_id;
     parser->current_loop_id = loop_node->data.loop.loop_id;
 
+    int approx_value = 0;
+
+    if(LEXER_TOKEN_TYPE_APPROX == tokens[*cursor].type) {
+        eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_APPROX);
+        approx_value = atoi(tokens[*cursor].token);
+        eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_INT_LITERAL);
+    }
+
     struct parser_node *loop_body = parser_parse_block(parser, tokens, token_count, cursor, 1);
     if(NULL == loop_body) goto cleanup_err_level_0;
     loop_node->data.loop.body_block = loop_body;
+    loop_body->data.loop.approx_value = approx_value;
+
 
     if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_RETURN)) goto cleanup_err_level_0;
     parser->current_scope = loop_body->data.block.scope;
@@ -533,6 +545,12 @@ struct parser_node *parser_parse_function(struct parser_t *restrict parser, stru
     if(NULL == ret_type) {C_LOG_ERR("Unknown return type for function on line: %d", tokens[*cursor].line);parser_delete_node(&parameters); parser_delete_node(&function_node); parser->successful = 0; return NULL;}
     if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER)) {parser_delete_node(&parameters); parser_delete_node(&function_node); parser->successful = 0;return NULL;}
 
+    function_node->data.function.is_pure = 0;
+    if(LEXER_TOKEN_TYPE_PURE == tokens[*cursor].type) {
+        eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_PURE);
+        function_node->data.function.is_pure = 1;
+    }
+
     struct symbol_table *body_scope = symbol_table_create_symbol_table(parser->current_scope, &parser->scope_counter);
     if(NULL == body_scope){
         parser_delete_node(&parameters);
@@ -550,6 +568,7 @@ struct parser_node *parser_parse_function(struct parser_t *restrict parser, stru
     parser->current_scope = body_scope;
 
     function_node->data.function.body = parser_parse_block(parser, tokens, token_count, cursor, 0);
+    function_node->data.function.body->data.block.owns_scope = 1;
     if(NULL == function_node->data.function.body) {
         parser_delete_node(&parameters);
         parser_delete_node(&function_node);
@@ -570,11 +589,19 @@ struct parser_node *parser_parse_function(struct parser_t *restrict parser, stru
     return function_node;
 }
 
+struct parser_node *parser_parse_resilient_block(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor, int create_new_scope) {
+    eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_RESILIENT);
+    struct parser_node *block = parser_parse_block(parser, tokens, token_count, cursor, create_new_scope);
+    block->data.block.is_resilient = 1;
+    return block;
+}
+
 struct parser_node *parser_parse_block(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor, int create_new_scope) {
     if(NULL == parser) {LOG_M_ERR("parser_parse_block - \"struct parser_t *restrict parser\" is null"); return NULL;}
     if (*cursor >= token_count) {parser->successful = 0; return NULL;}
     int line_number = tokens[*cursor].line;
     struct parser_node *block_node = parser_create_node(PARSER_NODE_BLOCK, line_number);
+    block_node->data.block.is_resilient = 0;
     if(NULL == block_node){
         parser_delete_node(&block_node);
         LOG_M_ERR("parser_parse_block - \"struct parser_node *block_node\" is null");

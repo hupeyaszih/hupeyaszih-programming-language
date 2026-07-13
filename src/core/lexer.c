@@ -7,7 +7,7 @@
 
 const char LEXER_DELIM[] = " \t\r\n";
 
-const char language_keywords[LEXER_KEYWORD_COUNT][LEXER_MAX_KEYWORD_CHAR_LENGHT] = {"fn", "var", "loop", "return", "continue", "asm", "sizeof", "alignof"};
+const char language_keywords[LEXER_KEYWORD_COUNT][LEXER_MAX_KEYWORD_CHAR_LENGHT] = {"fn", "var", "loop", "return", "continue", "pure", "approx", "resilient", "asm", "sizeof", "alignof"};
 
 
 static inline enum token_type get_keyword_type(const char *chr){
@@ -23,6 +23,12 @@ static inline enum token_type get_keyword_type(const char *chr){
         return LEXER_TOKEN_TYPE_CONTINUE;
     }else if(0 == strcmp("asm", chr)){
         return LEXER_TOKEN_TYPE_ASM;
+    }else if(0 == strcmp("pure", chr)){
+        return LEXER_TOKEN_TYPE_PURE;
+    }else if(0 == strcmp("approx", chr)){
+        return LEXER_TOKEN_TYPE_APPROX;
+    }else if(0 == strcmp("resilient", chr)){
+        return LEXER_TOKEN_TYPE_RESILIENT;
     }else if(0 == strcmp("sizeof", chr)){
         return LEXER_TOKEN_TYPE_SIZEOF;
     }else if(0 == strcmp("alignof", chr)){
