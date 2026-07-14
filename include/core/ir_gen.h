@@ -134,6 +134,7 @@ struct IR_Module {
 };
 
 
+// create/free
 struct IR_Module *IR_create_IR_Module();
 void IR_delete_IR_Module(struct IR_Module **module);
 
@@ -148,6 +149,21 @@ void IR_delete_IR_Instruction(struct IR_Instruction **instruction);
 
 struct IR_Operand *IR_create_IR_Operand(enum IR_Operand_type type, struct IR_Instruction *definition_instruction);
 void IR_delete_IR_Operand(struct IR_Operand **operand);
+
+// add/remove
+void IR_Module_add_function(struct IR_Module *module, struct IR_Function *function);
+void IR_Function_add_block(struct IR_Function *function, struct IR_Block *block);
+void IR_Block_add_instruction(struct IR_Block *block, struct IR_Instruction *instruction);
+void IR_Block_add_instruction_before(struct IR_Block *block, struct IR_Instruction *target_instruction, struct IR_Instruction *instruction);
+void IR_Block_add_instruction_after(struct IR_Block *block, struct IR_Instruction *target_instruction, struct IR_Instruction *instruction);
+
+// calculation functions
+
+/*   ...   */
+
+// Helpers
+
+struct IR_Operand *IR_create_new_vreg(struct IR_Block *block, struct IR_Instruction *definition_instruction);
 
 // Other Functions
 static inline int IR_get_instruction_cost(enum IR_Instruction_type type) {

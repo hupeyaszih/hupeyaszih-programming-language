@@ -2,6 +2,8 @@
 #include "h_vector.h"
 #include <stdlib.h>
 
+// create/free
+
 struct IR_Module *IR_create_IR_Module() {
     struct IR_Module *module = calloc(1, sizeof(struct IR_Module));
     module->functions = vector_create_vector(1, sizeof(struct IR_Function *));
@@ -34,6 +36,11 @@ struct IR_Function *IR_create_IR_Function(char *name, char *mangled_name, int pa
 void IR_delete_IR_Function(struct IR_Function **function) {
     for(struct IR_Block *block = (*function)->head_block;NULL != block; block = block->next) {
         IR_delete_IR_Block(&block);
+    }
+
+    for(int i = 0; i < (*function)->operands->element_count; ++i) {
+        struct IR_Operand *operand = *(struct IR_Operand **)vector_get((*function)->operands, i);
+        IR_delete_IR_Operand(&operand);
     }
 
     vector_free(&(*function)->unique_vregs);
@@ -95,6 +102,7 @@ struct IR_Instruction *IR_create_IR_Instruction(struct IR_Block *parent_block, e
 
     return instruction;
 }
+
 void IR_delete_IR_Instruction(struct IR_Instruction **instruction) {
     free((*instruction));
     (*instruction) = NULL;
@@ -116,4 +124,77 @@ void IR_delete_IR_Operand(struct IR_Operand **operand) {
     vector_free(&(*operand)->use_list);
     free((*operand));
     (*operand) = NULL;
+}
+
+
+
+// add/remove
+
+void IR_Module_add_function(struct IR_Module *module, struct IR_Function *function) {
+    vector_add(module->functions, &function);
+}
+
+void IR_Function_add_block(struct IR_Function *function, struct IR_Block *block) {
+    if(NULL == function->head_block) {
+        function->head_block = block;
+        function->tail_block = block;
+    }else {
+        function->tail_block->next = block;
+        block->prev = function->tail_block;
+        function->tail_block = block;
+    }
+}
+
+void IR_Block_add_instruction(struct IR_Block *block, struct IR_Instruction *instruction) {
+    if(NULL == block->head_instruction) {
+        block->head_instruction = instruction;
+        block->tail_instruction = instruction;
+    }else {
+        block->tail_instruction->next = instruction;
+        instruction->prev = block->tail_instruction;
+        block->tail_instruction = instruction;
+    }
+    ++block->instruction_count;
+    ++block->parent_function->instruction_count;
+}
+
+void IR_Block_add_instruction_before(struct IR_Block *block, struct IR_Instruction *target_instruction, struct IR_Instruction *instruction) {
+    if(block->head_instruction == target_instruction) {
+        target_instruction->prev = instruction;
+        instruction->next = target_instruction;
+        block->head_instruction = instruction;
+    } else {
+        target_instruction->prev->next = instruction;
+        instruction->prev = target_instruction->prev;
+        target_instruction->prev = instruction;
+        instruction->next = target_instruction;
+    }
+}
+
+void IR_Block_add_instruction_after(struct IR_Block *block, struct IR_Instruction *target_instruction, struct IR_Instruction *instruction) {
+    if(block->tail_instruction == target_instruction) {
+        target_instruction->next = instruction;
+        instruction->prev = target_instruction;
+        block->tail_instruction = instruction;
+    }else {
+        target_instruction->next->prev = instruction;
+        instruction->next = target_instruction->next;
+        target_instruction->next = instruction;
+        instruction->prev = target_instruction;
+    }
+}
+
+// Helpers
+
+struct IR_Operand *IR_create_new_vreg(struct IR_Block *block, struct IR_Instruction *definition_instruction) {
+    struct IR_Operand *operand = IR_create_IR_Operand(IR_OPERAND_TYPE_VREG, definition_instruction);
+    int is_unique = 1;
+    for(int i = 0;i < block->parent_function->unique_vregs->element_count; ++i) {
+        struct IR_Operand *current = *(struct IR_Operand **)vector_get(block->parent_function->operands, i);
+        if(current == operand || current->data.vreg_id == operand->data.vreg_id) {is_unique = 0; break;}
+    }
+    if(1 == is_unique) {
+        vector_add(block->parent_function->unique_vregs, operand);
+    }
+    return operand;
 }
