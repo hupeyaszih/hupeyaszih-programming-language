@@ -26,6 +26,8 @@ enum token_type{
 
     LEXER_TOKEN_TYPE_ALIGNOF,
     LEXER_TOKEN_TYPE_SIZEOF,
+    LEXER_TOKEN_TYPE_TYPEOF,
+    LEXER_TOKEN_TYPE_STOF,     /*  Mix of "typeof" and "sizeof" */
 
 
     LEXER_TOKEN_TYPE_PLUS,         // +
@@ -82,7 +84,7 @@ struct lexer_file{
 
 #define LEXER_MAX_KEYWORD_CHAR_LENGHT 10
 
-#define LEXER_KEYWORD_COUNT 11
+#define LEXER_KEYWORD_COUNT 13
 
 extern const char LEXER_DELIM[];
 
@@ -122,6 +124,8 @@ static const char* lexer_token_type_to_string(enum token_type type) {
 
         case LEXER_TOKEN_TYPE_ALIGNOF:         return "ALIGNOF";
         case LEXER_TOKEN_TYPE_SIZEOF:          return "SIZEOF";
+        case LEXER_TOKEN_TYPE_TYPEOF:          return "TYPEOF";
+        case LEXER_TOKEN_TYPE_STOF:            return "STOF";
 
 
         case LEXER_TOKEN_TYPE_PLUS:            return "PLUS";

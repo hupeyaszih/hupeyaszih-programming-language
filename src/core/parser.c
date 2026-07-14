@@ -934,6 +934,80 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
         snprintf(buf, sizeof(buf), "%zu", type_table_size_padding(type_info->size));
         node->data.literal_data = strdup(buf);
         return node;
+    }else if(LEXER_TOKEN_TYPE_TYPEOF == tokens[*cursor].type){
+        int line_number = tokens[*cursor].line;
+        if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_TYPEOF)) {
+            parser->successful = 0;
+            return NULL;
+        }
+        if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_LPAREN)) {
+            C_LOG_ERR("expected \"(\" for \"typeof\" on line: %d", line_number);
+            parser->successful = 0;
+            return NULL;
+        }
+        struct lexer_token *type_token = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER);
+        if(NULL == type_token) {
+            C_LOG_ERR("expected an identifier for \"typeof\"on line: %d", line_number);
+            parser->successful = 0;
+            return NULL;
+        }
+        struct symbol_t *sym = symbol_table_look_up(parser->current_scope, type_token->token);
+        struct type_info *type_info = sym->type;
+        if(NULL == type_info) {
+            C_LOG_ERR("expected a valid type after \"(\" for \"typeof\" on line: %d", line_number);
+            parser->successful = 0;
+            return NULL;
+        }
+
+        if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_RPAREN)) {
+            C_LOG_ERR("expected \")\" for \"typeof\"on line: %d", line_number);
+            parser->successful = 0;
+            return NULL;
+        }
+
+        struct parser_node *node = parser_create_node(PARSER_NODE_STRING, line_number);
+        if(NULL == node) {parser->successful = 0; return NULL;}
+        node->is_literal_data_created_by_parser = 1;
+        node->data.literal_data = strdup(type_info->name);
+        return node;
+    }else if(LEXER_TOKEN_TYPE_STOF == tokens[*cursor].type){
+        int line_number = tokens[*cursor].line;
+        if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_STOF)) {
+            parser->successful = 0;
+            return NULL;
+        }
+        if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_LPAREN)) {
+            C_LOG_ERR("expected \"(\" for \"stof\" on line: %d", line_number);
+            parser->successful = 0;
+            return NULL;
+        }
+        struct lexer_token *type_token = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER);
+        if(NULL == type_token) {
+            C_LOG_ERR("expected an identifier for \"stof\"on line: %d", line_number);
+            parser->successful = 0;
+            return NULL;
+        }
+        struct symbol_t *sym = symbol_table_look_up(parser->current_scope, type_token->token);
+        struct type_info *type_info = sym->type;
+        if(NULL == type_info) {
+            C_LOG_ERR("expected a valid type after \"(\" for \"stof\" on line: %d", line_number);
+            parser->successful = 0;
+            return NULL;
+        }
+
+        if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_RPAREN)) {
+            C_LOG_ERR("expected \")\" for \"stof\"on line: %d", line_number);
+            parser->successful = 0;
+            return NULL;
+        }
+
+        struct parser_node *node = parser_create_node(PARSER_NODE_NUMBER, line_number);
+        if(NULL == node) {parser->successful = 0; return NULL;}
+        node->is_literal_data_created_by_parser = 1;
+        char buf[32];
+        snprintf(buf, sizeof(buf), "%zu", type_info->size);
+        node->data.literal_data = strdup(buf);
+        return node;
     }else if(LEXER_TOKEN_TYPE_LOOP == tokens[*cursor].type){
         struct parser_node *node = parser_parse_loop(parser, tokens, token_count, cursor);
         return node;

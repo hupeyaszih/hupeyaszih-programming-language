@@ -23,5 +23,7 @@ fn main():int32 {
         res = res + i;
     }
 
+    typeof(res);
+    stof(res);
     res2 + res;
 }
