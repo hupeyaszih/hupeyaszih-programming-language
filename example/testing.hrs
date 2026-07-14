@@ -1,6 +1,6 @@
 // Hupeyaszih Programming Language (.hrs)
 
-fn something(x:int32, y:int32):int32 pure{
+fn something(x:int32, y:int32):int32 pure {
 
 }
 

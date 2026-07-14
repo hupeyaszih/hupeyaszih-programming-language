@@ -568,14 +568,15 @@ struct parser_node *parser_parse_function(struct parser_t *restrict parser, stru
     parser->current_scope = body_scope;
 
     function_node->data.function.body = parser_parse_block(parser, tokens, token_count, cursor, 0);
-    function_node->data.function.body->data.block.owns_scope = 1;
     if(NULL == function_node->data.function.body) {
         parser_delete_node(&parameters);
         parser_delete_node(&function_node);
+        symbol_table_delete_symbol_table(&body_scope);
         parser->current_scope = old_scope;
         parser->successful = 0;
         return NULL;
     }
+    function_node->data.function.body->data.block.owns_scope = 1;
     
     parser->current_scope = old_scope;
 

@@ -12,9 +12,10 @@ add_executable(hrsc
     src/core/parser.c
     src/core/hrs_file_io.c
     src/core/symbol_table.c
-    src/core/ir_gen.c
     src/h_vector.c
     src/h_bitset.c
+
+    src/core/ir_gen.c
     # src/opt/opt.c
 )
 
