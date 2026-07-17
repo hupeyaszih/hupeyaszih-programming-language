@@ -1,9 +1,10 @@
 #include "core/symbol_table.h"
+#include "core/parser.h"
 #include "core/globals.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include <stdatomic.h>
 
 struct symbol_table *symbol_table_create_symbol_table(struct symbol_table *restrict parent, int *global_scope_counter){
     struct symbol_table *table = calloc(1, sizeof(struct symbol_table));
@@ -18,7 +19,7 @@ struct symbol_table *symbol_table_create_symbol_table(struct symbol_table *restr
     return table;
 }
 
-struct symbol_t *symbol_table_define(struct symbol_table *restrict table, char *restrict name, struct type_info *restrict type, enum symbol_kind kind){
+struct symbol_t *symbol_table_define(struct symbol_table *restrict table, char *restrict name, struct type_info *restrict type, enum symbol_kind kind, int pointer_level){
     if(NULL == table){
         LOG_M_ERR("symbol_table_define - \"struct symbol_table *restrict table\" is null");
         return NULL;
@@ -54,6 +55,7 @@ struct symbol_t *symbol_table_define(struct symbol_table *restrict table, char *
     s->type = type;
     s->kind = kind;
     s->ir_operand = NULL;
+    s->pointer_level = pointer_level;
 
     return s;
 }
@@ -99,21 +101,46 @@ void type_table_delete_type_table(struct type_table **table){
     (*table) = NULL;
 }
 
-struct type_info *type_table_create_type_info(char *name, enum type_category category, size_t size, struct symbol_table *members){
+
+struct type_info *type_table_create_type_info(char *name, enum type_category category, size_t size, struct symbol_table *members, struct type_info *promotable_type) {
+    static atomic_int id_counter = 0;
     struct type_info *info = malloc(sizeof(struct type_info));
     info->name = strdup(name);
     info->category = category;
     info->size = size;
     info->members = members;
+    info->type_id = id_counter;
+    info->promotable_type = promotable_type;
+    info->points_to = NULL;
+    info->pointer_level = 0;
+    ++id_counter;
     return info;
 }
-struct type_info *type_table_get_type_info(const struct type_table *restrict table, const char *restrict name){
+struct type_info *type_table_get_type_info(const struct type_table *restrict table, const char *restrict name, int pointer_level){
     for(int i = 0; i < table->count; ++i){
-        if(0 == strcmp(table->types[i]->name, name)){
+        if(table->types[i]->pointer_level == pointer_level && 0 == strcmp(table->types[i]->name, name)){
             return table->types[i];
         }
     }
     return NULL;
+}
+struct type_info *type_table_get_or_create_pointer_type_info(struct type_table *restrict table, char *restrict name, int pointer_level){
+    struct type_info *info = type_table_get_type_info(table, name, pointer_level);
+    if(NULL != info) return info;
+
+    for(int p = 1;p <= pointer_level; ++p) {
+        struct type_info *curr = type_table_get_type_info(table, name, p);
+        if(NULL != curr){
+            info = curr;
+            continue;
+        } 
+        info = type_table_create_type_info(name, TYPE_CATEGORY_POINTER, table->pointers_size, NULL, NULL);
+        info->pointer_level = p;
+        info->points_to = type_table_get_type_info(table, name, p-1);
+        type_table_insert(table, info);
+    }
+
+    return info;
 }
 
 void type_table_insert(struct type_table *table, struct type_info *info) {
@@ -143,4 +170,22 @@ void type_table_delete_type_info(struct type_info **info){
     free((*info));
 
     *info = NULL;
+}
+
+struct type_info *get_literals_type_info(struct type_table *type_table, struct type_info *target_info, enum parser_node_type literal_type) {
+    switch (literal_type) {
+        case PARSER_NODE_NUMBER:{
+            struct type_info *type = type_table_get_type_info(type_table, "int8", 0);
+
+            if(target_info && target_info->type_id != type->type_id && 1 == type_table_can_that_promote_to(type, target_info)) {
+                return target_info;
+            }
+            return type;
+        } case PARSER_NODE_STRING: {
+            struct type_info *type = type_table_get_type_info(type_table, "string", 1);
+            return type;
+        }
+    }
+
+    return NULL;
 }

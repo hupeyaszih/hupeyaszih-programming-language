@@ -3,6 +3,7 @@
 
 #include "lexer.h"
 #include "symbol_table.h"
+#include <stdint.h>
 
 enum parser_node_type {
     PARSER_NODE_EQUAL_EQUAL = 1,
@@ -28,9 +29,6 @@ enum parser_node_type {
     PARSER_NODE_FUNCTION,
     PARSER_NODE_LOOP,
     PARSER_NODE_ASM,
-    PARSER_NODE_PURE,
-    PARSER_NODE_APPROX,
-    PARSER_NODE_RESILIENT,
     PARSER_NODE_CALL,
     PARSER_NODE_BLOCK,
     PARSER_NODE_UNDEFINED
@@ -62,7 +60,7 @@ struct parser_node{
            struct type_info *return_type;
 
            int param_count;
-           int is_pure;
+           int8_t flags;
        } function;
 
        struct {

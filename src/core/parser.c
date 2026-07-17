@@ -1,4 +1,5 @@
 #include "core/parser.h"
+#include "core/flags/function_flags.h"
 #include "core/globals.h"
 #include "core/lexer.h"
 #include "core/symbol_table.h"
@@ -6,6 +7,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+static inline int calculate_pointer_level(struct lexer_token *tokens, int *cursor) {
+    int pointer_level = 0;
+    while(LEXER_TOKEN_TYPE_STAR == tokens[*cursor].type) {
+        ++pointer_level;
+        ++(*cursor);
+    }
+
+    return pointer_level;
+}
 
 static inline int is_boolean_logic_token(enum token_type type){ // returns token ID 
     switch (type) {
@@ -76,6 +86,7 @@ void parser_delete_node(struct parser_node **node) {
         case PARSER_NODE_FUNCTION:
             free((*node)->data.function.name);
             free((*node)->data.function.mangled_name);
+
             if ((*node)->data.function.params) {
                 parser_delete_node(&((*node)->data.function.params));
             }
@@ -188,20 +199,23 @@ struct parser_node *parser_parse_variable_declaration(struct parser_t *restrict 
     if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER)) {parser->successful = 0; return NULL;}
 
     char *type_name = NULL;
-    if(NULL != eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_COLON)) {
-
-        struct lexer_token *type_name_token = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER); 
-        if(NULL == type_name_token) {parser->successful = 0; return NULL;}
-
-        type_name = type_name_token->token;
-        if(NULL == type_name) {parser->successful = 0; return NULL;}
-    }else {
+    if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_COLON)) {
         parser->successful = 0;
         return NULL;
     }
+    
+    int pointer_level = calculate_pointer_level(tokens, cursor);
 
-    struct type_info *type_info = type_table_get_type_info(parser->type_table, type_name);
+    struct lexer_token *type_name_token = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER); 
+    if(NULL == type_name_token) {parser->successful = 0; return NULL;}
+
+    type_name = type_name_token->token;
+    if(NULL == type_name) {parser->successful = 0; return NULL;}
+
+    struct type_info *type_info = type_table_get_or_create_pointer_type_info(parser->type_table, type_name, pointer_level);
+
     if(NULL == type_info) {
+        C_LOG_ERR("unknown type (%s), on line %d", type_name_token->token, tokens[*cursor].line);
         LOG_M_ERR("parser_parse_variable_declaration - \"struct type_info *type_info\" is null");
         parser->successful = 0;
         return NULL;
@@ -223,7 +237,7 @@ struct parser_node *parser_parse_variable_declaration(struct parser_t *restrict 
     }
     
     decl_node->right_node = value_node; 
-    if(NULL == symbol_table_define(parser->current_scope, var_name, type_info, SYMBOL_KIND_VARIABLE)) {
+    if(NULL == symbol_table_define(parser->current_scope, var_name, type_info, SYMBOL_KIND_VARIABLE, pointer_level)) {
         parser_delete_node(&decl_node);
         parser->successful = 0;
         return NULL;
@@ -344,6 +358,7 @@ struct parser_node *parser_parse_call(struct parser_t *restrict parser, struct l
             parser->successful = 0;
             return NULL;
         }
+
         call_node->data.call.args[call_node->data.call.arg_count++] = arg;
 
         if (*cursor < token_count && tokens[*cursor].type == LEXER_TOKEN_TYPE_COMMA) {
@@ -398,7 +413,8 @@ struct parser_node *parser_parse_parameters(struct parser_t *restrict parser, st
             return NULL;
         }
 
-        p_node->type_info = type_table_get_type_info(parser->type_table, tokens[*cursor].token);
+        int pointer_level = calculate_pointer_level(tokens, cursor);
+        p_node->type_info = type_table_get_or_create_pointer_type_info(parser->type_table, tokens[*cursor].token, pointer_level);
         if(NULL == p_node->type_info) {
             C_LOG_ERR("Unknown parameter type on line: %d", tokens[*cursor].line);
             parser_delete_node(&params_node);
@@ -530,6 +546,7 @@ struct parser_node *parser_parse_function(struct parser_t *restrict parser, stru
         parser->successful = 0;
         return NULL;
     }
+    function_node->data.function.flags = 0;
 
     if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_FN)) {parser_delete_node(&function_node); parser->successful = 0;return NULL;}
     char *name = tokens[*cursor].token; 
@@ -541,14 +558,16 @@ struct parser_node *parser_parse_function(struct parser_t *restrict parser, stru
 
     if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_COLON)) {parser_delete_node(&parameters); parser_delete_node(&function_node); parser->successful = 0;return NULL;}
     char *return_type_name = tokens[*cursor].token;
-    struct type_info *ret_type = type_table_get_type_info(parser->type_table, return_type_name);
+
+    int pointer_level = calculate_pointer_level(tokens, cursor);
+    struct type_info *ret_type = type_table_get_type_info(parser->type_table, return_type_name, pointer_level);
     if(NULL == ret_type) {C_LOG_ERR("Unknown return type for function on line: %d", tokens[*cursor].line);parser_delete_node(&parameters); parser_delete_node(&function_node); parser->successful = 0; return NULL;}
     if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER)) {parser_delete_node(&parameters); parser_delete_node(&function_node); parser->successful = 0;return NULL;}
 
-    function_node->data.function.is_pure = 0;
+    function_flags_set_is_pure_function(&function_node->data.function.flags, 0);
     if(LEXER_TOKEN_TYPE_PURE == tokens[*cursor].type) {
         eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_PURE);
-        function_node->data.function.is_pure = 1;
+        function_flags_set_is_pure_function(&function_node->data.function.flags, 1);
     }
 
     struct symbol_table *body_scope = symbol_table_create_symbol_table(parser->current_scope, &parser->scope_counter);
@@ -561,7 +580,7 @@ struct parser_node *parser_parse_function(struct parser_t *restrict parser, stru
     
     for(int i = 0; i < parameters->data.block.count; i++) {
         struct parser_node *p = parameters->data.block.statements[i];
-        if(NULL == symbol_table_define(body_scope, p->data.variable_name, p->type_info, SYMBOL_KIND_VARIABLE)) {symbol_table_delete_symbol_table(&body_scope); parser_delete_node(&parameters); parser_delete_node(&function_node); parser->successful = 0;return NULL;}
+        if(NULL == symbol_table_define(body_scope, p->data.variable_name, p->type_info, SYMBOL_KIND_VARIABLE, p->type_info->pointer_level)) {symbol_table_delete_symbol_table(&body_scope); parser_delete_node(&parameters); parser_delete_node(&function_node); parser->successful = 0;return NULL;}
     }
 
     struct symbol_table *old_scope = parser->current_scope;
@@ -586,7 +605,16 @@ struct parser_node *parser_parse_function(struct parser_t *restrict parser, stru
     function_node->data.function.return_type = ret_type;
     function_node->data.function.param_count = parameters->data.block.count;
 
-    if(NULL == symbol_table_define(parser->current_scope, function_node->data.function.name, type_table_get_type_info(parser->type_table, "fn"), SYMBOL_KIND_FUNCTION)) {symbol_table_delete_symbol_table(&body_scope); parser_delete_node(&parameters); parser_delete_node(&function_node); parser->successful = 0;return NULL;}
+    struct symbol_t *sym = symbol_table_define(parser->current_scope, function_node->data.function.name, type_table_get_type_info(parser->type_table, "fn", 0), SYMBOL_KIND_FUNCTION, 0);
+    if(NULL == sym) {
+        parser_delete_node(&function_node);
+        parser->successful = 0;
+        return NULL;
+    }else {
+        sym->flags = function_node->data.function.flags;
+        sym->function.parameters = function_node->data.function.params;
+        sym->function.return_type = function_node->data.function.return_type;
+    }
     return function_node;
 }
 
@@ -820,6 +848,17 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
         struct parser_node *node = parser_create_node(PARSER_NODE_NUMBER, line_number);
         if(NULL == node) {parser->successful = 0; return NULL;}
         node->data.literal_data = t->token;
+        node->type_info = NULL;
+        return node;
+    }else if(LEXER_TOKEN_TYPE_STRING_LITERAL == tokens[*cursor].type){
+        int line_number = tokens[*cursor].line;
+        struct lexer_token *t = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_STRING_LITERAL);
+
+        if(NULL == t) {parser->successful = 0; return NULL;}
+        struct parser_node *node = parser_create_node(PARSER_NODE_STRING, line_number);
+        if(NULL == node) {parser->successful = 0; return NULL;}
+        node->data.literal_data = t->token;
+        node->type_info = NULL;
         return node;
     }else if(LEXER_TOKEN_TYPE_IDENTIFIER == tokens[*cursor].type){
         if((*cursor)+1 < token_count && tokens[(*cursor)+1].type == LEXER_TOKEN_TYPE_LPAREN) {
@@ -871,13 +910,15 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
             parser->successful = 0;
             return NULL;
         }
+        int pointer_level = calculate_pointer_level(tokens, cursor);
         struct lexer_token *type_token = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER);
         if(NULL == type_token) {
             C_LOG_ERR("expected an identifier for \"sizeof\"on line: %d", line_number);
             parser->successful = 0;
             return NULL;
         }
-        struct type_info *type_info = type_table_get_type_info(parser->type_table, type_token->token);
+
+        struct type_info *type_info = type_table_get_type_info(parser->type_table, type_token->token, pointer_level);
         if(NULL == type_info) {
             C_LOG_ERR("expected a valid type after \"(\" for \"sizeof\" on line: %d", line_number);
             parser->successful = 0;
@@ -908,13 +949,14 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
             parser->successful = 0;
             return NULL;
         }
+        int pointer_level = calculate_pointer_level(tokens, cursor);
         struct lexer_token *type_token = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER);
         if(NULL == type_token) {
             C_LOG_ERR("expected an identifier for \"alignof\"on line: %d", line_number);
             parser->successful = 0;
             return NULL;
         }
-        struct type_info *type_info = type_table_get_type_info(parser->type_table, type_token->token);
+        struct type_info *type_info = type_table_get_type_info(parser->type_table, type_token->token, pointer_level);
         if(NULL == type_info) {
             C_LOG_ERR("expected a valid type after \"(\" for \"alignof\" on line: %d", line_number);
             parser->successful = 0;

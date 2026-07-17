@@ -301,7 +301,7 @@ int lexer_tokenize(char *restrict str, struct lexer_token **restrict tokens, int
                 }
 
                 (*tokens)[token_id].type = LEXER_TOKEN_TYPE_STRING_LITERAL;
-                (*tokens)[token_id].token = strndup(&str[start+1], i - start - 3);
+                (*tokens)[token_id].token = strndup(&str[start+1], i - start - 2);
                 (*tokens)[token_id].line = line_index;
                 token_id++;
                 continue;

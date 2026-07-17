@@ -1,6 +1,7 @@
 #ifndef MAIN_H
 #define MAIN_H
 
+#include "core/semantic_analyzer.h"
 #include "globals.h"
 #include "lexer.h"
 #include "parser.h"
@@ -28,9 +29,18 @@ static inline struct lexer_file *lexer_test(struct parser_t *restrict parser, ch
     int result = parser_parse(parser, file);
     if(result){
         C_LOG_OK("Parser finished successfully");
+        LOG_M("Semantic Analyzer started...");
+        int semantic_err = semantic_analyzer_run_analyzer(parser);
+        if(semantic_err){
+            C_LOG_ERR("Semantic Analyzer failed");
+        }else {
+            C_LOG_OK("Semantic Analyzer finished successfully");
+        }
     }else {
         C_LOG_ERR("Parser failed");
     }
+
+
 
     return file;
 }

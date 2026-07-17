@@ -15,6 +15,7 @@ add_executable(hrsc
     src/h_vector.c
     src/h_bitset.c
 
+    src/core/semantic_analyzer.c
     src/core/ir_gen.c
     # src/opt/opt.c
 )
