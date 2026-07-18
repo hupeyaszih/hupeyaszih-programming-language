@@ -6,13 +6,16 @@
 #include <stdbool.h>
 
 enum IR_Instruction_type {
-    IR_INSTRUCTION_TYPE_MOV, // STORE/LOAD/COPY etc.
-    IR_INSTRUCTION_TYPE_EQUAL_EQUAL = 1,
-    IR_INSTRUCTION_TYPE_BANG_EQUAL = 2,
-    IR_INSTRUCTION_TYPE_LESS_EQUAL = 3,
-    IR_INSTRUCTION_TYPE_GREATER_EQUAL = 4,
-    IR_INSTRUCTION_TYPE_LESS = 5,
-    IR_INSTRUCTION_TYPE_GREATER = 6,
+    IR_INSTRUCTION_TYPE_NOP,
+    IR_INSTRUCTION_TYPE_MOV,
+    IR_INSTRUCTION_TYPE_LOAD,
+    IR_INSTRUCTION_TYPE_STORE,
+    IR_INSTRUCTION_TYPE_EQUAL_EQUAL,
+    IR_INSTRUCTION_TYPE_BANG_EQUAL,
+    IR_INSTRUCTION_TYPE_LESS_EQUAL,
+    IR_INSTRUCTION_TYPE_GREATER_EQUAL,
+    IR_INSTRUCTION_TYPE_LESS,
+    IR_INSTRUCTION_TYPE_GREATER,
     IR_INSTRUCTION_TYPE_UNARY_BANG,
     IR_INSTRUCTION_TYPE_UNARY_MINUS,
     IR_INSTRUCTION_TYPE_UNARY_ADDRESS_OF,
@@ -168,6 +171,8 @@ struct IR_Operand *IR_create_new_vreg(struct IR_Block *block, struct IR_Instruct
 // Other Functions
 static inline int IR_get_instruction_cost(enum IR_Instruction_type type) {
     switch (type) {
+        case IR_INSTRUCTION_TYPE_NOP:
+            return 0;
         case IR_INSTRUCTION_TYPE_PLUS:
         case IR_INSTRUCTION_TYPE_MINUS:
         case IR_INSTRUCTION_TYPE_EQUAL_EQUAL:
@@ -186,6 +191,8 @@ static inline int IR_get_instruction_cost(enum IR_Instruction_type type) {
         case IR_INSTRUCTION_TYPE_MUL:
             return 3;
         case IR_INSTRUCTION_TYPE_DIVIDE:
+        case IR_INSTRUCTION_TYPE_STORE:
+        case IR_INSTRUCTION_TYPE_LOAD:
             return 10;
         case IR_INSTRUCTION_TYPE_BR:
         case IR_INSTRUCTION_TYPE_JMP:
