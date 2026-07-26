@@ -2,12 +2,18 @@
 
 struct bitset_t* bitset_create(size_t max_element_count) {
     struct bitset_t *bitset = calloc(1, sizeof(struct bitset_t));
+    if (!bitset) {
+        return NULL;
+    }
     bitset->size = (max_element_count / 64) + 1;
     bitset->bits = calloc(bitset->size, sizeof(uint64_t));
     return bitset;
 }
 
 void bitset_free(struct bitset_t **bitset) {
+    if (bitset == NULL || *bitset == NULL) {
+        return;
+    }
     free((*bitset)->bits);
     free((*bitset));
     *bitset = NULL;

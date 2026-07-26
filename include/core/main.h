@@ -1,8 +1,12 @@
 #ifndef MAIN_H
 #define MAIN_H
 
+#include "core/ir_dumper.h"
+#include "core/ir_gen.h"
+#include "core/ir_lower.h"
 #include "core/semantic_analyzer.h"
 #include "globals.h"
+#include "h_vector.h"
 #include "lexer.h"
 #include "parser.h"
 #include <stdlib.h>
@@ -26,21 +30,21 @@ static inline struct lexer_file *lexer_test(struct parser_t *restrict parser, ch
     
     LOG_M("total token count: %d", file->token_count);
     LOG_M("Parser started...");
-    int result = parser_parse(parser, file);
-    if(result){
+    int parser_result = parser_parse(parser, file);
+    if(parser_result){
         C_LOG_OK("Parser finished successfully");
         LOG_M("Semantic Analyzer started...");
         int semantic_err = semantic_analyzer_run_analyzer(parser);
         if(semantic_err){
             C_LOG_ERR("Semantic Analyzer failed");
+            *build_successful = 0;
         }else {
             C_LOG_OK("Semantic Analyzer finished successfully");
         }
     }else {
+        *build_successful = 0;
         C_LOG_ERR("Parser failed");
     }
-
-
 
     return file;
 }
@@ -78,13 +82,19 @@ static inline void run_flag_func(const char *restrict file_path){
 
 
 static inline void ir_test(struct parser_t *parser, struct symbol_table *global_scope) {
+    struct IR_Project *project = IR_create_IR_Project();
+    IRL_build_ir(project, parser);
     // struct IR_Builder *builder = IRL_create_IR_Builder();
     // struct IR_Module *module = IRLower_program(builder, parser);
 
-    // IR_dump_module(module);
+    for(int i = 0;i < project->modules->element_count; ++i) {
+        struct IR_Module *module = *(struct IR_Module **) vector_get(project->modules, i);
+        IR_dump_module(module);
+    }
 
     // IRL_delete_IR_Builder(&builder);
     // IR_delete_IR_Module(&module);
+    IR_delete_IR_Project(&project);
 }
 
 

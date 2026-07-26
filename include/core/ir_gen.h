@@ -1,13 +1,16 @@
 #ifndef H_IR_GEN_H
 #define H_IR_GEN_H
 
+#include "core/symbol_table.h"
 #include "h_bitset.h"
 #include "h_vector.h"
 #include <stdbool.h>
 
 enum IR_Instruction_type {
     IR_INSTRUCTION_TYPE_NOP,
+    IR_INSTRUCTION_TYPE_CAST,
     IR_INSTRUCTION_TYPE_MOV,
+    IR_INSTRUCTION_TYPE_ALLOCA,
     IR_INSTRUCTION_TYPE_LOAD,
     IR_INSTRUCTION_TYPE_STORE,
     IR_INSTRUCTION_TYPE_EQUAL_EQUAL,
@@ -31,28 +34,34 @@ enum IR_Instruction_type {
     IR_INSTRUCTION_TYPE_UNDEFINED
 };
 
-
-
 enum IR_Operand_type {
+    IR_OPERAND_TYPE_UNDEFINED,
     IR_OPERAND_TYPE_IMM,
     IR_OPERAND_TYPE_VREG,
-    IR_OPERAND_TYPE_STACK
+    IR_OPERAND_TYPE_STACK_SLOT,
+    IR_OPERAND_TYPE_LABEL
 };
 
+struct stack_slot_t {
+    int stack_offset;
+    struct type_info *type;
+};
 
 struct IR_Operand {
     enum IR_Operand_type type;
     union{
         char *imm_value;
-        int vreg_id;
-        int stack_offset;
+        char *mangled_label_name;
+        struct {
+            struct symbol_t *variable;
+            int vreg_id;
+        } vreg;
+        struct stack_slot_t stack_slot;
     } data;
 
     struct IR_Instruction *definition_instruction;
     struct vector_t *use_list; // struct IR_Instruction *    (All instructions which use the operand)
-
-    bool is_address_taken; // If it is true, this operand must be in the memory
-    bool is_hot; // If it is true, this operand must be in a register
+    struct type_info *type_info;
 };
 
 
@@ -61,7 +70,10 @@ struct IR_Instruction {
 
     union {
 
-        struct IR_Block *target_block; // For jump
+        struct {
+            struct IR_Block *target_block; // For jump
+            struct vector_t *args; // struct IR_Operand *
+        } jmp;
 
         struct {
             struct IR_Operand *source_1;
@@ -69,16 +81,29 @@ struct IR_Instruction {
             struct IR_Operand *destination;
         }triple_operands;
 
+        struct {
+            struct type_info *type_info;
+            struct IR_Operand *destination;
+        }alloca;
+
+        struct {
+            struct IR_Operand *source_1;
+            struct IR_Operand *destination;
+        }double_operands;
 
         struct {
             struct vector_t *arguments; // struct IR_Operand *    (Argument list)
             struct IR_Function *target_function;
+            struct IR_Operand *return_val;
         }call;
 
         struct {
             struct IR_Operand *condition;
             struct IR_Block *true_block;
+            struct vector_t *true_args; // struct IR_Operand *
+
             struct IR_Block *false_block;
+            struct vector_t *false_args; // struct IR_Operand *
         }br;
 
     }operands;
@@ -87,6 +112,8 @@ struct IR_Instruction {
     struct IR_Instruction *prev;
 
     enum IR_Instruction_type type;
+
+
 
     int id;
 
@@ -110,8 +137,10 @@ struct IR_Block {
     struct bitset_t *block_in;  // All vreg_ids the block use which come from another block
     struct bitset_t *block_out; // All vreg_ids that the block gives out alive
 
+    struct vector_t *params; // struct IR_Operand *
+
     int instruction_count;
-    char *name, *mangled_name;
+    char *mangled_name;
 };
 
 
@@ -136,26 +165,37 @@ struct IR_Module {
     struct vector_t *functions; // struct IR_Function *
 };
 
+struct IR_Project {
+    struct vector_t *modules; // struct IR_Module *
+};
+
 
 // create/free
+struct stack_slot_t *IR_create_stack_slot(int stack_offset, struct type_info *type);
+void IR_delete_stack_slot(struct stack_slot_t **slot);
+
+struct IR_Project *IR_create_IR_Project();
+void IR_delete_IR_Project(struct IR_Project **project);
+
 struct IR_Module *IR_create_IR_Module();
 void IR_delete_IR_Module(struct IR_Module **module);
 
 struct IR_Function *IR_create_IR_Function(char *name, char *mangled_name, int parameter_count);
 void IR_delete_IR_Function(struct IR_Function **function);
 
-struct IR_Block *IR_create_IR_Block(struct IR_Function *parent_function, char *name, char *mangled_name);
+struct IR_Block *IR_create_IR_Block(struct IR_Function *parent_function, char *mangled_name);
 void IR_delete_IR_Block(struct IR_Block **block);
 
-struct IR_Instruction *IR_create_IR_Instruction(struct IR_Block *parent_block, enum IR_Instruction_type type, int id);
+struct IR_Instruction *IR_create_IR_Instruction(struct IR_Block *parent_block, enum IR_Instruction_type type);
 void IR_delete_IR_Instruction(struct IR_Instruction **instruction);
 
-struct IR_Operand *IR_create_IR_Operand(enum IR_Operand_type type, struct IR_Instruction *definition_instruction);
+struct IR_Operand *IR_create_IR_Operand(enum IR_Operand_type type, struct IR_Instruction *definition_instruction, struct IR_Function *parent_function);
 void IR_delete_IR_Operand(struct IR_Operand **operand);
 
 // add/remove
 void IR_Module_add_function(struct IR_Module *module, struct IR_Function *function);
 void IR_Function_add_block(struct IR_Function *function, struct IR_Block *block);
+void IR_Function_add_parameter(struct IR_Function *function, struct IR_Operand *operand);
 void IR_Block_add_instruction(struct IR_Block *block, struct IR_Instruction *instruction);
 void IR_Block_add_instruction_before(struct IR_Block *block, struct IR_Instruction *target_instruction, struct IR_Instruction *instruction);
 void IR_Block_add_instruction_after(struct IR_Block *block, struct IR_Instruction *target_instruction, struct IR_Instruction *instruction);
@@ -166,7 +206,8 @@ void IR_Block_add_instruction_after(struct IR_Block *block, struct IR_Instructio
 
 // Helpers
 
-struct IR_Operand *IR_create_new_vreg(struct IR_Block *block, struct IR_Instruction *definition_instruction);
+// struct IR_Operand *IR_create_new_vreg(struct IR_Function *parent_function, struct IR_Block *block, struct IR_Instruction *definition_instruction, struct symbol_t *variable);
+struct IR_Operand *IR_create_new_vreg(struct IR_Function *parent_function, struct IR_Instruction *definition_instruction, struct symbol_t *variable);
 
 // Other Functions
 static inline int IR_get_instruction_cost(enum IR_Instruction_type type) {
@@ -191,6 +232,7 @@ static inline int IR_get_instruction_cost(enum IR_Instruction_type type) {
         case IR_INSTRUCTION_TYPE_MUL:
             return 3;
         case IR_INSTRUCTION_TYPE_DIVIDE:
+        case IR_INSTRUCTION_TYPE_ALLOCA:
         case IR_INSTRUCTION_TYPE_STORE:
         case IR_INSTRUCTION_TYPE_LOAD:
             return 10;

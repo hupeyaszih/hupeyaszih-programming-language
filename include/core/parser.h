@@ -1,6 +1,7 @@
 #ifndef PARSER_H
 #define PARSER_H
 
+#include "h_vector.h"
 #include "lexer.h"
 #include "symbol_table.h"
 #include <stdint.h>
@@ -26,6 +27,7 @@ enum parser_node_type {
     PARSER_NODE_VARIABLE_DECLARATION,
     PARSER_NODE_VARIABLE_ASSIGMENT,
     PARSER_NODE_PARAMETER_LIST,
+    PARSER_NODE_MODULE,
     PARSER_NODE_FUNCTION,
     PARSER_NODE_LOOP,
     PARSER_NODE_ASM,
@@ -40,15 +42,27 @@ struct parser_node{
    struct parser_node *right_node;  // right sub node
 
    union {
-       char *variable_name;
+       struct {
+           char *variable_name;
+           struct symbol_t *symbol;
+       }variable;
+
        char *literal_data;
+
+       struct {
+           struct vector_t *functions; // struct parser_node *
+       } module;
 
        struct {
            struct parser_node **statements;
            struct symbol_table *scope;
+
+           char *mangled_name;
+
            int count;
            int owns_scope;
            int is_resilient;
+           int id;
        } block;
 
        struct {
@@ -71,15 +85,6 @@ struct parser_node{
            int loop_id;
            int approx_value;
        } loop;
-
-       struct {
-           char *mangled_loop_control_name;
-           char *mangled_loop_name;
-           struct parser_node *condition;
-           struct parser_node *body;
-           int loop_control_id;
-           int loop_id;
-       } loop_control;
 
        struct {
            char *name;
@@ -116,15 +121,13 @@ static inline int is_node_type_operator(struct parser_node *restrict node){
 }
 
 struct parser_t{
-    struct parser_node **nodes;
+    struct vector_t *nodes; // struct parser_node *
     struct symbol_table *current_scope;
     struct type_table *type_table;
-    int node_count;
+    int block_counter;
     int scope_counter;
     int loop_depth_counter;
     int loop_id_counter;
-    int loop_control_depth_counter;
-    int loop_control_id_counter;
 
     int current_loop_id;
     int successful;

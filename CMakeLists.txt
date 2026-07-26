@@ -16,9 +16,14 @@ add_executable(hrsc
     src/h_bitset.c
 
     src/core/semantic_analyzer.c
+
     src/core/ir_gen.c
+    src/core/ir_lower.c
+    src/core/ir_dumper.c
     # src/opt/opt.c
 )
+
+target_compile_options(hrsc PRIVATE -g)
 
 target_include_directories(hrsc
     PRIVATE

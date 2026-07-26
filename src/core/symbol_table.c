@@ -54,7 +54,6 @@ struct symbol_t *symbol_table_define(struct symbol_table *restrict table, char *
     s->mangled_name = strdup(name);
     s->type = type;
     s->kind = kind;
-    s->ir_operand = NULL;
     s->pointer_level = pointer_level;
 
     return s;
@@ -137,6 +136,7 @@ struct type_info *type_table_get_or_create_pointer_type_info(struct type_table *
         info = type_table_create_type_info(name, TYPE_CATEGORY_POINTER, table->pointers_size, NULL, NULL);
         info->pointer_level = p;
         info->points_to = type_table_get_type_info(table, name, p-1);
+        info->points_to->pointer_type = info;
         type_table_insert(table, info);
     }
 

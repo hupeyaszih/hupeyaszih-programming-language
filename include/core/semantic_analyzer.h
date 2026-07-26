@@ -26,6 +26,8 @@ static int semantic_analyzer_analyze_binary_expr(struct parser_node* node, struc
 
 struct type_info *semantic_analyzer_calculate_type_infos(struct parser_node *node, struct semantic_context *context);
 
+static void semantic_analyzer_propagate_literal_types(struct parser_node *node, struct type_info *target_type);
+
 static inline int type_check(struct type_info *t1, struct type_info *t2) {
     if(NULL == t1 || NULL == t2) return -1;
     return strcmp(t1->name, t2->name);

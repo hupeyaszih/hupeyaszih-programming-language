@@ -1,38 +1,31 @@
 // Hupeyaszih Programming Language (.hrs)
-
-fn something_2(x:int32, y:*int8):int32{
-    
+fn calc(a:int32, b:int32, c:int32) : int32 {
+    a * b + c;
 }
 
-fn something(x:int32, y:*int8):int32 pure {
-    something(x, y);
-}
+fn main() : int32 {
+    var a:int32 = 10;
+    var b:int32 = 20;
+    var c:int32 = 30;
 
-fn main():int32 {
-    var i:int32 = 0;
-    var ss:int8 = 0;
-    var res:int32 = loop approx 80 {
-        var x:int32 = 0;
-        i <= 10;
-    } return {
-        i;
-    } continue { 
-        x = i;
-        i = i + 1;
-    };
+    var ptr1:*int32 = &a;
+    var ptr2:*int32 = &b;
+    var pptr:**int32 = &ptr1;
 
-    i = 0;
-    var x:*int8 = &ss;
-    var res2:int32 = something(loop {i <= 10;} return {i;} continue {i = i + 1;}, x);
+    *ptr2 = 25;
+    pptr = &ptr2;
+    **pptr = 40;
 
-    resilient {
-        res = res + i;
-    }
+    var temp:int32 = *ptr1 * **pptr + *(ptr1 + 8);
 
-    something(1, x);
+    *(ptr1 + 4) = 99;
 
-    typeof(res);
-    stof(res);
-    res2 + res;
-    res < res2;
+    var res1:int32 = calc(*ptr1, **pptr, *(ptr2 + 12));
+
+    ptr1 = &c;
+    *ptr1 = res1 + temp;
+
+    var final_val:int32 = (*ptr1 + *ptr2) * (**pptr - *(ptr1 + 4));
+
+    final_val;
 }
