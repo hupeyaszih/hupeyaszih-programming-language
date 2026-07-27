@@ -84,7 +84,6 @@ static inline struct IR_Operand *load_variable(struct ir_context *context, struc
             vreg->type_info = sym->type;
 
             load->operands.double_operands.source_1 = sym->stack_slot;
-            printf("load - %d\n", sym->stack_slot->type);
             load->operands.double_operands.destination = vreg;
 
 
@@ -471,7 +470,6 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
             struct symbol_t *sym = node->data.variable.symbol;
             variable_declaration(context, sym, node);
 
-            printf("var decl - %d\n", sym->stack_slot->type);
 
             if(node->right_node) {
                 store_variable(context, sym, right_operand);

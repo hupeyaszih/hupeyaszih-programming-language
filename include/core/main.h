@@ -82,19 +82,6 @@ static inline void run_flag_func(const char *restrict file_path){
 
 
 static inline void ir_test(struct parser_t *parser, struct symbol_table *global_scope) {
-    struct IR_Project *project = IR_create_IR_Project();
-    IRL_build_ir(project, parser);
-    // struct IR_Builder *builder = IRL_create_IR_Builder();
-    // struct IR_Module *module = IRLower_program(builder, parser);
-
-    for(int i = 0;i < project->modules->element_count; ++i) {
-        struct IR_Module *module = *(struct IR_Module **) vector_get(project->modules, i);
-        IR_dump_module(module);
-    }
-
-    // IRL_delete_IR_Builder(&builder);
-    // IR_delete_IR_Module(&module);
-    IR_delete_IR_Project(&project);
 }
 
 

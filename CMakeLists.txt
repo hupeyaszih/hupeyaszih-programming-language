@@ -20,6 +20,12 @@ add_executable(hrsc
     src/core/ir_gen.c
     src/core/ir_lower.c
     src/core/ir_dumper.c
+
+    src/opt/opt.c
+    src/opt/register_allocator.c
+
+    src/backend/codegen.c
+    src/backend/x86_64/x86_64_linux.c
     # src/opt/opt.c
 )
 

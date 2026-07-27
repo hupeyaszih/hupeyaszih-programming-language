@@ -1,8 +1,10 @@
 #include "core/main.h"
+#include "backend/codegen.h"
 #include "core/globals.h"
 #include "core/hrs_file_io.h"
 #include "core/parser.h"
 #include "core/symbol_table.h"
+#include "opt/opt.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -66,7 +68,9 @@ int main(int argc, char *argv[]) {
     struct lexer_file *file = lexer_test(parser, input, input_path, &build_successful);
     build_successful *= parser->successful;
 
-    struct codegen_t *codegen = NULL;
+    struct codegen_t *codegen = codegen_create_codegen();
+    codegen_init_build_targets(codegen);
+
     if(1 == build_successful){
         // codegen = codegen_create_codegen(parser, output_path);
         //
@@ -78,12 +82,23 @@ int main(int argc, char *argv[]) {
         // }
 
 
-        ir_test(parser, global_scope);
+        struct IR_Project *project = IR_create_IR_Project();
+        IRL_build_ir(project, parser);
+
+        for(int i = 0;i < project->modules->element_count; ++i) {
+            struct IR_Module *module = *(struct IR_Module **) vector_get(project->modules, i);
+            IR_dump_module(module);
+        }
+        IR_delete_IR_Project(&project);
+
+
+
+        opt_optimize_project(project);
     }
 
 
     // Free
-    // codegen_delete_codegen(&codegen);
+    codegen_delete_codegen(&codegen);
     parser_delete_parser(&parser);
     symbol_table_delete_symbol_table(&global_scope);
     type_table_delete_type_table(&type_table);
