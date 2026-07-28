@@ -5,6 +5,7 @@
 #include "core/parser.h"
 #include "core/symbol_table.h"
 #include "opt/opt.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -53,6 +54,7 @@ int main(int argc, char *argv[]) {
 
     int build_successful = 1;
 
+    struct IR_Project *project = NULL;
     struct parser_t *parser = parser_create_parser();
 
     struct symbol_table *global_scope = symbol_table_create_symbol_table(NULL, &parser->scope_counter);
@@ -82,14 +84,13 @@ int main(int argc, char *argv[]) {
         // }
 
 
-        struct IR_Project *project = IR_create_IR_Project();
+        project = IR_create_IR_Project();
         IRL_build_ir(project, parser);
 
         for(int i = 0;i < project->modules->element_count; ++i) {
             struct IR_Module *module = *(struct IR_Module **) vector_get(project->modules, i);
             IR_dump_module(module);
         }
-        IR_delete_IR_Project(&project);
 
 
 
@@ -98,6 +99,7 @@ int main(int argc, char *argv[]) {
 
 
     // Free
+    IR_delete_IR_Project(&project);
     codegen_delete_codegen(&codegen);
     parser_delete_parser(&parser);
     symbol_table_delete_symbol_table(&global_scope);

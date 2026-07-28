@@ -95,8 +95,8 @@ struct IR_Block *IR_create_IR_Block(struct IR_Function *parent_function, char *m
     block->predecessor = vector_create_vector(1, sizeof(struct IR_Block *));
     block->successors = vector_create_vector(1, sizeof(struct IR_Block *));
 
-    block->block_in = NULL;
-    block->block_out = NULL;
+    block->use = NULL;
+    block->def = NULL;
 
     block->head_instruction = NULL;
     block->tail_instruction = NULL;
@@ -104,6 +104,7 @@ struct IR_Block *IR_create_IR_Block(struct IR_Function *parent_function, char *m
     block->prev = NULL;
 
     block->instruction_count = 0;
+    block->in_loop = 0;
 
     block->params = vector_create_vector(2, sizeof(struct IR_Operand *));
 
@@ -121,8 +122,8 @@ void IR_delete_IR_Block(struct IR_Block **block) {
     vector_free(&(*block)->successors);
     vector_free(&(*block)->params);
 
-    bitset_free(&(*block)->block_in);
-    bitset_free(&(*block)->block_out);
+    bitset_free(&(*block)->use);
+    bitset_free(&(*block)->def);
 
     free((*block)->mangled_name);
 
@@ -152,12 +153,13 @@ void IR_delete_IR_Instruction(struct IR_Instruction **instruction) {
     (*instruction) = NULL;
 }
 
-struct IR_Operand *IR_create_IR_Operand(enum IR_Operand_type type, struct IR_Instruction *definition_instruction, struct IR_Function *parent_function) {
+struct IR_Operand *IR_create_IR_Operand(enum IR_Operand_type type, struct IR_Instruction *definition_instruction, struct IR_Function *parent_function, int in_loop) {
     struct IR_Operand *operand = calloc(1, sizeof(struct IR_Operand));
     operand->type = type;
     operand->type_info = NULL;
     operand->definition_instruction = definition_instruction;
     operand->use_list = vector_create_vector(1, sizeof(struct IR_Instruction *));
+    operand->in_loop = in_loop;
 
     if(parent_function) {
         vector_add(parent_function->operands, &operand);
@@ -171,6 +173,17 @@ void IR_delete_IR_Operand(struct IR_Operand **operand) {
     (*operand) = NULL;
 }
 
+void IR_init_live_interval(struct live_interval_t *interval, struct IR_Operand *operand, int start, int end, int weight) {
+    interval->start = start;
+    interval->end = end;
+    interval->weight = weight;
+    interval->use_score = 0;
+    interval->vreg = operand;
+
+    interval->is_spilled = false;
+    interval->stack_slot = NULL;
+    interval->assigned_register = NULL;
+}
 
 
 // add/remove
@@ -237,8 +250,10 @@ void IR_Block_add_instruction_after(struct IR_Block *block, struct IR_Instructio
 
 // Helpers
 
-struct IR_Operand *IR_create_new_vreg(struct IR_Function *parent_function, struct IR_Instruction *definition_instruction, struct symbol_t *variable) {
-    struct IR_Operand *operand = IR_create_IR_Operand(IR_OPERAND_TYPE_VREG, definition_instruction, parent_function);
+struct IR_Operand *IR_create_new_vreg(struct IR_Function *parent_function, struct IR_Instruction *definition_instruction, struct symbol_t *variable, int in_loop) {
+    struct IR_Operand *operand = IR_create_IR_Operand(IR_OPERAND_TYPE_VREG, definition_instruction, parent_function, in_loop);
+    IR_init_live_interval(&operand->data.vreg.live_interval, operand, -1, -1, -1);
+
     operand->data.vreg.variable = variable;
     operand->data.vreg.vreg_id = parent_function->vreg_counter;
     ++parent_function->vreg_counter;

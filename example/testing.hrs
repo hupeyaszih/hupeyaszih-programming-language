@@ -28,5 +28,17 @@ fn main() : int32 {
 
     var final_val:int32 = (*ptr1 + *ptr2) * (**pptr - *(ptr1 + 4));
 
-    final_val;
+    var rrrr:bool = !final_val;
+    var rrr:int32 = rrrr + -1;
+    
+    var i:int32 = 20;
+    loop {
+        i >= 0;
+    }return{
+        i;
+    }continue{
+        i = i - 1;
+    }
+
+    rrr;
 }

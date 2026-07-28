@@ -183,6 +183,23 @@ static void IR_dump_instruction(const struct IR_Instruction *instruction) {
             IR_dump_operand(instruction->operands.double_operands.source_1);
             printf("\n");
             break;
+        }case IR_INSTRUCTION_TYPE_UNARY_BANG: {
+            IR_dump_operand(instruction->operands.double_operands.destination);
+            printf(" = unary_bang ");
+            IR_dump_operand(instruction->operands.double_operands.source_1);
+            printf("\n");
+            break;
+        }case IR_INSTRUCTION_TYPE_UNARY_MINUS: {
+            IR_dump_operand(instruction->operands.double_operands.destination);
+            printf(" = unary_minus ");
+            IR_dump_operand(instruction->operands.double_operands.source_1);
+            printf("\n");
+            break;
+        }case IR_INSTRUCTION_TYPE_RET: {
+            printf("ret ");
+            IR_dump_operand(instruction->operands.ret.return_value);
+            printf("\n");
+            break;
         }
         default: printf("%d\n", instruction->type);
     }

@@ -318,6 +318,24 @@ struct type_info *semantic_analyzer_calculate_type_infos(struct parser_node *nod
             semantic_analyzer_calculate_type_infos(node->data.loop.continue_block, context);
             node->type_info = semantic_analyzer_calculate_type_infos(node->data.loop.return_block, context);
             break;
+        }case PARSER_NODE_UNARY_BANG: {
+            if(TYPE_CATEGORY_POINTER != right_type->category && TYPE_CATEGORY_BASIC != right_type->category) {
+                print_semantic_error_type_infos(node);
+                node->type_info = NULL;
+                context->error = 1;
+                break;
+            }
+            node->type_info = type_table_get_type_info(context->type_table, "bool", 0);
+            break;
+        }case PARSER_NODE_UNARY_MINUS: {
+            if(TYPE_CATEGORY_BASIC != right_type->category) {
+                print_semantic_error_type_infos(node);
+                node->type_info = NULL;
+                context->error = 1;
+                break;
+            }
+            node->type_info = right_type;
+            break;
         }case PARSER_NODE_UNARY_DEREFERENCE: {
             if (node->right_node && node->right_node->type_info && node->right_node->type_info->pointer_level > 0 && node->right_node->type_info->points_to) {
 

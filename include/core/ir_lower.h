@@ -28,7 +28,6 @@ struct IR_Operand *IRL_run_function_lower(struct parser_node *node, struct ir_co
 struct IR_Operand *IRL_run_block_lower(struct parser_node *node, struct ir_context *context);
 struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_context *context, enum lower_type lower_type);
 
-void IRL_run_cfg_analyzer(struct IR_Function *function, struct ir_context *context);
 int IRL_build_ir(struct IR_Project *project, struct parser_t *parser);
 
 void IRL_find_mutations(struct parser_node *node, struct vector_t *vars, struct vector_t *declarated_vars);

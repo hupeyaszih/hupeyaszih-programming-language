@@ -124,9 +124,9 @@ static inline void type_table_init_builtins(struct type_table *table) {
     type_table_insert(table, int16);
     type_table_insert(table, int32);
     type_table_insert(table, int64);
+    type_table_insert(table, type_table_create_type_info("bool", TYPE_CATEGORY_BASIC, 1, NULL, int8));
 
     type_table_insert(table, type_table_create_type_info("float64", TYPE_CATEGORY_BASIC, 8, NULL, NULL));
-    type_table_insert(table, type_table_create_type_info("bool", TYPE_CATEGORY_BASIC, 1, NULL, int8));
     type_table_insert(table, type_table_create_type_info("fn", TYPE_CATEGORY_BASIC, 8, NULL, NULL));
     type_table_insert(table, type_table_create_type_info("char", TYPE_CATEGORY_BASIC, 1, NULL, NULL));
 

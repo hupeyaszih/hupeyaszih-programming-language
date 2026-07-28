@@ -4,7 +4,6 @@
 #include "backend/x86_64/x86_64_linux.h"
 #include "h_vector.h"
 #include <stdbool.h>
-#include <stdio.h>
 
 enum register_bank {
     REGISTER_BANK_GPR,

@@ -1,6 +1,7 @@
 #ifndef H_IR_GEN_H
 #define H_IR_GEN_H
 
+#include "backend/codegen.h"
 #include "core/symbol_table.h"
 #include "h_bitset.h"
 #include "h_vector.h"
@@ -31,6 +32,7 @@ enum IR_Instruction_type {
     IR_INSTRUCTION_TYPE_CALL,
     IR_INSTRUCTION_TYPE_BR,
     IR_INSTRUCTION_TYPE_JMP,
+    IR_INSTRUCTION_TYPE_RET, // return
     IR_INSTRUCTION_TYPE_UNDEFINED
 };
 
@@ -47,14 +49,25 @@ struct stack_slot_t {
     struct type_info *type;
 };
 
+struct live_interval_t {
+    struct IR_Operand *vreg;
+    struct register_t *assigned_register;
+    struct stack_slot_t *stack_slot;
+
+    int start, end;
+    int use_score, weight;
+
+    bool is_spilled;
+};
+
 struct IR_Operand {
-    enum IR_Operand_type type;
     union{
         char *imm_value;
         char *mangled_label_name;
         struct {
             struct symbol_t *variable;
             int vreg_id;
+            struct live_interval_t live_interval;
         } vreg;
         struct stack_slot_t stack_slot;
     } data;
@@ -62,11 +75,13 @@ struct IR_Operand {
     struct IR_Instruction *definition_instruction;
     struct vector_t *use_list; // struct IR_Instruction *    (All instructions which use the operand)
     struct type_info *type_info;
+
+    enum IR_Operand_type type;
+    int in_loop;
 };
 
 
 struct IR_Instruction {
-    struct IR_Block *parent_block;
 
     union {
 
@@ -74,6 +89,11 @@ struct IR_Instruction {
             struct IR_Block *target_block; // For jump
             struct vector_t *args; // struct IR_Operand *
         } jmp;
+
+        struct {
+            struct IR_Function *function;
+            struct IR_Operand *return_value;
+        } ret;
 
         struct {
             struct IR_Operand *source_1;
@@ -107,18 +127,17 @@ struct IR_Instruction {
         }br;
 
     }operands;
+    struct IR_Block *parent_block;
 
     struct IR_Instruction *next;
     struct IR_Instruction *prev;
 
     enum IR_Instruction_type type;
 
-
-
     int id;
 
     bool has_side_effect; // If it is true, the instruction has a side effect (call etc.)
-    bool is_dead; // If it is true, the instruction will be destroyed because of dead code elimination    (If the flag is true, the instruction will be destroyed)
+    bool is_dead; // If it is true, the instruction will be destroyed in dead code elimination    (If the flag is true, the instruction will be destroyed)
 };
 
 
@@ -134,13 +153,14 @@ struct IR_Block {
     struct vector_t *predecessor;  // struct IR_Block *
     struct vector_t *successors;   // struct IR_Block *
 
-    struct bitset_t *block_in;  // All vreg_ids the block use which come from another block
-    struct bitset_t *block_out; // All vreg_ids that the block gives out alive
+    struct bitset_t *use;       // All vreg_ids used in the block
+    struct bitset_t *def;       // All vreg_ids defined in the block
 
     struct vector_t *params; // struct IR_Operand *
 
-    int instruction_count;
     char *mangled_name;
+    int instruction_count;
+    int in_loop;
 };
 
 
@@ -153,11 +173,12 @@ struct IR_Function {
 
     struct vector_t *unique_vregs; // struct IR_Operand *    (List of all unique vregs in the function)
 
+    char *name, *mangled_name;
+
     int instruction_count; // Total instruction count in the function
     int parameter_count;
     int vreg_counter;
     int stack_size;
-    char *name, *mangled_name;
 };
 
 
@@ -189,8 +210,10 @@ void IR_delete_IR_Block(struct IR_Block **block);
 struct IR_Instruction *IR_create_IR_Instruction(struct IR_Block *parent_block, enum IR_Instruction_type type);
 void IR_delete_IR_Instruction(struct IR_Instruction **instruction);
 
-struct IR_Operand *IR_create_IR_Operand(enum IR_Operand_type type, struct IR_Instruction *definition_instruction, struct IR_Function *parent_function);
+struct IR_Operand *IR_create_IR_Operand(enum IR_Operand_type type, struct IR_Instruction *definition_instruction, struct IR_Function *parent_function, int in_loop);
 void IR_delete_IR_Operand(struct IR_Operand **operand);
+
+void IR_init_live_interval(struct live_interval_t *interval, struct IR_Operand *operand, int start, int end, int weight);
 
 // add/remove
 void IR_Module_add_function(struct IR_Module *module, struct IR_Function *function);
@@ -206,8 +229,7 @@ void IR_Block_add_instruction_after(struct IR_Block *block, struct IR_Instructio
 
 // Helpers
 
-// struct IR_Operand *IR_create_new_vreg(struct IR_Function *parent_function, struct IR_Block *block, struct IR_Instruction *definition_instruction, struct symbol_t *variable);
-struct IR_Operand *IR_create_new_vreg(struct IR_Function *parent_function, struct IR_Instruction *definition_instruction, struct symbol_t *variable);
+struct IR_Operand *IR_create_new_vreg(struct IR_Function *parent_function, struct IR_Instruction *definition_instruction, struct symbol_t *variable, int in_loop);
 
 // Other Functions
 static inline int IR_get_instruction_cost(enum IR_Instruction_type type) {
