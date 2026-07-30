@@ -16,6 +16,7 @@ int main(int argc, char *argv[]) {
 
     char* input_path = "../example/testing.hrs";
     char* output_path = "../out/main.asm";
+
     int run_flag = 0;
     int clean_flag = 0;
     for(int i = 1; i < argc; ++i) {
@@ -73,34 +74,26 @@ int main(int argc, char *argv[]) {
     struct codegen_t *codegen = codegen_create_codegen();
     codegen_init_build_targets(codegen);
 
+    codegen->current_build_target = *(struct codegen_build_target_t **)vector_get(codegen->build_targets, 0);
+
     if(1 == build_successful){
-        // codegen = codegen_create_codegen(parser, output_path);
-        //
-        // codegen_generate(codegen, parser, global_scope);
-        // if(NULL != codegen) {
-        //     build_successful *= codegen->successful;
-        // }else {
-        //     build_successful = 0;
-        // }
-
-
         project = IR_create_IR_Project();
         IRL_build_ir(project, parser);
 
+
+
+
+        opt_optimize_project(project, codegen);
         for(int i = 0;i < project->modules->element_count; ++i) {
             struct IR_Module *module = *(struct IR_Module **) vector_get(project->modules, i);
             IR_dump_module(module);
         }
-
-
-
-        opt_optimize_project(project);
     }
 
 
     // Free
-    IR_delete_IR_Project(&project);
     codegen_delete_codegen(&codegen);
+    IR_delete_IR_Project(&project);
     parser_delete_parser(&parser);
     symbol_table_delete_symbol_table(&global_scope);
     type_table_delete_type_table(&type_table);

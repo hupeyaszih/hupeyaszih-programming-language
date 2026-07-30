@@ -69,6 +69,7 @@ struct register_t *codegen_init_register(struct register_t *reg, int id, enum re
 
     reg->names = vector_create_vector(4, sizeof(char *));
 
+    reg->is_busy = false;
     return reg;
 }
 void codegen_delete_register(struct register_t *reg) {

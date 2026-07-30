@@ -35,6 +35,27 @@ int vector_add(struct vector_t *restrict vector, void *data){
     return 0;
 }
 
+int vector_remove_at(struct vector_t *vector, size_t index) {
+    if (NULL == vector || index >= vector->element_count) {
+        return 1;
+    }
+
+    if (index < vector->element_count - 1) {
+        void *target = (char *)vector->data + (index * vector->type_size);
+        void *source = (char *)vector->data + ((index + 1) * vector->type_size);
+        size_t bytes_to_move = (vector->element_count - index - 1) * vector->type_size;
+
+        memmove(target, source, bytes_to_move);
+    }
+
+    vector->element_count -= 1;
+
+    void *last_slot = (char *)vector->data + (vector->element_count * vector->type_size);
+    memset(last_slot, 0, vector->type_size);
+
+    return 0;
+}
+
 void *vector_get(const struct vector_t *restrict vector, size_t index) {
     if(index >= vector->element_count) {
         return NULL;

@@ -15,6 +15,8 @@ struct vector_t *vector_create_vector(int capacity, size_t type_size);
 int vector_free(struct vector_t **restrict vector);
 
 int vector_add(struct vector_t *restrict vector, void *data);
+int vector_remove_at(struct vector_t *vector, size_t index);
+
 void *vector_get(const struct vector_t *restrict vector, size_t index);
 
 

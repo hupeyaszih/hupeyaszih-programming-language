@@ -1,4 +1,5 @@
 #include "opt/opt.h"
+#include "backend/codegen.h"
 #include "core/ir_gen.h"
 #include "h_bitset.h"
 #include "h_vector.h"
@@ -125,11 +126,12 @@ static inline struct vector_t *get_defined_operands(struct IR_Instruction *instr
     return list;
 }
 
-void opt_optimize_project(struct IR_Project *restrict project) {
-    if(!project) return;
+void opt_optimize_project(struct IR_Project *restrict project, struct codegen_t *codegen) {
+    if(!project || !codegen) return;
 
     struct opt_context_t opt_context;
-    opt_context.register_allocator = register_allocator_create_register_allocator();
+    opt_context.register_allocator = register_allocator_create_register_allocator(codegen);
+    opt_context.codegen = codegen;
 
     for(int i = 0;i < project->modules->element_count; ++i) {
         struct IR_Module *module = *(struct IR_Module **) vector_get(project->modules, i);
@@ -148,7 +150,7 @@ void opt_optimize_module(struct opt_context_t *context, struct IR_Module *restri
         //
         opt_run_cfg_analysis(function);
         opt_compute_use_def(function);
-        opt_run_live_range_analysis(function);
+        opt_run_live_range_analysis(function, context);
         register_allocator_run_allocator(context->register_allocator, function);
         //
     }
@@ -198,10 +200,12 @@ void opt_run_cfg_analysis(struct IR_Function *function) {
     }
 }
 
-static inline void process_use(const struct IR_Operand *operand, struct bitset_t *use) {
+static inline void process_use(const struct IR_Operand *operand, struct bitset_t *use, struct IR_Instruction *instruction) {
     if(!operand || IR_OPERAND_TYPE_VREG != operand->type) return;
 
     bitset_set(use, operand->data.vreg.vreg_id);
+
+    vector_add(operand->use_list, &instruction);
 }
 
 static inline void process_def(const struct IR_Operand *operand, struct bitset_t *def) {
@@ -223,12 +227,12 @@ void opt_compute_use_def(struct IR_Function *function) {
             switch (instruction->type) {
                 case IR_INSTRUCTION_TYPE_MOV:
                 case IR_INSTRUCTION_TYPE_LOAD: {
-                    process_use(instruction->operands.double_operands.source_1, block->use);
+                    process_use(instruction->operands.double_operands.source_1, block->use, instruction);
                     process_def(instruction->operands.double_operands.destination, block->def);
                     break;
                 }
                 case IR_INSTRUCTION_TYPE_STORE: {
-                    process_use(instruction->operands.double_operands.source_1, block->use);
+                    process_use(instruction->operands.double_operands.source_1, block->use, instruction);
                     break;
                 }
                 case IR_INSTRUCTION_TYPE_EQUAL_EQUAL:
@@ -241,19 +245,19 @@ void opt_compute_use_def(struct IR_Function *function) {
                 case IR_INSTRUCTION_TYPE_MINUS:
                 case IR_INSTRUCTION_TYPE_DIVIDE:
                 case IR_INSTRUCTION_TYPE_MUL: {
-                    process_use(instruction->operands.triple_operands.source_1, block->use);
-                    process_use(instruction->operands.triple_operands.source_2, block->use);
+                    process_use(instruction->operands.triple_operands.source_1, block->use, instruction);
+                    process_use(instruction->operands.triple_operands.source_2, block->use, instruction);
                     process_def(instruction->operands.triple_operands.destination, block->def);
                     break;
                 }
                 case IR_INSTRUCTION_TYPE_BR: {
-                    process_use(instruction->operands.br.condition, block->use);
+                    process_use(instruction->operands.br.condition, block->use, instruction);
 
                     struct vector_t *false_args = instruction->operands.br.false_args;
                     if(false_args) {
                         for(int i = 0; i < false_args->element_count; ++i) {
                             struct IR_Operand *arg = *(struct IR_Operand **) vector_get(false_args, i);
-                            process_use(arg, block->use);
+                            process_use(arg, block->use, instruction);
                         }
                     }
 
@@ -261,7 +265,7 @@ void opt_compute_use_def(struct IR_Function *function) {
                     if(true_args) {
                         for(int i = 0; i < true_args->element_count; ++i) {
                             struct IR_Operand *arg = *(struct IR_Operand **) vector_get(true_args, i);
-                            process_use(arg, block->use);
+                            process_use(arg, block->use, instruction);
                         }
                     }
 
@@ -271,11 +275,11 @@ void opt_compute_use_def(struct IR_Function *function) {
                     struct vector_t *args = instruction->operands.jmp.args;
                     for(int i = 0; i < args->element_count; ++i) {
                         struct IR_Operand *arg = *(struct IR_Operand **) vector_get(args, i);
-                        process_use(arg, block->use);
+                        process_use(arg, block->use, instruction);
                     }
                     break;
                 }case IR_INSTRUCTION_TYPE_RET: {
-                    process_use(instruction->operands.ret.return_value, block->use);
+                    process_use(instruction->operands.ret.return_value, block->use, instruction);
                     break;
                 }
                 case IR_INSTRUCTION_TYPE_CAST:
@@ -283,7 +287,7 @@ void opt_compute_use_def(struct IR_Function *function) {
                 case IR_INSTRUCTION_TYPE_UNARY_MINUS: 
                 case IR_INSTRUCTION_TYPE_UNARY_ADDRESS_OF:
                 case IR_INSTRUCTION_TYPE_UNARY_DEREFERENCE: {
-                    process_use(instruction->operands.double_operands.source_1, block->use);
+                    process_use(instruction->operands.double_operands.source_1, block->use, instruction);
                     process_def(instruction->operands.double_operands.destination, block->def);
                     break;
                 }
@@ -293,7 +297,7 @@ void opt_compute_use_def(struct IR_Function *function) {
 
                     for(int i = 0;i < arg_count; ++i) {
                         struct IR_Operand *arg = *(struct IR_Operand **) vector_get(args, i);
-                        process_use(arg, block->use);
+                        process_use(arg, block->use, instruction);
                     }
 
                     process_def(instruction->operands.call.return_val, block->def);
@@ -309,7 +313,7 @@ void opt_compute_use_def(struct IR_Function *function) {
     }
 }
 
-void opt_run_live_range_analysis(struct IR_Function *function) {
+void opt_run_live_range_analysis(struct IR_Function *function, struct opt_context_t *context) {
     int instruction_id = function->instruction_count-1;
 
 
@@ -336,7 +340,9 @@ void opt_run_live_range_analysis(struct IR_Function *function) {
             for(int i = 0; i < defined_operands->element_count; ++i) {
                 struct IR_Operand *operand = *(struct IR_Operand **) vector_get(defined_operands, i);
                 if(!operand || IR_OPERAND_TYPE_VREG != operand->type) continue;
-                if(-1 == operand->data.vreg.live_interval.start) operand->data.vreg.live_interval.start = instruction->id;
+                if(-1 == operand->data.vreg.live_interval.start) {
+                    operand->data.vreg.live_interval.start = instruction->id;
+                }
             }
 
             vector_free(&used_operands);

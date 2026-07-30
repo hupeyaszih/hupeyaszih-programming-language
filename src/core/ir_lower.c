@@ -4,19 +4,18 @@
 #include "core/symbol_table.h"
 #include "h_vector.h"
 #include <stdbool.h>
-#include <stdio.h>
 #include <string.h>
 
 
 
 struct IR_Operand *IRL_create_stack_slot(struct IR_Function *function, struct type_info *type, struct IR_Instruction *definition_instruction) {
     struct IR_Operand *stack_slot = IR_create_IR_Operand(IR_OPERAND_TYPE_STACK_SLOT, definition_instruction, function, -1);
-    stack_slot->data.stack_slot.type = type;
-    stack_slot->data.stack_slot.stack_offset = function->stack_size;
+    struct stack_slot_t *slot = IR_create_stack_slot(type, function);
 
     stack_slot->type_info = type->pointer_type;
-
-    function->stack_size += type_table_size_padding(type->size); // I'll fix this
+    stack_slot->data.slot.stack_slot = slot;
+    slot->current_vreg = stack_slot;
+    slot->is_busy = true;
     return stack_slot;
 }
 

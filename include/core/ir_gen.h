@@ -47,6 +47,8 @@ enum IR_Operand_type {
 struct stack_slot_t {
     int stack_offset;
     struct type_info *type;
+    struct IR_Operand *current_vreg;
+    bool is_busy;
 };
 
 struct live_interval_t {
@@ -66,10 +68,14 @@ struct IR_Operand {
         char *mangled_label_name;
         struct {
             struct symbol_t *variable;
+            struct register_t *reg;
             int vreg_id;
             struct live_interval_t live_interval;
         } vreg;
-        struct stack_slot_t stack_slot;
+        struct {
+            struct live_interval_t live_interval;
+            struct stack_slot_t *stack_slot;
+        } slot;
     } data;
 
     struct IR_Instruction *definition_instruction;
@@ -170,8 +176,12 @@ struct IR_Function {
 
     struct vector_t *operands; /* struct IR_Function *                                  
                                (NOTE: All operands belong to a function. Only a function can free an operand!)*/
-
+                                  
+    struct vector_t *stack_slots; //  struct stack_slot_t *  (List of all stack_slots in the function. Only a function can free an stack_slot)
+                                  
     struct vector_t *unique_vregs; // struct IR_Operand *    (List of all unique vregs in the function)
+
+    struct bitset_t *used_callee_saved_registers;
 
     char *name, *mangled_name;
 
@@ -192,7 +202,7 @@ struct IR_Project {
 
 
 // create/free
-struct stack_slot_t *IR_create_stack_slot(int stack_offset, struct type_info *type);
+struct stack_slot_t *IR_create_stack_slot(struct type_info *type, struct IR_Function *function);
 void IR_delete_stack_slot(struct stack_slot_t **slot);
 
 struct IR_Project *IR_create_IR_Project();
@@ -230,6 +240,8 @@ void IR_Block_add_instruction_after(struct IR_Block *block, struct IR_Instructio
 // Helpers
 
 struct IR_Operand *IR_create_new_vreg(struct IR_Function *parent_function, struct IR_Instruction *definition_instruction, struct symbol_t *variable, int in_loop);
+
+int IR_call_get_arg_index(struct IR_Instruction *call, struct IR_Operand *target_arg);
 
 // Other Functions
 static inline int IR_get_instruction_cost(enum IR_Instruction_type type) {

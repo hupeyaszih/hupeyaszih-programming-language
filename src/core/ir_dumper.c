@@ -13,6 +13,7 @@ static inline void IR_dump_type_info(const struct type_info *type_info) {
 }
 
 static inline void IR_dump_operand(const struct IR_Operand *restrict operand) {
+    if(!operand) return;
     switch (operand->type) {
         case IR_OPERAND_TYPE_IMM: {
             IR_dump_type_info(operand->type_info);
@@ -30,7 +31,7 @@ static inline void IR_dump_operand(const struct IR_Operand *restrict operand) {
             printf("%s:", operand->data.mangled_label_name);
             break;
         }case IR_OPERAND_TYPE_STACK_SLOT: {
-            printf("[%d, size: %ld]", operand->data.stack_slot.stack_offset, operand->data.stack_slot.type->size);
+            printf("[%d, size: %ld]", operand->data.slot.stack_slot->stack_offset, operand->data.slot.stack_slot->type->size);
             break;
         }
     }
@@ -53,7 +54,8 @@ static void IR_dump_function(const struct IR_Function *function) {
         if(p != function->parameter_count-1) printf(", ");
     }
     printf(")");
-    printf(" , vreg count; %ld\n", function->unique_vregs->element_count);
+    printf(" , vreg count; %ld", function->unique_vregs->element_count);
+    printf(" , stack size; %d\n", function->stack_size);
     printf("{\n");
 
     struct IR_Block *curr = function->head_block;

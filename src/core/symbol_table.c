@@ -55,6 +55,7 @@ struct symbol_t *symbol_table_define(struct symbol_table *restrict table, char *
     s->type = type;
     s->kind = kind;
     s->pointer_level = pointer_level;
+    s->location_kind = LOCATION_VREG;
 
     return s;
 }

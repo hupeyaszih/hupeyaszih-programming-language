@@ -26,6 +26,7 @@ enum register_type {
 
 struct register_t {
     struct vector_t *names;
+    struct IR_Operand *current_vreg;
 
     enum register_type type;
     enum register_size size;
@@ -35,6 +36,8 @@ struct register_t {
     int arg_index;
     bool is_arg_reg;
     bool is_ret_reg;
+
+    bool is_busy;
 };
 
 struct register_list_t {
@@ -48,7 +51,8 @@ struct codegen_build_target_t{
     struct register_list_t *registers;
 
     const char *(*get_register_name) (struct register_list_t *list, struct register_t *reg, enum register_size size);
-    struct register_t *(*get_best_available_register) (struct register_list_t *list);
+    struct register_t *(*get_best_available_register) (struct register_list_t *list, struct register_t *preferred_register);
+    struct register_t *(*get_fixed_register_for_instruction) (struct register_list_t *list, struct IR_Instruction *instruction, struct IR_Operand *target_operand);
 };
 
 struct codegen_t {
