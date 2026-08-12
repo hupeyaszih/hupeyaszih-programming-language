@@ -1,136 +1,130 @@
-## NOTICE:
-* Currently, this compiler targets Linux x86_64 systems only!
-* This project is under active development and is not yet stable for production use.
+# HUPEYASZIH PROGRAMMING LANGUAGE (.hrs)
 
-# Hupeyaszih Programming Language (.hrs)
-A low-level programming language built for absolute control. This compiler doesn't include LLVM etc. Everything is handwritten in C.
-Hupeyaszih Programming Language **does not have** "if/else/switch"** etc. because the language wants programmer to write branchless code. The language has branch in only loops (loop/break/continue).
-The language eliminates standard branching structures (if, else, switch) to enforce branchless programming style.
+---
 
-* **Conditional Flow:** Since there are no if statements, flow control is handled via conditional loop, break, and continue.
-```hrs 
-loop{
-    continue(condition) { ... } // Executes the block and jumps to the next iteration **only if** the condition is true.
+> [!WARNING]
+> **Project Status:** The language is still under development and currently only supports x86_64 linux!
 
-    break(condition) { ... }    // Executes the block and exits the loop **only if** the condition is true.
-}
+---
+
+## Table of Contents
+* [What it is](#introduction)
+* [Roadmap](#roadmap)
+* [Philosophy](#philosophy)
+* [Trade-offs](#tradeoffs)
+* [Syntax](#syntax)
+* [Key Features](#features)
+* [Compiler Pipeline](#pipeline)
+* [Building from Source](#compiling)
+* [Usage](#usage)
+
+---
+
+## <a id="introduction"></a>What it is
+**Hupeyaszih** is a low-level programming language built for absolute control. The compiler includes **no external dependencies like LLVM**—everything is handwritten in C from the ground up.
+To force developers into writing branchless, cache-friendly, and high-performance code, **Hupeyaszih completely eliminates standard branching structures (`if`, `else`, `switch`)**.
+
+* Conditional Flow: Since there are no if statements, flow control is handled via custom loop structure.
 ```
-* **Raw Pointer Arithmetic:** `ptr + 1` always increments the address by exactly **1 byte**. Use `sizeof` and `alignof` for manual scaling.
-
-# Example code
-
-```hrs
-// Hupeyaszih Programming Language (.hrs)
-
-fn main(): int32 {
-    var test_pointer_val: int32 = 10;
-    var test_pointer: ptr = &test_pointer_val;
-    *test_pointer = (*test_pointer) + 1*alignof(int32);
-    {
-        var start_index: int32 = 65; // A = 65
-        var index: int32 = start_index-1;
-        var create_new_line:int32 = 1;
-            loop {
-                index = index + 1;
-
-                var is_invalid: int32 = (index > 90) * (index < 97);
-                continue(is_invalid) { // You can directly use "continue(index == 91) {index = index + 5; print_char(10);}"
-                    print_char(10 * create_new_line);
-                    create_new_line = 0;
-                }
-
-                print_char(index);
-                break(index == start_index + 57) {
-                    print_char(10);
-                }
-            }
-
-    }
-
-    var total: int32 = 0;
-    var x: int32 = 1;
-
-    fn calculate_bonus(val: int32): int32 {
-        var bonus: int32 = 0;
-        bonus = (val > 4) * 10;
-        bonus;
-    }
-
-
-    loop {
-        continue(x - ((x / 3) * 3) == 0) {
-            x = x + 1;
-        }
-
-        total = total + (get_weight(x) + calculate_bonus(x));
-
-        break(x == 5) {
-            total;
-
-        }
-        x = x + 1;
-    }
-    test_pointer_val + total;
-}
-
-fn get_weight(n: int32): int32 {
-    1 + (n - ((n / 2) * 2) == 0);
-}
-
-fn print_char(c: char): int32 {
-    asm "
-        mov rax, 1          
-        mov rdi, 1          
-        lea rsi, [rbp-8]    
-        mov rdx, 1          
-        syscall
-    ";
-    0;
+loop {
+     ...
+     condition; // if true, branches to continue block, else branches to return block
+} return {
+     ...
+     return_value;
+} continue{
+     ...
 }
 ```
 
-# Roadmap
-## DONE:
-* Variable support
-* Functions
-* Pointers
+* Raw Pointer Arithmetic: ptr + 1 always increments the address by exactly 1 byte. Use sizeof and alignof for manual scaling.
+
+## <a id="roadmap"></a>Roadmap
+### Done:
+* variable support
+* functions
+* pointers
 * Inline assembly support
-* Loop/break/continue
-* sizeof/alignof
-* Function and variable shadowing
+* Loop
+* sizeof/alignof/typeof/stof, note: stof(variable) means "sizeof(typeof(variable))"
+* shadowing
+* custom SSA-IR
+* x86_64 linux backend/codegen and build target system
 
-## In Progress
-* Custom IR, Build Target system
-
-## Planned
+### Planned:
+* Float support
 * Structs and packed structs
+* optimization passes
+* "select" keyword to use cmov etc.
 * import system
-* Standard library (StdLib)
-* Optimization Passes
-* Self-hosting (Rewriting the compiler in Hupeyaszih Programming Language)
-# The Philosophy
+* standard library (StdLib)
+* Self-hosting (Rewriting the compiler in .hrs)
+
+## <a id="philosophy"></a>The Philosophy
 Hupeyaszih aims to empower developers to create branchless, high-performance software with zero implicit overhead. No hidden branches, no implicit overhead. What you see is what the CPU executes.
 
+## <a id="tradeoffs"></a>Trade-offs
+* Still under development
+* No import/include system yet, making it difficult to split projects into multiple files or build modular libraries.
+* Unconventional control flow requires a mindset shift from traditional programming languages.
+* Designed specifically for branchless programming, making it ideal for low-latency, high-performance domains like game engines, rendering pipelines, and audio processing.
+* Zero bloat: Custom IR and handwritten backend give you complete visibility over code generation.
 
-# Project structures
-```
-.
-├── build/          # Where you build the compiler (cmake)
-│   
-├── example/        # .hrs example files
-├── include/
-│   ├── backend/
-│   ├── core/
-│   └── opt/
-├── out/            # Default output directory for compiled assembly
-└── src/            # Compiler source code (C)
-    ├── backend/
-    ├── core/
-    └── opt/
+## <a id="syntax"></a>Syntax at a Glance
+```hrs
+fn fibonacci(n: int32) : int32 {
+    var result: int32 = n;
+    
+    loop {
+        n > 1;
+    } return {
+        result;
+    } continue {
+        result = fibonacci(n - 1) + fibonacci(n - 2);
+        n = 0;
+    }
+}
+
+fn main() : int32 {
+    var n:int32 = 10;
+
+    fibonacci(n);
+}
 ```
 
-# Installation
-```bash
+## <a id="features"></a>Key Features
+* Enforces to use less branches
+* Low-level language
+* Written from scratch in C
+* Handwritten, doesn't use any library such as LLVM
+* Native support for upcoming features like approximate loops and resilient blocks.
+* Custom IR and loop structure
+
+## <a id="pipeline"></a>Compiler Pipeline
+```text
+
+[Source Code (.hrs)] 
+        │
+        ▼
+     [ Lexer ]
+        │
+        ▼
+     [ Parser ] --> (AST)
+        │
+        ▼
+[ Semantic Analyzer ] --> (Type Checking etc.)
+        |
+        ▼
+[ Code Generator ] --> [ Custom IR ] --> [ Optimization Passes ] --> [ Custom Backend/Codegen ] --> [ Native Executable ]
+```
+
+## <a id="compiling"></a>Building from Source
+### Prerequisites
+* C compiler
+* CMake
+
+### Build Steps
+```
 git clone https://github.com/hupeyaszih/hupeyaszih-programming-language.git
 cd hupeyaszih-programming-language
 mkdir build && cd build
@@ -138,24 +132,13 @@ cmake ..
 make
 ```
 
-# Usage
+## <a id="usage"></a>Usage
 To compile a Hupeyaszih (.hrs) file:
-```bash
-./hrsc <file_path>.hrs -o <file_path>.asm --run --clean
+```
+./hrsc <file_path>.hrs -o <file_path>.s --run
 ```
 
-Example: 
-```bash
-./hrsc ../example/testing.hrs -o ../out/testing.asm --run --clean
+Example:
 ```
-
-# Execute the Compiled code
-(You can use "--run" flag to do this automaticly) Change directory to your output path and execute:
-```bash
-nasm -f elf64 <file_name>.asm -o <file_name>.o
-ld <file_name>.o -o <file_name>
-./<file_name>; echo $?
+./hrsc ../example/example_00.hrs -o ../out/example_00.s --run
 ```
-
-## Notes
-> **Note:** Development was on pause for the past two months due to exams :D
