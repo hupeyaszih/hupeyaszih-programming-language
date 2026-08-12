@@ -2,19 +2,26 @@
 #include "core/symbol_table.h"
 #include "h_bitset.h"
 #include "h_vector.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 // create/free
 
-struct stack_slot_t *IR_create_stack_slot(struct type_info *type, struct IR_Function *function) {
+struct stack_slot_t *IR_create_stack_slot(struct type_info *type, struct IR_Function *function, bool is_argument) {
     struct stack_slot_t *slot = calloc(1, sizeof(struct stack_slot_t));
     slot->type = type;
     slot->current_vreg = NULL;
     slot->is_busy = false;
+    slot->is_argument = is_argument;
 
-    slot->stack_offset = function->stack_size;
-    function->stack_size += type_table_size_padding(type->size);
+    if(!is_argument) {
+        slot->stack_offset = function->stack_size;
+        function->stack_size += type_table_size_padding(type->size);
+    }else {
+        slot->stack_offset = function->stack_size_for_args;
+        function->stack_size_for_args += type_table_size_padding(type->size);
+    }
 
     vector_add(function->stack_slots, &slot);
     return slot;
@@ -41,9 +48,10 @@ void IR_delete_IR_Project(struct IR_Project **project) {
     (*project) = NULL;
 }
 
-struct IR_Module *IR_create_IR_Module() {
+struct IR_Module *IR_create_IR_Module(char *name) {
     struct IR_Module *module = calloc(1, sizeof(struct IR_Module));
     module->functions = vector_create_vector(1, sizeof(struct IR_Function *));
+    module->name = name;
 
     return module;
 }
@@ -54,6 +62,7 @@ void IR_delete_IR_Module(struct IR_Module **module) {
     }
 
     vector_free(&(*module)->functions);
+    free((*module)->name);
     free((*module));
     (*module) = NULL;
 }
@@ -63,15 +72,20 @@ struct IR_Function *IR_create_IR_Function(char *name, char *mangled_name, int pa
     function->name = strdup(name);
     function->mangled_name = strdup(mangled_name);
 
-    function->operands = vector_create_vector(4, sizeof(struct IR_Operand *));
-    function->stack_slots = vector_create_vector(4, sizeof(struct stack_slot_t *));
-    function->unique_vregs = vector_create_vector(4, sizeof(struct IR_Operand *));
+    function->parameters = vector_create_vector(6, sizeof(struct IR_Operand *));
+    function->operands = vector_create_vector(16, sizeof(struct IR_Operand *));
+    function->stack_slots = vector_create_vector(8, sizeof(struct stack_slot_t *));
+    function->unique_vregs = vector_create_vector(16, sizeof(struct IR_Operand *));
     function->used_callee_saved_registers = NULL;
 
     function->parameter_count = parameter_count;
     function->instruction_count = 0;
-    function->stack_size = 0;
+    function->stack_size = 8;
+    function->stack_size_for_args = 0;
     function->vreg_counter = 0;
+
+    function->is_fully_processed = false;
+    function->is_visiting = false;
     return function;
 }
 void IR_delete_IR_Function(struct IR_Function **function) {
@@ -96,9 +110,12 @@ void IR_delete_IR_Function(struct IR_Function **function) {
 
     vector_free(&(*function)->unique_vregs);
     vector_free(&(*function)->operands);
+    vector_free(&(*function)->parameters);
     vector_free(&(*function)->stack_slots);
 
     bitset_free(&(*function)->used_callee_saved_registers);
+    bitset_free(&(*function)->used_caller_saved_registers);
+    bitset_free(&(*function)->directly_used_caller_saved_registers);
 
     free((*function)->name);
     free((*function)->mangled_name);
@@ -119,6 +136,8 @@ struct IR_Block *IR_create_IR_Block(struct IR_Function *parent_function, char *m
 
     block->head_instruction = NULL;
     block->tail_instruction = NULL;
+    block->loop_tail_instruction = NULL;
+    block->loop_head_instruction = NULL;
     block->next = NULL;
     block->prev = NULL;
 
@@ -184,6 +203,13 @@ struct IR_Operand *IR_create_IR_Operand(enum IR_Operand_type type, struct IR_Ins
         vector_add(parent_function->operands, &operand);
     }
 
+    if(IR_OPERAND_TYPE_VREG == type) {
+        operand->data.vreg.variable = NULL;
+        operand->data.vreg.reg = NULL;
+    }else if(IR_OPERAND_TYPE_STACK_SLOT == type){
+        operand->data.slot.stack_slot = NULL;
+    }
+
     return operand;
 }
 void IR_delete_IR_Operand(struct IR_Operand **operand) {
@@ -208,6 +234,11 @@ void IR_init_live_interval(struct live_interval_t *interval, struct IR_Operand *
 // add/remove
 
 void IR_Module_add_function(struct IR_Module *module, struct IR_Function *function) {
+    if(module->parent_project->main_function == NULL && 0 == strcmp(function->name, "main")) {
+        module->parent_project->main_function = function;
+        module->parent_project->main_module = module;
+    }
+    function->parent_module = module;
     vector_add(module->functions, &function);
 }
 
@@ -275,15 +306,8 @@ struct IR_Operand *IR_create_new_vreg(struct IR_Function *parent_function, struc
 
     operand->data.vreg.variable = variable;
     operand->data.vreg.vreg_id = parent_function->vreg_counter;
+    operand->data.vreg.crosses_call = false;
     ++parent_function->vreg_counter;
-    // int is_unique = 1;
-    // for(int i = 0;i < parent_function->unique_vregs->element_count; ++i) {
-    //     struct IR_Operand *current = *(struct IR_Operand **)vector_get(parent_function->unique_vregs, i);
-    //     if(current == operand || current->data.vreg.vreg_id == operand->data.vreg.vreg_id) {is_unique = 0; break;}
-    // }
-    // if(1 == is_unique) {
-    //     vector_add(parent_function->unique_vregs, &operand);
-    // }
     vector_add(parent_function->unique_vregs, &operand);
     return operand;
 }

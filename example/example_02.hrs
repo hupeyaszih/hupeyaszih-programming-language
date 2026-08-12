@@ -1,0 +1,24 @@
+// Hupeyaszih Programming Language (.hrs)
+// Example 3: Direct Linux Kernel I/O via Inline Assembly (sys_write)
+
+fn sys_write(buffer_ptr: *int32, length: int32) : int32 {
+    asm "    mov rdx, rsi    # Arg 3: count (length of string)
+    mov rsi, rdi    # Arg 2: *buf (pointer to memory)
+    mov rdi, 1      # Arg 1: fd = 1 (stdout)
+    mov rax, 1      # RAX = 1 (Linux sys_write syscall)
+    syscall";       // Trigger Linux kernel
+
+    0;
+}
+
+fn main() : int32 {
+    // 'H'  (72  / 0x48)
+    // 'i'  (105 / 0x69)
+    // '!'  (33  / 0x21)
+    // '\n' (10  / 0x0A)
+    // Combined Decimal: 169961800
+    var msg: int32 = 169961800;
+
+    sys_write(&msg, 4);
+    0;
+}

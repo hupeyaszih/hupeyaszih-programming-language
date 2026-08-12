@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-
 #include "core/globals.h"
 
 const char LEXER_DELIM[] = " \t\r\n";
@@ -319,4 +318,32 @@ int lexer_tokenize(char *restrict str, struct lexer_token **restrict tokens, int
     }
 
     return token_id;
+}
+
+char *lexer_extract_module_name(const char *filepath) {
+    if (!filepath) return strdup("unnamed_module");
+
+    const char *filename = strrchr(filepath, '/');
+    #if defined(_WIN32)
+    const char *win_filename = strrchr(filepath, '\\');
+    if (win_filename && (!filename || win_filename > filename)) {
+        filename = win_filename;
+    }
+    #endif
+
+    if (filename) {
+        filename++;
+    } else {
+        filename = filepath;
+    }
+
+    char *mod_name = strdup(filename);
+    if (!mod_name) return NULL;
+
+    char *dot = strrchr(mod_name, '.');
+    if (dot) {
+        *dot = '\0';
+    }
+
+    return mod_name;
 }

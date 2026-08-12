@@ -1,0 +1,20 @@
+// Hupeyaszih Programming Language (.hrs)
+
+fn fibonacci(n: int32) : int32 {
+    var result: int32 = n;
+    
+    loop {
+        n > 1;
+    } return {
+        result;
+    } continue {
+        result = fibonacci(n - 1) + fibonacci(n - 2);
+        n = 0;
+    }
+}
+
+fn main() : int32 {
+    var n:int32 = 10;
+
+    fibonacci(n);
+}

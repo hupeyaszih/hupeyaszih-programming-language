@@ -96,6 +96,9 @@ struct parser_node *parser_create_node(enum parser_node_type type, int line){
     node->type = type;
     node->line = line;
     node->is_literal_data_created_by_parser = 0;
+    node->type_info = NULL;
+    node->right_node = NULL;
+    node->left_node = NULL;
 
     return node;
 }
@@ -215,12 +218,12 @@ int parser_parse(struct parser_t *restrict parser, struct lexer_file *restrict f
 
     struct parser_node *module = parser_create_node(PARSER_NODE_MODULE, 0);
     module->data.module.functions = vector_create_vector(4, sizeof(struct parser_node *));
+    module->data.module.name = lexer_extract_module_name(file->file_name);
     parser_parser_add_node(parser, module);
 
     while (cursor < file->token_count) {
         struct parser_node *node = parser_parse_statement(parser, file->tokens, file->token_count, &cursor);
         if (node) {
-            // parser_parser_add_node(parser, node);
             vector_add(module->data.module.functions, &node);
         } else {
             parser->successful = 0;
@@ -964,13 +967,15 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
         }
         int pointer_level = calculate_pointer_level(tokens, cursor);
         struct lexer_token *type_token = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER);
+        struct type_info *type_info = NULL;
         if(NULL == type_token) {
-            C_LOG_ERR("expected an identifier for \"sizeof\"on line: %d", line_number);
-            parser->successful = 0;
-            return NULL;
+            (*cursor)--;
+            struct parser_node *right = parser_parse_factor(parser, tokens, token_count, cursor);
+            type_info = type_table_get_type_info(parser->type_table, right->data.literal_data, pointer_level);
+        }else {
+            type_info = type_table_get_type_info(parser->type_table, type_token->token, pointer_level);
         }
 
-        struct type_info *type_info = type_table_get_type_info(parser->type_table, type_token->token, pointer_level);
         if(NULL == type_info) {
             C_LOG_ERR("expected a valid type after \"(\" for \"sizeof\" on line: %d", line_number);
             parser->successful = 0;
@@ -1002,19 +1007,22 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
             return NULL;
         }
         int pointer_level = calculate_pointer_level(tokens, cursor);
+
         struct lexer_token *type_token = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER);
+        struct type_info *type_info = NULL;
         if(NULL == type_token) {
-            C_LOG_ERR("expected an identifier for \"alignof\"on line: %d", line_number);
-            parser->successful = 0;
-            return NULL;
-        }
-        struct type_info *type_info = type_table_get_type_info(parser->type_table, type_token->token, pointer_level);
-        if(NULL == type_info) {
-            C_LOG_ERR("expected a valid type after \"(\" for \"alignof\" on line: %d", line_number);
-            parser->successful = 0;
-            return NULL;
+            (*cursor)--;
+            struct parser_node *right = parser_parse_factor(parser, tokens, token_count, cursor);
+            type_info = type_table_get_type_info(parser->type_table, right->data.literal_data, pointer_level);
+        }else {
+            type_info = type_table_get_type_info(parser->type_table, type_token->token, pointer_level);
         }
 
+        if(NULL == type_info) {
+            C_LOG_ERR("expected a valid type after \"(\" for \"sizeof\" on line: %d", line_number);
+            parser->successful = 0;
+            return NULL;
+        }
         if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_RPAREN)) {
             C_LOG_ERR("expected \")\" for \"alignof\"on line: %d", line_number);
             parser->successful = 0;
@@ -1111,7 +1119,6 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
         parser->successful = 0;
         return NULL;
     }
-    // parser->successful = 0;
     return NULL;
 }
 

@@ -4,16 +4,17 @@
 #include "core/symbol_table.h"
 #include "h_vector.h"
 #include <stdbool.h>
+#include <stdio.h>
 #include <string.h>
 
 
 
-struct IR_Operand *IRL_create_stack_slot(struct IR_Function *function, struct type_info *type, struct IR_Instruction *definition_instruction) {
+struct IR_Operand *IRL_create_stack_slot(struct IR_Function *function, struct type_info *type, struct IR_Instruction *definition_instruction, bool is_argument) {
     struct IR_Operand *stack_slot = IR_create_IR_Operand(IR_OPERAND_TYPE_STACK_SLOT, definition_instruction, function, -1);
-    struct stack_slot_t *slot = IR_create_stack_slot(type, function);
+    struct stack_slot_t *slot = IR_create_stack_slot(type, function, is_argument);
 
-    stack_slot->type_info = type->pointer_type;
     stack_slot->data.slot.stack_slot = slot;
+    stack_slot->type_info = type->pointer_type;
     slot->current_vreg = stack_slot;
     slot->is_busy = true;
     return stack_slot;
@@ -23,12 +24,13 @@ static inline void IRL_instruction_jmp_add_args(struct IR_Instruction *jmp, stru
     jmp->operands.jmp.args = vector_create_vector(args->element_count, sizeof(struct symbol_t *));
     for(int i = 0; i < args->element_count; ++i) {
         struct IR_Operand *param = *(struct IR_Operand **) vector_get(args, i);
+        if(IR_OPERAND_TYPE_VREG != param->type) continue;
         vector_add(jmp->operands.jmp.args, &param);
     }
 }
 
 static inline struct vector_t *IRL_block_filter(struct vector_t *mutated_variables, struct vector_t *declarated_variables) {
-    struct vector_t *filtered = vector_create_vector(2, sizeof(struct symbol_t *));
+    struct vector_t *filtered = vector_create_vector(2, sizeof(struct IR_Operand *));
     for (int i = 0; i < mutated_variables->element_count; i++) {
         struct symbol_t *mutated_sym = *(struct symbol_t **) vector_get(mutated_variables, i);
 
@@ -46,6 +48,7 @@ static inline struct vector_t *IRL_block_filter(struct vector_t *mutated_variabl
             vector_add(filtered, &mutated_sym->current_vreg);
         }
     }
+
     return filtered;
 }
 
@@ -54,7 +57,7 @@ static inline void variable_declaration(struct ir_context *context, struct symbo
         struct IR_Instruction *alloca = IR_create_IR_Instruction(context->current_block, IR_INSTRUCTION_TYPE_ALLOCA);
         IR_Block_add_instruction(context->current_block, alloca);
 
-        struct IR_Operand *stack_slot = IRL_create_stack_slot(context->current_function, sym->type, alloca);
+        struct IR_Operand *stack_slot = IRL_create_stack_slot(context->current_function, sym->type, alloca, false);
         sym->stack_slot = stack_slot;
 
         alloca->operands.alloca.type_info = sym->type;
@@ -93,6 +96,8 @@ static inline struct IR_Operand *load_variable(struct ir_context *context, struc
 static inline void emit_cast(struct ir_context *context, struct type_info *target_type, struct IR_Operand **val) {
     if((*val)->type_info->type_id == target_type->type_id) return;
 
+    if(IR_OPERAND_TYPE_IMM == (*val)->type) return;
+
     if (type_table_can_that_promote_to((*val)->type_info, target_type)) {
         struct IR_Instruction *cast = IR_create_IR_Instruction(context->current_block, IR_INSTRUCTION_TYPE_CAST);
         IR_Block_add_instruction(context->current_block, cast);
@@ -116,7 +121,16 @@ static inline void store_variable(struct ir_context *context, struct symbol_t *s
     switch (location_kind) {
         case LOCATION_VREG: {
             if(val->type == IR_OPERAND_TYPE_VREG) {
-                sym->current_vreg = val;
+                struct IR_Instruction *assign = IR_create_IR_Instruction(context->current_block, IR_INSTRUCTION_TYPE_MOV);
+                IR_Block_add_instruction(context->current_block, assign);
+
+                struct IR_Operand *vreg = IR_create_new_vreg(context->current_function, assign, sym, context->current_block->in_loop);
+                vreg->type_info = sym->type;
+
+                assign->operands.double_operands.source_1 = val;
+                assign->operands.double_operands.destination = vreg;
+
+                sym->current_vreg = vreg;
             }else {
                 struct IR_Instruction *assign = IR_create_IR_Instruction(context->current_block, IR_INSTRUCTION_TYPE_MOV);
                 IR_Block_add_instruction(context->current_block, assign);
@@ -157,8 +171,9 @@ static inline struct type_info *get_best_type_info_to_assign(struct type_info *l
 }
 
 struct IR_Operand *IRL_run_module_lower(struct parser_node *node, struct ir_context *context) {
-    struct IR_Module *module = IR_create_IR_Module();
+    struct IR_Module *module = IR_create_IR_Module(node->data.module.name);
     vector_add(context->project->modules, &module);
+    module->parent_project = context->project;
 
     int function_count = node->data.module.functions->element_count;
 
@@ -181,21 +196,63 @@ struct IR_Operand *IRL_run_function_lower(struct parser_node *node, struct ir_co
     struct symbol_t *sym = symbol_table_look_up(context->current_scope, node->data.function.name);
     sym->function.ir_function = context->current_function;
 
-
     struct IR_Block *params_b = IR_create_IR_Block(context->current_function, node->data.function.params->data.block.mangled_name);
     context->current_block = params_b;
-    IRL_run_block_lower(node->data.function.params, context);
+    IR_Function_add_block(context->current_function, params_b);
+
+
+
+    struct symbol_table *last_scope = context->current_scope;
+    context->current_scope = node->data.function.params->data.block.scope;
+
+    struct parser_node *params = node->data.function.params;
+    int param_count = params->data.block.count;
+    for(int i = 0;i < param_count; ++i) {
+        struct parser_node *param = params->data.block.statements[i];
+        struct IR_Operand *param_op = NULL;
+        if(LOCATION_STACK == param->data.variable.symbol->location_kind) {
+            // load arg to param
+            struct symbol_t *var_sym = param->data.variable.symbol;
+            struct IR_Operand *vreg = IR_create_new_vreg(context->current_function, NULL, var_sym, params_b->in_loop);
+            vreg->type_info = var_sym->type;
+            param_op = vreg;
+            IRL_run_statement_lower(param, context, LOWER_UNDEFINED);
+            store_variable(context, var_sym, vreg);
+        }else {
+            param_op = IRL_run_statement_lower(param, context, LOWER_UNDEFINED);
+        }
+
+        vector_add(context->current_function->parameters, &param_op);
+    }
+    context->current_scope = last_scope;
+
 
     struct IR_Block *block = IR_create_IR_Block(context->current_function, node->data.function.body->data.block.mangled_name);
     context->current_block = block;
 
 
     struct IR_Operand *return_value = IRL_run_block_lower(node->data.function.body, context);
+    // emit_cast(context, node->data.function.return_type, &return_value);
+    context->current_function->return_value = return_value;
 
     struct IR_Instruction *ret = IR_create_IR_Instruction(context->current_block, IR_INSTRUCTION_TYPE_RET);
     IR_Block_add_instruction(context->current_block, ret);
     ret->operands.ret.function = context->current_function;
     ret->operands.ret.return_value = return_value;
+
+
+    // init instruction ids
+    int instruction_id = 0;
+    struct IR_Block *curr_block = context->current_function->head_block;
+    while(NULL != curr_block) {
+        struct IR_Instruction *curr_instruction = curr_block->head_instruction;
+        while(NULL != curr_instruction) {
+            curr_instruction->id = instruction_id;
+            curr_instruction = curr_instruction->next;
+            ++instruction_id;
+        }
+        curr_block = curr_block->next;
+    }
 
     return return_value;
 }
@@ -213,7 +270,9 @@ struct IR_Operand *IRL_run_block_lower(struct parser_node *node, struct ir_conte
     struct IR_Operand *last_operand = NULL;
     for(int i = 0;i < statement_count; ++i) {
         struct parser_node *curr = node->data.block.statements[i];
-        last_operand = IRL_run_statement_lower(curr, context, LOWER_UNDEFINED);
+        enum lower_type lower_type = LOWER_UNDEFINED;
+        if(i == statement_count-1) lower_type = LOWER_R;
+        last_operand = IRL_run_statement_lower(curr, context, lower_type);
     }
 
 
@@ -248,11 +307,13 @@ static inline struct IR_Operand *IRL_run_alu_lower(struct ir_context *context, s
 
     struct type_info *dest_type_info = node->type_info;
 
+
     if(dest_type_info->type_id != left_operand->type_info->type_id) emit_cast(context, dest_type_info, &left_operand);
     if(dest_type_info->type_id != right_operand->type_info->type_id) emit_cast(context, dest_type_info, &right_operand);
 
     if(left_operand->type_info->type_id != right_operand->type_info->type_id) emit_cast(context, left_operand->type_info, &right_operand);
     if(left_operand->type_info->type_id != right_operand->type_info->type_id) emit_cast(context, right_operand->type_info, &left_operand);
+    
 
     struct IR_Instruction *instruction = IR_create_IR_Instruction(context->current_block, alu_type);
     IR_Block_add_instruction(context->current_block, instruction);
@@ -284,6 +345,13 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
             struct vector_t *mutated_variables = vector_create_vector(2, sizeof(struct symbol_t *));
             IRL_find_mutations(node->data.loop.body_block, mutated_variables, declared_variables);
             IRL_find_mutations(node->data.loop.continue_block, mutated_variables, declared_variables);
+
+            for (int i = 0; i < mutated_variables->element_count; ++i) {
+                struct symbol_t *mutated_sym = *(struct symbol_t **) vector_get(mutated_variables, i);
+                if (mutated_sym->current_vreg && mutated_sym->current_vreg->type == IR_OPERAND_TYPE_VREG) {
+                    mutated_sym->current_vreg->data.vreg.variable = mutated_sym;
+                }
+            }
 
             struct vector_t *entry_params = IRL_block_filter(mutated_variables, declared_variables);
             
@@ -351,6 +419,7 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
                 struct symbol_t *var = arg_op->data.vreg.variable;
                 struct IR_Operand *body_vreg = *(struct IR_Operand **) vector_get(body_end_vregs, i);
                 var->current_vreg = body_vreg;
+
             }
             //
 
@@ -364,18 +433,23 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
             branch->operands.br.true_block  = b_continue;
             branch->operands.br.false_block = b_return;
 
-            for(int i = 0;i < continue_params->element_count; ++i) {
-                struct IR_Operand *param = *(struct IR_Operand **) vector_get(continue_params, i);
-            }
-            for(int i = 0;i < entry_params->element_count; ++i) {
-                struct IR_Operand *param = *(struct IR_Operand **) vector_get(entry_params, i);
-            }
-
             vector_free(&mutated_variables);
             vector_free(&declared_variables);
             vector_free(&entry_params);
             vector_free(&continue_params);
             vector_free(&body_end_vregs);
+
+            struct IR_Instruction *loop_head_instruction = b_body->head_instruction;
+            struct IR_Instruction *loop_tail_instruction = b_continue->tail_instruction;
+            
+            b_body->loop_head_instruction = loop_head_instruction;
+            b_body->loop_tail_instruction = loop_tail_instruction;
+
+            b_continue->loop_head_instruction = loop_head_instruction;
+            b_continue->loop_tail_instruction = loop_tail_instruction;
+
+            b_return->loop_head_instruction = b_entry->loop_head_instruction;
+            b_return->loop_tail_instruction = b_entry->loop_tail_instruction;
 
             return return_res;
         }case PARSER_NODE_NUMBER: {
@@ -402,6 +476,8 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
                 struct parser_node *arg = node->data.call.args[i];
                 struct IR_Operand *op = IRL_run_statement_lower(arg, context, LOWER_R);
                 vector_add(call->operands.call.arguments, &op);
+
+                emit_cast(context, arg->type_info, &op);
             }
 
             struct IR_Operand *return_val = IR_create_new_vreg(context->current_function, call, NULL, context->current_block->in_loop);
@@ -434,7 +510,7 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
             struct IR_Operand *ptr_op = IRL_run_statement_lower(node->right_node, context, LOWER_R);
 
             if (lower_type == LOWER_R) {
-                struct IR_Instruction *load_inst = IR_create_IR_Instruction(context->current_block, IR_INSTRUCTION_TYPE_LOAD);
+                struct IR_Instruction *load_inst = IR_create_IR_Instruction(context->current_block, IR_INSTRUCTION_TYPE_UNARY_DEREFERENCE);
                 struct IR_Operand *dest = IR_create_new_vreg(context->current_function, load_inst, node->right_node->data.variable.symbol, context->current_block->in_loop);
                 dest->type_info = node->type_info;
 
@@ -494,6 +570,7 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
             if (lower_type == LOWER_L) {
                 return (sym->location_kind == LOCATION_STACK) ? sym->stack_slot : sym->current_vreg;
             } else {
+
                 return load_variable(context, sym);
             }
         }case PARSER_NODE_VARIABLE_DECLARATION: {
@@ -506,15 +583,15 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
             variable_declaration(context, sym, node);
 
 
-            if(node->right_node) {
+            if(right_operand) {
                 store_variable(context, sym, right_operand);
             }
-            return NULL;
+            return node->data.variable.symbol->current_vreg;
         }case PARSER_NODE_VARIABLE_ASSIGMENT: {
             struct IR_Operand *right_operand = IRL_run_statement_lower(node->right_node, context, LOWER_R);
 
             if (node->left_node->type == PARSER_NODE_UNARY_DEREFERENCE) {
-                struct IR_Operand *ptr_operand = IRL_run_statement_lower(node->left_node->right_node, context, LOWER_R);
+                struct IR_Operand *ptr_operand = IRL_run_statement_lower(node->left_node, context, LOWER_L);
 
                 struct IR_Instruction *store= IR_create_IR_Instruction(context->current_block, IR_INSTRUCTION_TYPE_STORE);
 
@@ -531,6 +608,12 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
             }
 
             break;
+        }case PARSER_NODE_ASM: {
+            struct IR_Instruction *instruction = IR_create_IR_Instruction(context->current_block, IR_INSTRUCTION_TYPE_ASM);
+            IR_Block_add_instruction(context->current_block, instruction);
+
+            instruction->operands.asm_operands.asm_imm = node->data.literal_data;
+            return NULL;
         }
     }
     return NULL;
@@ -582,6 +665,10 @@ void IRL_find_mutations(struct parser_node *node, struct vector_t *vars, struct 
             IRL_find_mutations(node->right_node, vars, declarated_vars);
             break;
         } case PARSER_NODE_VARIABLE_ASSIGMENT: {
+            if (node->left_node) {
+                IRL_find_mutations(node->left_node, vars, declarated_vars);
+            }
+
             if (node->left_node && node->left_node->type == PARSER_NODE_IDENTIFIER) {
                 struct symbol_t *sym = node->data.variable.symbol;
                 add_mutated_var(vars, sym);
@@ -630,6 +717,7 @@ void IRL_find_mutations(struct parser_node *node, struct vector_t *vars, struct 
 
         case PARSER_NODE_LOOP: {
             IRL_find_mutations(node->data.loop.body_block, vars, declarated_vars);
+            IRL_find_mutations(node->data.loop.return_block, vars, declarated_vars);
             IRL_find_mutations(node->data.loop.continue_block, vars, declarated_vars);
             break;
         }

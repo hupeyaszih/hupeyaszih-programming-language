@@ -1,6 +1,7 @@
 #include "core/symbol_table.h"
 #include "core/parser.h"
 #include "core/globals.h"
+#include "h_vector.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,9 +9,7 @@
 
 struct symbol_table *symbol_table_create_symbol_table(struct symbol_table *restrict parent, int *global_scope_counter){
     struct symbol_table *table = calloc(1, sizeof(struct symbol_table));
-    table->symbol_capacity = 16;
-    table->symbols = calloc(table->symbol_capacity, sizeof(struct symbol_t));
-    table->symbol_count = 0;
+    table->symbols = vector_create_vector(8, sizeof(struct symbol_t *));
     table->parent = parent;
     table->scope_level = (parent == NULL) ? 0 : parent->scope_level + 1;
     table->total_stack_size = 0;
@@ -32,30 +31,27 @@ struct symbol_t *symbol_table_define(struct symbol_table *restrict table, char *
         LOG_M_ERR("symbol_table_define - \"char *restrict name\" is null");
         return NULL;
     }
-    if (table->symbol_count >= table->symbol_capacity) {
-        struct symbol_t *tmp = realloc(table->symbols, sizeof(struct symbol_t) * table->symbol_capacity*2);
-        if(NULL == tmp) {
-            LOG_M_ERR("symbol_table_define - \"struct symbol_t *tmp\" is null");
-            free(tmp);
-            return NULL;
-        }
-        table->symbol_capacity *= 2;
-        table->symbols = tmp;
-    }
-    for (int i = 0; i < table->symbol_count; i++) {
-        if (0 == strcmp(table->symbols[i].name, name)) {
+    for (int i = 0; i < table->symbols->element_count; i++) {
+        struct symbol_t *target_sym = *(struct symbol_t **) vector_get(table->symbols, i);
+        if (0 == strcmp(target_sym->name, name)) {
             C_LOG_ERR("'%s' already defined in this scope", name);
             return NULL; 
         }
     }
     
-    struct symbol_t *s = &table->symbols[table->symbol_count++];
+    struct symbol_t *s = calloc(1, sizeof(struct symbol_t));
     s->name = strdup(name);
     s->mangled_name = strdup(name);
     s->type = type;
     s->kind = kind;
     s->pointer_level = pointer_level;
     s->location_kind = LOCATION_VREG;
+    s->current_vreg = NULL;
+    s->flags = 0;
+    s->is_address_taken = false;
+    s->stack_slot = NULL;
+
+    vector_add(table->symbols, &s);
 
     return s;
 }
@@ -68,9 +64,10 @@ struct symbol_t* symbol_table_look_up(const struct symbol_table *table, const ch
         LOG_M_ERR("symbol_table_look_up - \"char *name\" is null");
     }
     while (table != NULL) {
-        for (int i = 0; i < table->symbol_count; i++) {
-            if (strcmp(table->symbols[i].name, name) == 0) {
-                return &table->symbols[i];
+        for (int i = 0; i < table->symbols->element_count; i++) {
+            struct symbol_t *target_sym = *(struct symbol_t **) vector_get(table->symbols, i);
+            if (strcmp(target_sym->name, name) == 0) {
+                return target_sym;
             }
         }
         table = table->parent; 
@@ -157,11 +154,13 @@ void symbol_table_delete_symbol_table(struct symbol_table **table){
         LOG_M_ERR("symbol_table_delete_symbol_table - \"struct symbol_table **table\" or \"*table\" is null");
         return;
     }
-    for (int i = 0; i < (*table)->symbol_count; i++) {
-        free((*table)->symbols[i].name);
-        free((*table)->symbols[i].mangled_name);
+    for (int i = 0; i < (*table)->symbols->element_count; i++) {
+        struct symbol_t *sym = *(struct symbol_t **) vector_get((*table)->symbols, i);
+        free(sym->name);
+        free(sym->mangled_name);
+        free(sym);
     }
-    free((*table)->symbols);
+    vector_free(&(*table)->symbols);
     free(*table);
     *table = NULL;
 }

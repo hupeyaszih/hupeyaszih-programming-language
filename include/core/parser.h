@@ -50,6 +50,7 @@ struct parser_node{
        char *literal_data;
 
        struct {
+           char *name;
            struct vector_t *functions; // struct parser_node *
        } module;
 

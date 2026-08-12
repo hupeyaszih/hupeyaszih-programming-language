@@ -25,6 +25,7 @@ add_executable(hrsc
     src/opt/register_allocator.c
 
     src/backend/codegen.c
+    src/backend/codegen_utils.c
     src/backend/x86_64/x86_64_linux.c
     # src/opt/opt.c
 )

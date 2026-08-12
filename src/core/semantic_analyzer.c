@@ -134,11 +134,7 @@ int semantic_analyzer_analyze_node(struct parser_node* node, struct semantic_con
         case PARSER_NODE_LESS:
         case PARSER_NODE_GREATER: return semantic_analyzer_analyze_binary_expr(node, context);
 
-        case PARSER_NODE_NUMBER:
-        case PARSER_NODE_PARAMETER_LIST:
-        case PARSER_NODE_STRING:
-        case PARSER_NODE_IDENTIFIER:
-        case PARSER_NODE_UNDEFINED:
+        default:
         return 0;
     }
     return 1;
@@ -266,8 +262,12 @@ struct type_info *semantic_analyzer_calculate_type_infos(struct parser_node *nod
     switch (node->type) {
         case PARSER_NODE_FUNCTION:{
             context->current_function = node;
-            semantic_analyzer_calculate_type_infos(node->data.function.body, context);
-            node->type_info = node->data.function.return_type;
+            struct type_info *info = semantic_analyzer_calculate_type_infos(node->data.function.body, context);
+            if(1 == type_table_can_that_promote_to(info, node->data.function.return_type)) {
+                node->type_info = node->data.function.return_type;
+                break;
+            }
+            print_semantic_error_type_infos(node);
             break;
         }case PARSER_NODE_MODULE:{
             int function_count = node->data.module.functions->element_count;
@@ -440,16 +440,15 @@ struct type_info *semantic_analyzer_calculate_type_infos(struct parser_node *nod
                 }
                 if (left_type->type_id == right_type->type_id) {
                     node->type_info = left_type;
-                } 
-                else if (1 == type_table_can_that_promote_to(left_type, right_type)) {
+                }else if (1 == type_table_can_that_promote_to(left_type, right_type)) {
                     node->type_info = right_type; 
-                } 
-                else if (1 == type_table_can_that_promote_to(right_type, left_type)) {
+                }else if (1 == type_table_can_that_promote_to(right_type, left_type)) {
                     node->type_info = left_type;
                 }else {
                     print_semantic_error_type_infos(node);
                     context->error = 1;
                     node->type_info = NULL;
+                    break;
                 }
             }else if(left_type) {
                 node->type_info = left_type;

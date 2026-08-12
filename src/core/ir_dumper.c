@@ -31,6 +31,7 @@ static inline void IR_dump_operand(const struct IR_Operand *restrict operand) {
             printf("%s:", operand->data.mangled_label_name);
             break;
         }case IR_OPERAND_TYPE_STACK_SLOT: {
+            if(!operand->data.slot.stack_slot) break;
             printf("[%d, size: %ld]", operand->data.slot.stack_slot->stack_offset, operand->data.slot.stack_slot->type->size);
             break;
         }
@@ -49,7 +50,7 @@ static void IR_dump_function(const struct IR_Function *function) {
     // printf("fn %s, vreg count; %ld\n", function->name, function->unique_vregs->element_count);
     printf("fn %s (", function->name);
     for(int p = 0;p < function->parameter_count; ++p) {
-        struct IR_Operand *param = *(struct IR_Operand **) vector_get(function->unique_vregs,p);
+        struct IR_Operand *param = *(struct IR_Operand **) vector_get(function->parameters,p);
         IR_dump_operand(param);
         if(p != function->parameter_count-1) printf(", ");
     }
@@ -75,6 +76,7 @@ static void IR_dump_block(const struct IR_Block *block) {
         for(int i = 0;i < block->params->element_count; ++i) {
             struct IR_Operand *op = *(struct IR_Operand **) vector_get(block->params, i);
             IR_dump_operand(op);
+            if(i != block->params->element_count-1) printf(", ");
         }
         printf(")");
     }

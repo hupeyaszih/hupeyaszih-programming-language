@@ -49,6 +49,7 @@ struct stack_slot_t {
     struct type_info *type;
     struct IR_Operand *current_vreg;
     bool is_busy;
+    bool is_argument;
 };
 
 struct live_interval_t {
@@ -71,6 +72,7 @@ struct IR_Operand {
             struct register_t *reg;
             int vreg_id;
             struct live_interval_t live_interval;
+            bool crosses_call;
         } vreg;
         struct {
             struct live_interval_t live_interval;
@@ -132,6 +134,10 @@ struct IR_Instruction {
             struct vector_t *false_args; // struct IR_Operand *
         }br;
 
+        struct {
+            char *asm_imm;
+        } asm_operands;
+
     }operands;
     struct IR_Block *parent_block;
 
@@ -165,15 +171,19 @@ struct IR_Block {
     struct vector_t *params; // struct IR_Operand *
 
     char *mangled_name;
-    int instruction_count;
     int in_loop;
+    struct IR_Instruction *loop_tail_instruction;
+    struct IR_Instruction *loop_head_instruction;
+    int instruction_count;
 };
 
 
 struct IR_Function {
+    struct IR_Module *parent_module;
     struct IR_Block *head_block;
     struct IR_Block *tail_block;
 
+    struct vector_t *parameters; // struct IR_Operand *
     struct vector_t *operands; /* struct IR_Function *                                  
                                (NOTE: All operands belong to a function. Only a function can free an operand!)*/
                                   
@@ -182,6 +192,10 @@ struct IR_Function {
     struct vector_t *unique_vregs; // struct IR_Operand *    (List of all unique vregs in the function)
 
     struct bitset_t *used_callee_saved_registers;
+    struct bitset_t *used_caller_saved_registers;
+    struct bitset_t *directly_used_caller_saved_registers;
+
+    struct IR_Operand *return_value;
 
     char *name, *mangled_name;
 
@@ -189,26 +203,35 @@ struct IR_Function {
     int parameter_count;
     int vreg_counter;
     int stack_size;
+    int stack_size_for_args;
+
+    bool is_visiting;          // using in "register_allocator_compute_caller_saved_registers"
+    bool is_fully_processed;   // using in "register_allocator_compute_caller_saved_registers"
+
 };
 
 
 struct IR_Module {
+    char *name;
     struct vector_t *functions; // struct IR_Function *
+    struct IR_Project *parent_project;
 };
 
 struct IR_Project {
     struct vector_t *modules; // struct IR_Module *
+    struct IR_Function *main_function;
+    struct IR_Module *main_module;
 };
 
 
 // create/free
-struct stack_slot_t *IR_create_stack_slot(struct type_info *type, struct IR_Function *function);
+struct stack_slot_t *IR_create_stack_slot(struct type_info *type, struct IR_Function *function, bool is_argument);
 void IR_delete_stack_slot(struct stack_slot_t **slot);
 
 struct IR_Project *IR_create_IR_Project();
 void IR_delete_IR_Project(struct IR_Project **project);
 
-struct IR_Module *IR_create_IR_Module();
+struct IR_Module *IR_create_IR_Module(char *name);
 void IR_delete_IR_Module(struct IR_Module **module);
 
 struct IR_Function *IR_create_IR_Function(char *name, char *mangled_name, int parameter_count);

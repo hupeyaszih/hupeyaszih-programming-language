@@ -79,9 +79,7 @@ struct symbol_t{
 };
 
 struct symbol_table{  
-    struct symbol_t *symbols;
-    int symbol_count;
-    int symbol_capacity;
+    struct vector_t *symbols; // struct symbol_t *
     int scope_level;
     int total_stack_size;
     int current_total_offset;

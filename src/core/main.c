@@ -2,6 +2,8 @@
 #include "backend/codegen.h"
 #include "core/globals.h"
 #include "core/hrs_file_io.h"
+#include "core/ir_dumper.h"
+#include "core/ir_lower.h"
 #include "core/parser.h"
 #include "core/symbol_table.h"
 #include "opt/opt.h"
@@ -14,8 +16,8 @@
 int main(int argc, char *argv[]) {
     C_LOG_INFO("Usage: %s [-i input] [-o output] [--run] [--clean]", argv[0]);
 
-    char* input_path = "../example/testing.hrs";
-    char* output_path = "../out/main.asm";
+    char* input_path = "../example/example_00.hrs";
+    char* output_path = "../out/";
 
     int run_flag = 0;
     int clean_flag = 0;
@@ -71,7 +73,7 @@ int main(int argc, char *argv[]) {
     struct lexer_file *file = lexer_test(parser, input, input_path, &build_successful);
     build_successful *= parser->successful;
 
-    struct codegen_t *codegen = codegen_create_codegen();
+    struct codegen_t *codegen = codegen_create_codegen(output_path);
     codegen_init_build_targets(codegen);
 
     codegen->current_build_target = *(struct codegen_build_target_t **)vector_get(codegen->build_targets, 0);
@@ -83,13 +85,18 @@ int main(int argc, char *argv[]) {
 
 
 
-        opt_optimize_project(project, codegen);
         for(int i = 0;i < project->modules->element_count; ++i) {
             struct IR_Module *module = *(struct IR_Module **) vector_get(project->modules, i);
             IR_dump_module(module);
         }
+        opt_optimize_project(project, codegen);
+
+        codegen_build_project(codegen, project);
     }
 
+    if(1 == run_flag && 1 == build_successful) {
+        run_flag_func(output_path, project);
+    }
 
     // Free
     codegen_delete_codegen(&codegen);
@@ -100,9 +107,6 @@ int main(int argc, char *argv[]) {
     lexer_delete_lexer_file(file);
     free(input);
 
-    if(1 == run_flag && 1 == build_successful) {
-        run_flag_func(output_path);
-    }
 
     return 0;
 }

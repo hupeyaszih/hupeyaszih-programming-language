@@ -166,5 +166,6 @@ static const char* lexer_token_type_to_string(enum token_type type) {
 
 int lexer_is_double_operator_token(const char *chr);
 
+char *lexer_extract_module_name(const char *filepath);
 #endif
 

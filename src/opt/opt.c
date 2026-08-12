@@ -155,6 +155,8 @@ void opt_optimize_module(struct opt_context_t *context, struct IR_Module *restri
         //
     }
 
+    register_allocator_compute_caller_saved_registers(context->codegen->current_build_target, module->parent_project->main_function);
+
 }
 
 void opt_run_cfg_analysis(struct IR_Function *function) {
@@ -314,17 +316,23 @@ void opt_compute_use_def(struct IR_Function *function) {
 }
 
 void opt_run_live_range_analysis(struct IR_Function *function, struct opt_context_t *context) {
-    int instruction_id = function->instruction_count-1;
-
+    for(int i = 0; i < function->parameters->element_count; ++i) {
+        struct IR_Operand *param = *(struct IR_Operand **) vector_get(function->parameters, i);
+        if (param && IR_OPERAND_TYPE_VREG == param->type) {
+            param->data.vreg.live_interval.start = 0;
+        }
+    }
 
     struct IR_Block *block = function->tail_block;
     while(NULL != block) {
 
+        if (NULL == block->head_instruction) {
+            block = block->prev;
+            continue;
+        }
 
         struct IR_Instruction *instruction = block->tail_instruction;
         while(NULL != instruction) {
-            instruction->id = instruction_id;
-            --instruction_id;
 
             struct vector_t *used_operands = get_used_operands(instruction);
             struct vector_t *defined_operands = get_defined_operands(instruction);
@@ -334,26 +342,47 @@ void opt_run_live_range_analysis(struct IR_Function *function, struct opt_contex
                 if(!operand || IR_OPERAND_TYPE_VREG != operand->type) continue;
                 operand->data.vreg.live_interval.use_score += block->in_loop*10+1;
 
-                if(-1 == operand->data.vreg.live_interval.end) operand->data.vreg.live_interval.end = instruction->id;
+                if(0 < block->in_loop && block->loop_tail_instruction) {
+                    int loop_end_id = block->loop_tail_instruction->id;
+                    if (operand->data.vreg.live_interval.end < loop_end_id) {
+                        operand->data.vreg.live_interval.end = loop_end_id;
+                    }
+                }
+                if (operand->data.vreg.live_interval.end < instruction->id) {
+                    operand->data.vreg.live_interval.end = instruction->id;
+                }
             }
 
             for(int i = 0; i < defined_operands->element_count; ++i) {
                 struct IR_Operand *operand = *(struct IR_Operand **) vector_get(defined_operands, i);
                 if(!operand || IR_OPERAND_TYPE_VREG != operand->type) continue;
-                if(-1 == operand->data.vreg.live_interval.start) {
-                    operand->data.vreg.live_interval.start = instruction->id;
+                operand->data.vreg.live_interval.start = instruction->id;
+
+                if(operand->data.vreg.live_interval.end < instruction->id) {
+                    operand->data.vreg.live_interval.end = instruction->id;
                 }
             }
 
             vector_free(&used_operands);
             vector_free(&defined_operands);
+
+
             instruction = instruction->prev;
         }
 
-        for(int i = 0;i < block->params->element_count; ++i) {
+        int block_start_id = block->head_instruction->id;
+        int block_end_id = block->tail_instruction ? block->tail_instruction->id : block_start_id;
+
+        for(int i = 0; i < block->params->element_count; ++i) {
             struct IR_Operand *param = *(struct IR_Operand **) vector_get(block->params, i);
-            param->data.vreg.live_interval.start = block->head_instruction->id;
+            if(!param || IR_OPERAND_TYPE_VREG != param->type) continue;
+
+            param->data.vreg.live_interval.start = block_start_id;
+            if (param->data.vreg.live_interval.end <= block_start_id) {
+                param->data.vreg.live_interval.end = block_end_id + 1;
+            }
         }
+
         block = block->prev;
     }
 
