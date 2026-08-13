@@ -11,6 +11,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#define M_FLAG_RUN (0)
+#define M_FLAG_CLEAN (1)
+
 static inline struct lexer_file *lexer_test(struct parser_t *restrict parser, char fl[], const char *file_name, int *build_successful){
     if(NULL == fl) {
         *build_successful = 0;
@@ -51,36 +54,69 @@ static inline void run_flag_func(const char *restrict build_path, struct IR_Proj
     if (!project || !project->modules) return;
 
     size_t count = project->modules->element_count;
-    char command[1024];
-    
-    char obj_files[2048] = "";
 
-    for (int i = 0; i < count; ++i) {
-        struct IR_Module *module = *(struct IR_Module **) vector_get(project->modules, i);
+    size_t obj_capacity = 256;
+    size_t obj_len = 0;
+    char *obj_files = malloc(obj_capacity);
+    if (!obj_files) {
+        return;
+    }
+    obj_files[0] = '\0';
+
+    for (size_t i = 0; i < count; ++i) {
+        struct IR_Module **module_ptr = vector_get(project->modules, i);
+        if (!module_ptr || !*module_ptr) continue;
+
+        struct IR_Module *module = *module_ptr;
         char *name = module->name;
+        if (!name) continue;
 
-        snprintf(command, sizeof(command), "as -o %s/%s.o %s/%s.s", 
-                 build_path, name, build_path, name);
+        char command[1024];
+        int written = snprintf(command, sizeof(command), "as -o \"%s/%s.o\" \"%s/%s.s\"", build_path, name, build_path, name);
         
-        int res = system(command);
-        if (res != 0) {
-            fprintf(stderr, "Hata: %s.s dosyasi derlenemedi (as hatasi).\n", name);
+        if (written < 0 || (size_t)written >= sizeof(command)) {
+            free(obj_files);
             return;
         }
 
-        strcat(obj_files, " ");
-        strcat(obj_files, build_path);
-        strcat(obj_files, "/");
-        strcat(obj_files, name);
-        strcat(obj_files, ".o");
+        int res = system(command);
+        if (res != 0) {
+            free(obj_files);
+            return;
+        }
+
+        size_t path_len = strlen(build_path) + strlen(name) + 6;        
+
+        while (obj_len + path_len + 1 > obj_capacity) {
+            obj_capacity *= 2;
+            char *new_ptr = realloc(obj_files, obj_capacity);
+            if (!new_ptr) {
+                free(obj_files);
+                return;
+            }
+            obj_files = new_ptr;
+        }
+
+        int added = snprintf(obj_files + obj_len, obj_capacity - obj_len, " \"%s/%s.o\"", build_path, name);
+        if (added > 0) {
+            obj_len += added;
+        }
     }
 
-    snprintf(command, sizeof(command), "ld -o %s/main %s", build_path, obj_files);
-    
-    int link_res = system(command);
-    if (link_res != 0) {
-        C_LOG_ERR("Linker: ld err\n");
-    } 
+    size_t link_cmd_len = strlen(build_path) + obj_len + 32;
+    char *link_command = malloc(link_cmd_len);
+
+    if (link_command) {
+        snprintf(link_command, link_cmd_len, "ld -o \"%s/main\"%s", build_path, obj_files);
+        
+        int link_res = system(link_command);
+        if (link_res != 0) {
+            C_LOG_ERR("Linker: ld err\n");
+        }
+        free(link_command);
+    }
+
+    free(obj_files);
 }
 
 

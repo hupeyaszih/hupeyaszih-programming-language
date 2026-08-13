@@ -12,6 +12,7 @@
 struct codegen_build_target_t *x86_64_linux_create_build_target() {
     struct codegen_build_target_t *target = codegen_create_build_target();
 
+    target->name = "x86_64_linux";
     target->registers = x86_64_linux_create_register_list(target);
     target->get_register_name = &x86_64_linux_get_register_name;
     target->get_best_available_register = &x86_64_linux_get_best_available_register;

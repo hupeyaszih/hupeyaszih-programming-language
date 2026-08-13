@@ -138,6 +138,7 @@ void parser_delete_node(struct parser_node **node) {
                 parser_delete_node(&curr);
             }
             vector_free(&(*node)->data.module.functions);
+            free((*node)->data.module.name);
             break;
         case PARSER_NODE_CALL:
             free((*node)->data.call.name);

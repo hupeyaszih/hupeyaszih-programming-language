@@ -38,6 +38,7 @@ struct IR_Project *IR_create_IR_Project() {
     return project;
 }
 void IR_delete_IR_Project(struct IR_Project **project) {
+    if(!project || !(*project)) return;
     for(int i = 0;i < (*project)->modules->element_count; ++i) {
         struct IR_Module *module = *(struct IR_Module **)vector_get((*project)->modules, i);
         IR_delete_IR_Module(&module);
@@ -62,7 +63,6 @@ void IR_delete_IR_Module(struct IR_Module **module) {
     }
 
     vector_free(&(*module)->functions);
-    free((*module)->name);
     free((*module));
     (*module) = NULL;
 }

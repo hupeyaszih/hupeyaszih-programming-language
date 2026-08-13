@@ -6,21 +6,34 @@
 #include "core/ir_lower.h"
 #include "core/parser.h"
 #include "core/symbol_table.h"
+#include "h_bitset.h"
 #include "opt/opt.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+void print_help() {
+    C_LOG_INFO("to see run options, run with '-help_options'. To see available build targets, run with '-help_build_targets'");
+}
 
+void print_help_options() {
+    C_LOG_INFO("Usage: [-i input] [-o output] [-target build_target_name] [--run] [--clean] [-help] [-help_options] [-help_build_targets]");
+}
+
+void print_help_build_targets() {
+    C_LOG_INFO("\nBuild targets:\n - x86_64_linux\n");
+}
 
 int main(int argc, char *argv[]) {
-    C_LOG_INFO("Usage: %s [-i input] [-o output] [--run] [--clean]", argv[0]);
+    const int FLAG_COUNT = 8;
+    C_LOG_INFO("to take help, run with '-help' flag");
 
-    char* input_path = "../example/example_00.hrs";
-    char* output_path = "../out/";
+    char *input_path = "../example/example_00.hrs";
+    char *output_path = "../out/";
+    char *build_target = "x86_64_linux";
 
-    int run_flag = 0;
-    int clean_flag = 0;
+    struct bitset_t *flags = bitset_create(FLAG_COUNT);
+
     for(int i = 1; i < argc; ++i) {
         if(0 == strcmp("-o", argv[i])) {
             if(i + 1 < argc) {
@@ -40,12 +53,30 @@ int main(int argc, char *argv[]) {
                 C_LOG_ERR("\"-i\" requires an input filename.");
                 return 1;
             }
+        }else if(0 == strcmp("-target", argv[i])) {
+            if(i + 1 < argc) {
+                
+                build_target = argv[i+1];
+                i++;
+            }else {
+                C_LOG_ERR("\"-target\" requires a build target name.");
+                return 1;
+            }
         }else if(0 == strcmp("--run", argv[i])) {
-            run_flag = 1;
+            bitset_set(flags, M_FLAG_RUN);
         }else if(0 == strcmp("--clean", argv[i])) {
-            clean_flag = 1;
+            bitset_set(flags, M_FLAG_CLEAN);
             system("rm -rf ../out/*.o ../out/*.bin ../out/*.asm"); 
             C_LOG_INFO("Build directory cleaned");
+        }else if(0 == strcmp("-help", argv[i])) {
+            print_help();
+            goto clean_1;
+        }else if(0 == strcmp("-help_options", argv[i])) {
+            print_help_options();
+            goto clean_1;
+        }else if(0 == strcmp("-help_build_targets", argv[i])) {
+            print_help_build_targets();
+            goto clean_1;
         }
     }
 
@@ -91,14 +122,15 @@ int main(int argc, char *argv[]) {
         }
         opt_optimize_project(project, codegen);
 
-        codegen_build_project(codegen, project);
+        codegen_build_project(codegen, project, build_target);
     }
 
-    if(1 == run_flag && 1 == build_successful) {
+    if(1 == bitset_test(flags, M_FLAG_RUN) && 1 == build_successful) {
         run_flag_func(output_path, project);
     }
 
     // Free
+clean_0:
     codegen_delete_codegen(&codegen);
     IR_delete_IR_Project(&project);
     parser_delete_parser(&parser);
@@ -106,6 +138,8 @@ int main(int argc, char *argv[]) {
     type_table_delete_type_table(&type_table);
     lexer_delete_lexer_file(file);
     free(input);
+clean_1:
+    bitset_free(&flags);
 
 
     return 0;

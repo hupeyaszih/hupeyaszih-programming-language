@@ -71,6 +71,7 @@ struct clobber_t {
 };
 
 struct codegen_build_target_t{
+    char *name;
     struct register_list_t *registers;
     int argument_register_count;      // for examle argument_register_count=6 in x86_64_linux
 
@@ -121,7 +122,7 @@ void codegen_delete_register(struct register_t *reg);
 
 struct register_t *codegen_create_register_and_add_to_list(int id, enum register_size size, enum register_type type, enum register_bank bank, bool is_arg_reg, int arg_index, bool is_ret_reg, bool is_reserved, struct register_list_t *list);
 
-void codegen_build_project(struct codegen_t *codegen, struct IR_Project *project);
+void codegen_build_project(struct codegen_t *codegen, struct IR_Project *project, char *build_target_name);
 void codegen_build_module(struct codegen_t *codegen, struct IR_Module *module);
 void codegen_build_function(struct codegen_context_t *context, struct IR_Function *function);
 

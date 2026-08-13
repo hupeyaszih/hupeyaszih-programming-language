@@ -1,4 +1,5 @@
 #include "backend/codegen.h"
+#include "core/globals.h"
 #include "core/ir_gen.h"
 #include "h_vector.h"
 #include <stdarg.h>
@@ -96,11 +97,32 @@ struct register_t *codegen_create_register_and_add_to_list(int id, enum register
 
 
 // build
-void codegen_build_project(struct codegen_t *codegen, struct IR_Project *project) {
+static inline struct codegen_build_target_t *get_build_target(struct codegen_t *codegen, char *name) {
+    if(!name || !codegen) return NULL;
+    for(int i = 0;i < codegen->build_targets->element_count; ++i) {
+        struct codegen_build_target_t *target = *(struct codegen_build_target_t **) vector_get(codegen->build_targets, i);
+        if(!target || !target->name) continue;
+        if(0 == strcmp(name, target->name)) return target;
+    }
+    return NULL;
+}
+void codegen_build_project(struct codegen_t *codegen, struct IR_Project *project, char *build_target_name) {
+    LOG_M_INFO("Codegen started...");
+    if(NULL == build_target_name) {
+        C_LOG_ERR("Codegen failed, build target name is null!");
+        return;
+    }
+    codegen->current_build_target = get_build_target(codegen, build_target_name);
+    if(NULL == codegen->current_build_target) {
+        C_LOG_ERR("Codegen failed, '%s' is not an available build target!", build_target_name);
+        return;
+    }
+
     for(int i = 0;i < project->modules->element_count; ++i) {
         struct IR_Module *module = *(struct IR_Module **) vector_get(project->modules, i);
         codegen_build_module(codegen, module);
     }
+    C_LOG_OK("Codegen finished successfully");
 }
 
 void codegen_build_module(struct codegen_t *codegen, struct IR_Module *module) {

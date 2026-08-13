@@ -268,6 +268,7 @@ struct type_info *semantic_analyzer_calculate_type_infos(struct parser_node *nod
                 break;
             }
             print_semantic_error_type_infos(node);
+            context->error = 1;
             break;
         }case PARSER_NODE_MODULE:{
             int function_count = node->data.module.functions->element_count;
@@ -297,6 +298,7 @@ struct type_info *semantic_analyzer_calculate_type_infos(struct parser_node *nod
             struct symbol_t *fnc_sym = symbol_table_look_up(context->current_scope, node->data.call.name);
             if(!fnc_sym) {
                 print_semantic_error_call_calling_function_not_found(node, node->data.call.name);
+                context->error = 1;
                 return NULL;
             }
             node->type_info = fnc_sym->function.return_type;
