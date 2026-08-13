@@ -4,6 +4,7 @@
 #include "core/globals.h"
 #include "core/parser.h"
 #include "core/symbol_table.h"
+#include "h_string_view.h"
 #include <string.h>
 
 struct semantic_context {
@@ -30,7 +31,7 @@ static void semantic_analyzer_propagate_literal_types(struct parser_node *node, 
 
 static inline int type_check(struct type_info *t1, struct type_info *t2) {
     if(NULL == t1 || NULL == t2) return -1;
-    return strcmp(t1->name, t2->name);
+    return str_view_eq(t1->name, t2->name);
 }
 
 #endif

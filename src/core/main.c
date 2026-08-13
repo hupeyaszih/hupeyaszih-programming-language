@@ -17,11 +17,18 @@ void print_help() {
 }
 
 void print_help_options() {
-    C_LOG_INFO("Usage: [-i input] [-o output] [-target build_target_name] [--run] [--clean] [-help] [-help_options] [-help_build_targets]");
+    C_LOG_INFO("Usage: [-i input] [-o output] [-target build_target_name] [--run] [--clean] [--ir_dump] [-help] [-help_options] [-help_build_targets]");
 }
 
 void print_help_build_targets() {
     C_LOG_INFO("\nBuild targets:\n - x86_64_linux\n");
+}
+void clean_build_directory(void) {
+#ifdef _WIN32
+    system("if exist ..\\out rmdir /s /q ..\\out && mkdir ..\\out");
+#else
+    system("rm -rf ../out/*");
+#endif
 }
 
 int main(int argc, char *argv[]) {
@@ -66,8 +73,10 @@ int main(int argc, char *argv[]) {
             bitset_set(flags, M_FLAG_RUN);
         }else if(0 == strcmp("--clean", argv[i])) {
             bitset_set(flags, M_FLAG_CLEAN);
-            system("rm -rf ../out/*.o ../out/*.bin ../out/*.asm"); 
+            clean_build_directory();
             C_LOG_INFO("Build directory cleaned");
+        }else if(0 == strcmp("--ir_dump", argv[i])) {
+            bitset_set(flags, M_FLAG_IR_DUMP);
         }else if(0 == strcmp("-help", argv[i])) {
             print_help();
             goto clean_1;
@@ -115,10 +124,13 @@ int main(int argc, char *argv[]) {
 
 
 
+        bool ir_dump_flag = bitset_test(flags, M_FLAG_IR_DUMP);
 
-        for(int i = 0;i < project->modules->element_count; ++i) {
-            struct IR_Module *module = *(struct IR_Module **) vector_get(project->modules, i);
-            IR_dump_module(module);
+        if(ir_dump_flag) {
+            for(int i = 0;i < project->modules->element_count; ++i) {
+                struct IR_Module *module = *(struct IR_Module **) vector_get(project->modules, i);
+                IR_dump_module(module);
+            }
         }
         opt_optimize_project(project, codegen);
 

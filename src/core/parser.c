@@ -3,13 +3,14 @@
 #include "core/globals.h"
 #include "core/lexer.h"
 #include "core/symbol_table.h"
+#include "h_string_view.h"
 #include "h_vector.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-static inline char *parser_block_generate_mangled_name(struct parser_t *parser, struct parser_node *block) {
+static inline struct str_view parser_block_generate_mangled_name(struct parser_t *parser, struct parser_node *block) {
     char scope_id[32];
     snprintf(scope_id, sizeof(scope_id), "%d", parser->current_scope->scope_id);
 
@@ -20,27 +21,28 @@ static inline char *parser_block_generate_mangled_name(struct parser_t *parser, 
     
     char *mangled_name = calloc(size, sizeof(char));
     if (!mangled_name) {
-        return NULL;
+        return (struct str_view){ NULL, 0 };
     }
 
     snprintf(mangled_name, size, "B_%s_%s", scope_id, id);
 
-    return mangled_name;
+    return str_view_make(mangled_name, size);
 }
-static inline char *parser_function_generate_mangled_name(struct parser_t *parser, struct parser_node *function) {
+static inline struct str_view parser_function_generate_mangled_name(struct parser_t *parser, struct parser_node *function) {
     char scope_id[32];
     snprintf(scope_id, sizeof(scope_id), "%d", parser->current_scope->scope_id);
     
-    size_t size = strlen(function->data.function.name) + strlen(scope_id) + 4;
+    size_t name_len = function->data.function.name.len + strlen(scope_id) + 3;
+    size_t alloc_size = name_len + 1;
     
-    char *mangled_name = calloc(size, sizeof(char));
+    char *mangled_name = calloc(alloc_size, sizeof(char));
     if (!mangled_name) {
-        return NULL;
+        return (struct str_view){ NULL, 0 };
     }
 
-    snprintf(mangled_name, size, "F_%s_%s", scope_id, function->data.function.name);
+    snprintf(mangled_name, alloc_size, "F_%s_" SV_FMT, scope_id, SV_ARG(function->data.function.name));
 
-    return mangled_name;
+    return str_view_make(mangled_name, name_len);
 }
 
 static inline int calculate_pointer_level(struct lexer_token *tokens, int *cursor) {
@@ -117,12 +119,10 @@ void parser_delete_node(struct parser_node **node) {
             if (1 == (*node)->data.block.owns_scope && (*node)->data.block.scope) {
                 symbol_table_delete_symbol_table(&((*node)->data.block.scope));
             }
-            free((*node)->data.block.mangled_name);
+            str_view_free(&(*node)->data.block.mangled_name);
             break;
 
         case PARSER_NODE_FUNCTION:
-            free((*node)->data.function.name);
-            free((*node)->data.function.mangled_name);
 
             if ((*node)->data.function.params) {
                 parser_delete_node(&((*node)->data.function.params));
@@ -130,6 +130,7 @@ void parser_delete_node(struct parser_node **node) {
             if ((*node)->data.function.body) {
                 parser_delete_node(&((*node)->data.function.body));
             }
+            str_view_free(&(*node)->data.function.mangled_name);
             break;
             
         case PARSER_NODE_MODULE: 
@@ -141,7 +142,6 @@ void parser_delete_node(struct parser_node **node) {
             free((*node)->data.module.name);
             break;
         case PARSER_NODE_CALL:
-            free((*node)->data.call.name);
             for (int i = 0; i < (*node)->data.call.arg_count; i++) {
                 parser_delete_node(&((*node)->data.call.args[i]));
             }
@@ -151,23 +151,14 @@ void parser_delete_node(struct parser_node **node) {
             parser_delete_node(&((*node)->data.loop.body_block));
             parser_delete_node(&((*node)->data.loop.return_block));
             parser_delete_node(&((*node)->data.loop.continue_block));
-            free((*node)->data.loop.mangled_name);
-            break;
-        case PARSER_NODE_ASM:
-            free((*node)->data.assembly.assembly_data);
-            break;
-        case PARSER_NODE_VARIABLE_DECLARATION:
-            if ((*node)->data.variable.variable_name != NULL) {
-                free((*node)->data.variable.variable_name);
-                (*node)->data.variable.variable_name = NULL; 
-            }
             break;
         default: break;
     }
 
     if(1 == (*node)->is_literal_data_created_by_parser) {
-        free((*node)->data.literal_data);
+        str_view_free(&(*node)->data.literal_data);
     }
+
     free(*node);
     *node = NULL;
 }
@@ -241,11 +232,10 @@ struct parser_node *parser_parse_variable_declaration(struct parser_t *restrict 
 
     if (*cursor >= token_count) {parser->successful = 0;return NULL;}
     struct lexer_token name_token = tokens[*cursor];
-    char *var_name = tokens[*cursor].token;
+    struct str_view var_name = tokens[*cursor].str_view;
 
     if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER)) {parser->successful = 0; return NULL;}
 
-    char *type_name = NULL;
     if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_COLON)) {
         parser->successful = 0;
         return NULL;
@@ -256,13 +246,12 @@ struct parser_node *parser_parse_variable_declaration(struct parser_t *restrict 
     struct lexer_token *type_name_token = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER); 
     if(NULL == type_name_token) {parser->successful = 0; return NULL;}
 
-    type_name = type_name_token->token;
-    if(NULL == type_name) {parser->successful = 0; return NULL;}
+    struct str_view type_name = type_name_token->str_view;
 
     struct type_info *type_info = type_table_get_or_create_pointer_type_info(parser->type_table, type_name, pointer_level);
 
     if(NULL == type_info) {
-        C_LOG_ERR("unknown type (%s), on line %d", type_name_token->token, tokens[*cursor].line);
+        C_LOG_ERR("unknown type (" SV_FMT "), on line %d", SV_ARG(type_name_token->str_view), tokens[*cursor].line);
         LOG_M_ERR("parser_parse_variable_declaration - \"struct type_info *type_info\" is null");
         parser->successful = 0;
         return NULL;
@@ -275,8 +264,8 @@ struct parser_node *parser_parse_variable_declaration(struct parser_t *restrict 
     struct parser_node *decl_node = parser_create_node(PARSER_NODE_VARIABLE_DECLARATION, name_token.line);
     if(NULL == decl_node) {parser_delete_node(&value_node); parser->successful = 0; return NULL;}
 
-    decl_node->data.variable.variable_name = strdup(var_name);
-    if(NULL == decl_node->data.variable.variable_name) {
+    decl_node->data.variable.variable_name = var_name;
+    if(str_view_is_empty(decl_node->data.variable.variable_name)) {
         parser_delete_node(&decl_node);
         parser_delete_node(&value_node);
         parser->successful = 0;
@@ -361,7 +350,7 @@ struct parser_node *parser_parse_assignment(struct parser_t *parser, struct lexe
     return node;
 }
 
-struct parser_node *parser_parse_call(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor, char *func_name) {
+struct parser_node *parser_parse_call(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor, struct str_view func_name) {
     if(NULL == parser) {LOG_M_ERR("parser_parse_call - \"struct parser_t *restrict parser\" is null"); return NULL;}
     struct parser_node *call_node = parser_create_node(PARSER_NODE_CALL, tokens[*cursor].line);
     if(NULL == call_node){
@@ -376,12 +365,12 @@ struct parser_node *parser_parse_call(struct parser_t *restrict parser, struct l
         return NULL;
     }
 
-    call_node->data.call.name = strdup(func_name);
+    call_node->data.call.name = func_name;
     int capacity = 4;
     call_node->data.call.args = malloc(sizeof(struct parser_node*) * capacity);
     call_node->data.call.arg_count = 0;
 
-    if (!call_node->data.call.name || !call_node->data.call.args) {
+    if (!call_node->data.call.args) {
         parser_delete_node(&call_node);
         parser->successful = 0;
         return NULL;
@@ -446,7 +435,7 @@ struct parser_node *parser_parse_parameters(struct parser_t *restrict parser, st
         p_node->left_node = NULL;
         p_node->right_node = NULL;
 
-        p_node->data.variable.variable_name = strdup(tokens[*cursor].token);
+        p_node->data.variable.variable_name = tokens[*cursor].str_view;
         if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER)) {
             parser_delete_node(&params_node);
             parser_delete_node(&p_node);
@@ -463,7 +452,7 @@ struct parser_node *parser_parse_parameters(struct parser_t *restrict parser, st
         }
 
         int pointer_level = calculate_pointer_level(tokens, cursor);
-        p_node->type_info = type_table_get_or_create_pointer_type_info(parser->type_table, tokens[*cursor].token, pointer_level);
+        p_node->type_info = type_table_get_or_create_pointer_type_info(parser->type_table, tokens[*cursor].str_view, pointer_level);
         if(NULL == p_node->type_info) {
             C_LOG_ERR("Unknown parameter type on line: %d", tokens[*cursor].line);
             parser_delete_node(&params_node);
@@ -525,7 +514,7 @@ struct parser_node *parser_parse_loop(struct parser_t *restrict parser, struct l
 
     if(LEXER_TOKEN_TYPE_APPROX == tokens[*cursor].type) {
         eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_APPROX);
-        approx_value = atoi(tokens[*cursor].token);
+        approx_value = str_view_to_int(tokens[*cursor].str_view);
         eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_INT_LITERAL);
     }
 
@@ -573,12 +562,14 @@ struct parser_node *parser_parse_asm(struct parser_t *restrict parser, struct le
     if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_ASM)) goto cleanup_err_level_0;
 
     struct lexer_token *assembly_data = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_STRING_LITERAL);
-    if(NULL == assembly_data) {C_LOG_ERR("String Literal (assembly) expected, line %d", asm_node->line); goto cleanup_err_level_0;}
-    char *ptr = assembly_data->token;
-    while (*ptr == ' ' || *ptr == '\t' || *ptr == '\n' || *ptr == '\r') {
-        ptr++;
+    if (NULL == assembly_data) {
+        C_LOG_ERR("String Literal (assembly) expected, line %d", asm_node->line); 
+        goto cleanup_err_level_0;
     }
-    asm_node->data.assembly.assembly_data = strdup(assembly_data->token);
+
+    struct str_view asm_view = str_view_trim_left(assembly_data->str_view);
+
+    asm_node->data.assembly.assembly_data = asm_view;
 
     if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_SEMICOLON)) {C_LOG_ERR("expected \";\" on line %d", asm_node->line); goto cleanup_err_level_0;}
 
@@ -600,7 +591,7 @@ struct parser_node *parser_parse_function(struct parser_t *restrict parser, stru
     function_node->data.function.flags = 0;
 
     if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_FN)) {parser_delete_node(&function_node); parser->successful = 0;return NULL;}
-    char *name = tokens[*cursor].token; 
+    struct str_view name = tokens[*cursor].str_view; 
     if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER)) {parser_delete_node(&function_node); parser->successful = 0;return NULL;}
     
     if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_LPAREN)) {parser_delete_node(&function_node); parser->successful = 0;return NULL;}
@@ -608,7 +599,7 @@ struct parser_node *parser_parse_function(struct parser_t *restrict parser, stru
     if(NULL == parameters || NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_RPAREN)) {parser_delete_node(&parameters); parser_delete_node(&function_node); parser->successful = 0;return NULL;}
 
     if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_COLON)) {parser_delete_node(&parameters); parser_delete_node(&function_node); parser->successful = 0;return NULL;}
-    char *return_type_name = tokens[*cursor].token;
+    struct str_view return_type_name = tokens[*cursor].str_view;
 
     int pointer_level = calculate_pointer_level(tokens, cursor);
     struct type_info *ret_type = type_table_get_type_info(parser->type_table, return_type_name, pointer_level);
@@ -655,10 +646,10 @@ struct parser_node *parser_parse_function(struct parser_t *restrict parser, stru
     function_node->data.function.params = parameters;
     function_node->data.function.return_type = ret_type;
     function_node->data.function.param_count = parameters->data.block.count;
-    function_node->data.function.name = strdup(name);
+    function_node->data.function.name = name;
     function_node->data.function.mangled_name = parser_function_generate_mangled_name(parser, function_node);
 
-    struct symbol_t *sym = symbol_table_define(parser->current_scope, function_node->data.function.name, type_table_get_type_info(parser->type_table, "fn", 0), SYMBOL_KIND_FUNCTION, 0);
+    struct symbol_t *sym = symbol_table_define(parser->current_scope, function_node->data.function.name, type_table_get_type_info_cstr(parser->type_table, "fn", 0), SYMBOL_KIND_FUNCTION, 0);
     if(NULL == sym) {
         parser_delete_node(&function_node);
         parser->successful = 0;
@@ -900,39 +891,39 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
         int line_number = tokens[*cursor].line;
         struct lexer_token *t = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_INT_LITERAL);
 
-        if(NULL == t) {parser->successful = 0; return NULL;}
+        if(NULL == t || str_view_is_empty(t->str_view)) {parser->successful = 0; return NULL;}
         struct parser_node *node = parser_create_node(PARSER_NODE_NUMBER, line_number);
         if(NULL == node) {parser->successful = 0; return NULL;}
-        node->data.literal_data = t->token;
+        node->data.literal_data = t->str_view;
         node->type_info = NULL;
         return node;
     }else if(LEXER_TOKEN_TYPE_STRING_LITERAL == tokens[*cursor].type){
         int line_number = tokens[*cursor].line;
         struct lexer_token *t = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_STRING_LITERAL);
 
-        if(NULL == t) {parser->successful = 0; return NULL;}
+        if(NULL == t || str_view_is_empty(t->str_view)) {parser->successful = 0; return NULL;}
         struct parser_node *node = parser_create_node(PARSER_NODE_STRING, line_number);
         if(NULL == node) {parser->successful = 0; return NULL;}
-        node->data.literal_data = t->token;
+        node->data.literal_data = t->str_view;
         node->type_info = NULL;
         return node;
     }else if(LEXER_TOKEN_TYPE_IDENTIFIER == tokens[*cursor].type){
         if((*cursor)+1 < token_count && tokens[(*cursor)+1].type == LEXER_TOKEN_TYPE_LPAREN) {
-            char *name_to_pass = tokens[*cursor].token;
+            struct str_view name_to_pass = tokens[*cursor].str_view;
             if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER)) {parser->successful = 0; return NULL;} 
             return parser_parse_call(parser, tokens, token_count, cursor, name_to_pass);
         }
         int line_number = tokens[*cursor].line;
         struct lexer_token *t = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER);
 
-        if(NULL == t || NULL == t->token) {parser->successful = 0; return NULL;}
+        if(NULL == t || str_view_is_empty(t->str_view)) {parser->successful = 0; return NULL;}
         struct parser_node *node = parser_create_node(PARSER_NODE_IDENTIFIER, line_number);
         if(NULL == node) {parser->successful = 0; return NULL;}
-        node->data.variable.variable_name = t->token;
+        node->data.variable.variable_name = t->str_view;
 
         struct symbol_t *sym = symbol_table_look_up(parser->current_scope, node->data.variable.variable_name);
         if(NULL == sym || NULL == sym->type){
-            C_LOG_ERR("undefined variable (%s), line: %d", node->data.variable.variable_name, node->line);
+            C_LOG_ERR("undefined variable (" SV_FMT "), line: %d", SV_ARG(node->data.variable.variable_name), node->line);
             parser->successful = 0;
             parser_delete_node(&node);
             return NULL;
@@ -974,7 +965,7 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
             struct parser_node *right = parser_parse_factor(parser, tokens, token_count, cursor);
             type_info = type_table_get_type_info(parser->type_table, right->data.literal_data, pointer_level);
         }else {
-            type_info = type_table_get_type_info(parser->type_table, type_token->token, pointer_level);
+            type_info = type_table_get_type_info(parser->type_table, type_token->str_view, pointer_level);
         }
 
         if(NULL == type_info) {
@@ -994,7 +985,7 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
         node->is_literal_data_created_by_parser = 1;
         char buf[32];
         snprintf(buf, sizeof(buf), "%zu", type_info->size);
-        node->data.literal_data = strdup(buf);
+        node->data.literal_data = str_view_make(buf, sizeof(buf));
         return node;
     }else if(LEXER_TOKEN_TYPE_ALIGNOF == tokens[*cursor].type){
         int line_number = tokens[*cursor].line;
@@ -1016,7 +1007,7 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
             struct parser_node *right = parser_parse_factor(parser, tokens, token_count, cursor);
             type_info = type_table_get_type_info(parser->type_table, right->data.literal_data, pointer_level);
         }else {
-            type_info = type_table_get_type_info(parser->type_table, type_token->token, pointer_level);
+            type_info = type_table_get_type_info(parser->type_table, type_token->str_view, pointer_level);
         }
 
         if(NULL == type_info) {
@@ -1035,7 +1026,7 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
         node->is_literal_data_created_by_parser = 1;
         char buf[32];
         snprintf(buf, sizeof(buf), "%zu", type_table_size_padding(type_info->size));
-        node->data.literal_data = strdup(buf);
+        node->data.literal_data = str_view_make(buf, sizeof(buf));
         return node;
     }else if(LEXER_TOKEN_TYPE_TYPEOF == tokens[*cursor].type){
         int line_number = tokens[*cursor].line;
@@ -1054,7 +1045,7 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
             parser->successful = 0;
             return NULL;
         }
-        struct symbol_t *sym = symbol_table_look_up(parser->current_scope, type_token->token);
+        struct symbol_t *sym = symbol_table_look_up(parser->current_scope, type_token->str_view);
         struct type_info *type_info = sym->type;
         if(NULL == type_info) {
             C_LOG_ERR("expected a valid type after \"(\" for \"typeof\" on line: %d", line_number);
@@ -1071,7 +1062,7 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
         struct parser_node *node = parser_create_node(PARSER_NODE_STRING, line_number);
         if(NULL == node) {parser->successful = 0; return NULL;}
         node->is_literal_data_created_by_parser = 1;
-        node->data.literal_data = strdup(type_info->name);
+        node->data.literal_data = type_info->name;
         return node;
     }else if(LEXER_TOKEN_TYPE_STOF == tokens[*cursor].type){
         int line_number = tokens[*cursor].line;
@@ -1090,7 +1081,7 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
             parser->successful = 0;
             return NULL;
         }
-        struct symbol_t *sym = symbol_table_look_up(parser->current_scope, type_token->token);
+        struct symbol_t *sym = symbol_table_look_up(parser->current_scope, type_token->str_view);
         struct type_info *type_info = sym->type;
         if(NULL == type_info) {
             C_LOG_ERR("expected a valid type after \"(\" for \"stof\" on line: %d", line_number);
@@ -1109,13 +1100,13 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
         node->is_literal_data_created_by_parser = 1;
         char buf[32];
         snprintf(buf, sizeof(buf), "%zu", type_info->size);
-        node->data.literal_data = strdup(buf);
+        node->data.literal_data = str_view_make(buf, sizeof(buf));
         return node;
     }else if(LEXER_TOKEN_TYPE_LOOP == tokens[*cursor].type){
         struct parser_node *node = parser_parse_loop(parser, tokens, token_count, cursor);
         return node;
     }else {
-        C_LOG_ERR("parser_parse_factor - current token (%s) is not literal or identifier (unexpected token), line: %d", tokens[*cursor].token ,tokens[*cursor].line);
+        C_LOG_ERR("parser_parse_factor - current token (" SV_FMT ") is not literal or identifier (unexpected token), line: %d", SV_ARG(tokens[*cursor].str_view) ,tokens[*cursor].line);
         (*cursor)++;
         parser->successful = 0;
         return NULL;

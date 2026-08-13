@@ -13,6 +13,7 @@
 
 #define M_FLAG_RUN (0)
 #define M_FLAG_CLEAN (1)
+#define M_FLAG_IR_DUMP (2)
 
 static inline struct lexer_file *lexer_test(struct parser_t *restrict parser, char fl[], const char *file_name, int *build_successful){
     if(NULL == fl) {

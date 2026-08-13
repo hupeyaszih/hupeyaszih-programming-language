@@ -469,7 +469,7 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
             call->operands.call.arguments = vector_create_vector(2, sizeof(struct IR_Operand *));
 
             int arg_count = node->data.call.arg_count;
-            char *calling_function_name = node->data.call.name;
+            struct str_view calling_function_name = node->data.call.name;
             struct symbol_t *calling_function = symbol_table_look_up(context->current_scope, calling_function_name);
 
             for(int i = 0;i < arg_count; ++i) {

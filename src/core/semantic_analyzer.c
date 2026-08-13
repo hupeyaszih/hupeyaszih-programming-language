@@ -3,6 +3,7 @@
 #include "core/globals.h"
 #include "core/parser.h"
 #include "core/symbol_table.h"
+#include "h_string_view.h"
 #include "h_vector.h"
 #include <stdio.h>
 
@@ -32,13 +33,13 @@ static inline void print_semantic_error_type_infos(struct parser_node *node) {
     C_LOG_ERR("Semantic: cannot use those types in same instruction, on line %d", node->line);
 }
 
-static inline void print_semantic_error_call_calling_function_not_found(struct parser_node *node, char *calling_function_name) {
-    C_LOG_ERR("Semantic: calling function (%s) is not found in the scope, on line %d", calling_function_name,node->line);
+static inline void print_semantic_error_call_calling_function_not_found(struct parser_node *node, struct str_view calling_function_name) {
+    C_LOG_ERR("Semantic: calling function (" SV_FMT ") is not found in the scope, on line %d", SV_ARG(calling_function_name) ,node->line);
 }
 
 
-static inline void print_semantic_error_call_arguments_are_not_matching(struct parser_node *node, char *calling_function_name) {
-    C_LOG_ERR("Semantic: calling function's (%s) arguments are not matching with the call, on line %d", calling_function_name,node->line);
+static inline void print_semantic_error_call_arguments_are_not_matching(struct parser_node *node, struct str_view calling_function_name) {
+    C_LOG_ERR("Semantic: calling function's (" SV_FMT ") arguments are not matching with the call, on line %d", SV_ARG(calling_function_name) ,node->line);
 }
 
 
@@ -60,8 +61,8 @@ static int is_statement_pure(struct parser_node *node, struct semantic_context *
                               }
                               return 1;
 
-        case PARSER_NODE_CALL:
-                              char *calling_function_name = node->data.call.name;
+        case PARSER_NODE_CALL:{
+                              struct str_view calling_function_name = node->data.call.name;
                               struct symbol_t *sym = symbol_table_look_up(context->current_scope, calling_function_name);
                               if(NULL == sym) {
                                   print_semantic_error_call_calling_function_not_found(node, calling_function_name);
@@ -72,6 +73,7 @@ static int is_statement_pure(struct parser_node *node, struct semantic_context *
                                   print_semantic_error_pure_func(node);
                                   context->error = 1;
                                   return 0;
+                              }
                               }
 
                               return 1;
@@ -202,7 +204,7 @@ int semantic_analyzer_analyze_assigment(struct parser_node* node, struct semanti
     return 0;
 }
 int semantic_analyzer_analyze_call(struct parser_node* node, struct semantic_context* context) {
-    char *calling_function_name = node->data.call.name;
+    struct str_view calling_function_name = node->data.call.name;
     struct symbol_t *sym = symbol_table_look_up(context->current_scope, calling_function_name);
     if(NULL == sym) {
         print_semantic_error_call_calling_function_not_found(node, calling_function_name);
@@ -327,7 +329,7 @@ struct type_info *semantic_analyzer_calculate_type_infos(struct parser_node *nod
                 context->error = 1;
                 break;
             }
-            node->type_info = type_table_get_type_info(context->type_table, "bool", 0);
+            node->type_info = type_table_get_type_info_cstr(context->type_table, "bool", 0);
             break;
         }case PARSER_NODE_UNARY_MINUS: {
             if(TYPE_CATEGORY_BASIC != right_type->category) {
@@ -396,7 +398,7 @@ struct type_info *semantic_analyzer_calculate_type_infos(struct parser_node *nod
         case PARSER_NODE_BANG_EQUAL:
         case PARSER_NODE_LESS:
         case PARSER_NODE_GREATER:
-            node->type_info = type_table_get_type_info(context->type_table, "bool", 0);
+            node->type_info = type_table_get_type_info_cstr(context->type_table, "bool", 0);
 
             if(left_type && right_type) {
                 if (1 == type_table_can_that_promote_to(left_type, right_type)) {

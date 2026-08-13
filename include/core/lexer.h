@@ -1,6 +1,7 @@
 #ifndef LEXER_H
 #define LEXER_H
 
+#include "h_string_view.h"
 enum token_type{
     LEXER_TOKEN_TYPE_EOF = 0,
     LEXER_TOKEN_TYPE_ERROR,
@@ -64,7 +65,7 @@ enum token_type{
 };
 
 struct lexer_token{
-    char *token;
+    struct str_view str_view;
     int line;
     enum token_type type;
 };

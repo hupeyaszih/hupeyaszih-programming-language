@@ -5,7 +5,7 @@
 #include <stdio.h>
 
 static inline void IR_dump_type_info(const struct type_info *type_info) {
-    printf("%s", type_info->name);
+    printf(SV_FMT, SV_ARG(type_info->name));
 
     for(int i = 0;i < type_info->pointer_level; ++i) {
         printf("*");
@@ -17,7 +17,7 @@ static inline void IR_dump_operand(const struct IR_Operand *restrict operand) {
     switch (operand->type) {
         case IR_OPERAND_TYPE_IMM: {
             IR_dump_type_info(operand->type_info);
-            printf(" %s", operand->data.imm_value);
+            printf(" " SV_FMT "", SV_ARG(operand->data.imm_value));
             break;
         }case IR_OPERAND_TYPE_VREG: {
             IR_dump_type_info(operand->type_info);
@@ -28,7 +28,7 @@ static inline void IR_dump_operand(const struct IR_Operand *restrict operand) {
             printf("undefined");
             break;
         }case IR_OPERAND_TYPE_LABEL: {
-            printf("%s:", operand->data.mangled_label_name);
+            printf(SV_FMT ":", SV_ARG(operand->data.mangled_label_name));
             break;
         }case IR_OPERAND_TYPE_STACK_SLOT: {
             if(!operand->data.slot.stack_slot) break;
@@ -48,7 +48,7 @@ void IR_dump_module(const struct IR_Module *restrict module) {
 static void IR_dump_function(const struct IR_Function *function) {
     printf("\n");
     // printf("fn %s, vreg count; %ld\n", function->name, function->unique_vregs->element_count);
-    printf("fn %s (", function->name);
+    printf("fn " SV_FMT " (", SV_ARG(function->name));
     for(int p = 0;p < function->parameter_count; ++p) {
         struct IR_Operand *param = *(struct IR_Operand **) vector_get(function->parameters,p);
         IR_dump_operand(param);
@@ -70,7 +70,7 @@ static void IR_dump_function(const struct IR_Function *function) {
 }
 static void IR_dump_block(const struct IR_Block *block) {
     printf("\n");
-    printf("%s ", block->mangled_name);
+    printf(SV_FMT " ", SV_ARG(block->mangled_name));
     if(block->params->element_count > 0) {
         printf("(");
         for(int i = 0;i < block->params->element_count; ++i) {
@@ -146,11 +146,11 @@ static void IR_dump_instruction(const struct IR_Instruction *instruction) {
         }case IR_INSTRUCTION_TYPE_BR: {
             printf("br ");
             IR_dump_operand(instruction->operands.br.condition);
-            printf("; (false) %s , (true) %s\n", instruction->operands.br.false_block->mangled_name, instruction->operands.br.true_block->mangled_name);
+            printf("; (false) " SV_FMT " , (true) " SV_FMT "\n", SV_ARG(instruction->operands.br.false_block->mangled_name), SV_ARG(instruction->operands.br.true_block->mangled_name));
             break;
         }case IR_INSTRUCTION_TYPE_JMP: {
             printf("jmp ");
-            printf(" %s", instruction->operands.jmp.target_block->mangled_name);
+            printf(SV_FMT, SV_ARG(instruction->operands.jmp.target_block->mangled_name));
             struct vector_t *args = instruction->operands.jmp.args;
             if(args && args->element_count > 0) {
                 printf(" (");
@@ -166,7 +166,7 @@ static void IR_dump_instruction(const struct IR_Instruction *instruction) {
             break;
         }case IR_INSTRUCTION_TYPE_CALL: {
             IR_dump_operand(instruction->operands.call.return_val);
-            printf(" = call %s(", instruction->operands.call.target_function->name);
+            printf(" = call " SV_FMT "(", SV_ARG(instruction->operands.call.target_function->name));
             for(int i = 0;i < instruction->operands.call.arguments->element_count; ++i) {
                 struct IR_Operand *arg = *(struct IR_Operand **) vector_get(instruction->operands.call.arguments, i);
                 IR_dump_operand(arg);

@@ -67,10 +67,10 @@ void IR_delete_IR_Module(struct IR_Module **module) {
     (*module) = NULL;
 }
 
-struct IR_Function *IR_create_IR_Function(char *name, char *mangled_name, int parameter_count) {
+struct IR_Function *IR_create_IR_Function(struct str_view name, struct str_view mangled_name, int parameter_count) {
     struct IR_Function *function = calloc(1, sizeof(struct IR_Function));
-    function->name = strdup(name);
-    function->mangled_name = strdup(mangled_name);
+    function->name = name;
+    function->mangled_name = mangled_name;
 
     function->parameters = vector_create_vector(6, sizeof(struct IR_Operand *));
     function->operands = vector_create_vector(16, sizeof(struct IR_Operand *));
@@ -117,16 +117,13 @@ void IR_delete_IR_Function(struct IR_Function **function) {
     bitset_free(&(*function)->used_caller_saved_registers);
     bitset_free(&(*function)->directly_used_caller_saved_registers);
 
-    free((*function)->name);
-    free((*function)->mangled_name);
-
     free((*function));
     (*function) = NULL;
 }
 
-struct IR_Block *IR_create_IR_Block(struct IR_Function *parent_function, char *mangled_name) {
+struct IR_Block *IR_create_IR_Block(struct IR_Function *parent_function, struct str_view mangled_name) {
     struct IR_Block *block = calloc(1, sizeof(struct IR_Block));
-    block->mangled_name = strdup(mangled_name);
+    block->mangled_name = mangled_name;
     block->parent_function = parent_function;
     block->predecessor = vector_create_vector(1, sizeof(struct IR_Block *));
     block->successors = vector_create_vector(1, sizeof(struct IR_Block *));
@@ -162,8 +159,6 @@ void IR_delete_IR_Block(struct IR_Block **block) {
 
     bitset_free(&(*block)->use);
     bitset_free(&(*block)->def);
-
-    free((*block)->mangled_name);
 
     free((*block));
     (*block) = NULL;
@@ -234,7 +229,7 @@ void IR_init_live_interval(struct live_interval_t *interval, struct IR_Operand *
 // add/remove
 
 void IR_Module_add_function(struct IR_Module *module, struct IR_Function *function) {
-    if(module->parent_project->main_function == NULL && 0 == strcmp(function->name, "main")) {
+    if(module->parent_project->main_function == NULL && str_view_eq_cstr(function->name, "main")) {
         module->parent_project->main_function = function;
         module->parent_project->main_module = module;
     }

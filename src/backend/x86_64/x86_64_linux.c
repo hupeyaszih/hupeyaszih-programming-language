@@ -4,10 +4,9 @@
 #include "core/ir_gen.h"
 #include "core/symbol_table.h"
 #include "h_bitset.h"
+#include "h_string_view.h"
 #include "h_vector.h"
 #include <stdbool.h>
-#include <stdio.h>
-#include <string.h>
 
 struct codegen_build_target_t *x86_64_linux_create_build_target() {
     struct codegen_build_target_t *target = codegen_create_build_target();
@@ -441,24 +440,24 @@ struct register_t *x86_64_linux_ensure_operand_is_register(struct codegen_contex
 void x86_64_linux_emit_globals(struct codegen_context_t *context, bool jmp_to_main) {
    codegen_emit(context->file, ".intel_syntax noprefix\n");
    codegen_emit(context->file, ".global _start\n");
-   x86_64_linux_emit_label(context, "_start", true);
+   x86_64_linux_emit_label(context, SV("_start"), true);
    if(jmp_to_main) x86_64_linux_emit_jmp_main(context);
 }
 
 void x86_64_linux_emit_jmp_main(struct codegen_context_t *context) {
     codegen_emit(context->file, "    xor rbp, rbp\n");
-    codegen_emit(context->file, "    call %s\n",context->main_function->mangled_name);
+    codegen_emit(context->file, "    call " SV_FMT "\n", SV_ARG(context->main_function->mangled_name));
     codegen_emit(context->file, "    mov rdi, rax\n");
     codegen_emit(context->file, "    mov rax, 60\n");
     codegen_emit(context->file, "    syscall\n\n");
 }
 
-void x86_64_linux_emit_label(struct codegen_context_t *context, const char *label, bool is_global) {
+void x86_64_linux_emit_label(struct codegen_context_t *context, const struct str_view label, bool is_global) {
     if(is_global) {
-        codegen_emit(context->file, "%s:\n", label);
+        codegen_emit(context->file, SV_FMT ":\n", SV_ARG(label));
         return;
     }
-    codegen_emit(context->file, ".%s:\n", label);
+    codegen_emit(context->file, "." SV_FMT ":\n", SV_ARG(label));
 }
 
 void x86_64_linux_emit_function_prologue(struct codegen_context_t *context, struct IR_Function *function) {
@@ -863,7 +862,7 @@ void x86_64_linux_emit_instruction(struct codegen_context_t *context, struct IR_
             codegen_utils_emit_call_args(context, instruction->operands.call.arguments, out_regs, args_via_registers);
             vector_free(&out_regs);
 
-            codegen_emit(context->file, "    call %s\n", func->mangled_name);
+            codegen_emit(context->file, "    call " SV_FMT "\n", SV_ARG(func->mangled_name));
 
             if (total_rsp_sub > 0) codegen_emit(context->file, "    add rsp, %d\n", total_rsp_sub);
 
@@ -893,7 +892,7 @@ void x86_64_linux_emit_instruction(struct codegen_context_t *context, struct IR_
                 vector_free(&out_regs);
             }
 
-            codegen_emit(context->file, "    jmp .%s\n", target_block->mangled_name);
+            codegen_emit(context->file, "    jmp ." SV_FMT "\n", SV_ARG(target_block->mangled_name));
             break;
         }case IR_INSTRUCTION_TYPE_BR: {
             struct IR_Operand *condition = instruction->operands.br.condition;
@@ -917,15 +916,15 @@ void x86_64_linux_emit_instruction(struct codegen_context_t *context, struct IR_
                     vector_free(&out_regs);
                 }
 
-                codegen_emit(context->file, "    je .%s\n", target_block->mangled_name);
+                codegen_emit(context->file, "    je ." SV_FMT "\n", SV_ARG(target_block->mangled_name));
             }
             break;
         }case IR_INSTRUCTION_TYPE_CAST: {
             emit_cast_instruction(context, instruction);
             break;
         }case IR_INSTRUCTION_TYPE_ASM: {
-            char *asm_imm = instruction->operands.asm_operands.asm_imm;
-            codegen_emit(context->file, "%s # inline asm\n", asm_imm);
+            struct str_view asm_imm = instruction->operands.asm_operands.asm_imm;
+            codegen_emit(context->file, SV_FMT "# inline asm\n", SV_ARG(asm_imm));
             break;
         }
         case IR_INSTRUCTION_TYPE_EQUAL_EQUAL:   emit_comparison_instructions(context, instruction); break;
@@ -956,8 +955,8 @@ void x86_64_linux_emit_reg(struct codegen_context_t *context, struct register_t 
 
 void x86_64_linux_emit_operand(struct codegen_context_t *context, struct IR_Operand *op, enum register_size size, bool print_size) {
     switch (op->type) {
-        case IR_OPERAND_TYPE_IMM: codegen_emit(context->file, "%s ", op->data.imm_value); break;
-        case IR_OPERAND_TYPE_LABEL: codegen_emit(context->file, "%s ", op->data.mangled_label_name); break;
+        case IR_OPERAND_TYPE_IMM: codegen_emit(context->file, SV_FMT " ", SV_ARG(op->data.imm_value)); break;
+        case IR_OPERAND_TYPE_LABEL: codegen_emit(context->file, SV_FMT " ", SV_ARG(op->data.mangled_label_name)); break;
         case IR_OPERAND_TYPE_VREG: {
             if(REGISTER_SIZE_UNDEFINED == size) size = codegen_calc_register_size(op->type_info->size);
             x86_64_linux_emit_reg(context, op->data.vreg.reg, size, print_size);

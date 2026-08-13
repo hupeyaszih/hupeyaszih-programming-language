@@ -3,38 +3,39 @@
 #include <string.h>
 #include <ctype.h>
 #include "core/globals.h"
+#include "h_string_view.h"
 
 const char LEXER_DELIM[] = " \t\r\n";
 
 const char language_keywords[LEXER_KEYWORD_COUNT][LEXER_MAX_KEYWORD_CHAR_LENGHT] = {"fn", "var", "loop", "return", "continue", "pure", "approx", "resilient", "asm", "sizeof", "alignof", "typeof", "stof"};
 
 
-static inline enum token_type get_keyword_type(const char *chr){
-    if(0 == strcmp("var", chr)) {
+static inline enum token_type get_keyword_type(const struct str_view view){
+    if(str_view_eq_cstr(view, "var")) {
         return LEXER_TOKEN_TYPE_VAR;
-    }else if(0 == strcmp("fn", chr)){
+    }else if(str_view_eq_cstr(view, "fn")){
         return LEXER_TOKEN_TYPE_FN;
-    }else if(0 == strcmp("loop", chr)){
+    }else if(str_view_eq_cstr(view, "loop")){
         return LEXER_TOKEN_TYPE_LOOP;
-    }else if(0 == strcmp("return", chr)){
+    }else if(str_view_eq_cstr(view, "return")){
         return LEXER_TOKEN_TYPE_RETURN;
-    }else if(0 == strcmp("continue", chr)){
+    }else if(str_view_eq_cstr(view, "continue")){
         return LEXER_TOKEN_TYPE_CONTINUE;
-    }else if(0 == strcmp("asm", chr)){
+    }else if(str_view_eq_cstr(view, "asm")){
         return LEXER_TOKEN_TYPE_ASM;
-    }else if(0 == strcmp("pure", chr)){
+    }else if(str_view_eq_cstr(view, "pure")){
         return LEXER_TOKEN_TYPE_PURE;
-    }else if(0 == strcmp("approx", chr)){
+    }else if(str_view_eq_cstr(view, "approx")){
         return LEXER_TOKEN_TYPE_APPROX;
-    }else if(0 == strcmp("resilient", chr)){
+    }else if(str_view_eq_cstr(view, "resilient")){
         return LEXER_TOKEN_TYPE_RESILIENT;
-    }else if(0 == strcmp("sizeof", chr)){
+    }else if(str_view_eq_cstr(view, "sizeof")){
         return LEXER_TOKEN_TYPE_SIZEOF;
-    }else if(0 == strcmp("alignof", chr)){
+    }else if(str_view_eq_cstr(view, "alignof")){
         return LEXER_TOKEN_TYPE_ALIGNOF;
-    }else if(0 == strcmp("typeof", chr)){
+    }else if(str_view_eq_cstr(view, "typeof")){
         return LEXER_TOKEN_TYPE_TYPEOF;
-    }else if(0 == strcmp("stof", chr)){
+    }else if(str_view_eq_cstr(view, "stof")){
         return LEXER_TOKEN_TYPE_STOF;
     }else{
         return LEXER_TOKEN_TYPE_KEYWORD;
@@ -132,9 +133,9 @@ static inline int lexer_is_number(const char chr) {
     return -1;
 }
 
-static inline int lexer_is_keyword(const char *restrict token){
+static inline int lexer_is_keyword(const struct str_view view){
     for(int i = 0;i < LEXER_KEYWORD_COUNT; ++i){
-        if(0 == strcmp(token, language_keywords[i])) return i;
+        if(str_view_eq_cstr(view, language_keywords[i])) return i;
     }
     return -1;
 }
@@ -207,16 +208,7 @@ int lexer_create_lexer_file(struct lexer_file *restrict file, char *restrict str
 
 void lexer_delete_lexer_file(struct lexer_file *restrict file){
    if (!file) return;
-   if (file->tokens) {
-       for (int i = 0; i < file->token_count; i++) {
-           if (file->tokens[i].token != NULL) {
-               free(file->tokens[i].token);
-               file->tokens[i].token = NULL; 
-           }
-       }
-       free(file->tokens);
-   }
-
+   free(file->tokens);
    free(file->file_name);
    free(file);
 }
@@ -253,14 +245,14 @@ int lexer_tokenize(char *restrict str, struct lexer_token **restrict tokens, int
                 i++;
             }
 
-            (*tokens)[token_id].token = strndup(&str[start], i - start);
+            (*tokens)[token_id].str_view = str_view_make(&str[start], i - start);
             (*tokens)[token_id].line = line_index;
-            int is_keyword = lexer_is_keyword((*tokens)[token_id].token);
+            int is_keyword = lexer_is_keyword((*tokens)[token_id].str_view);
 
             if(-1 == is_keyword){
                 (*tokens)[token_id].type = LEXER_TOKEN_TYPE_IDENTIFIER;
             }else {
-                (*tokens)[token_id].type = get_keyword_type((*tokens)[token_id].token);
+                (*tokens)[token_id].type = get_keyword_type((*tokens)[token_id].str_view);
             }
 
             token_id++;
@@ -275,7 +267,7 @@ int lexer_tokenize(char *restrict str, struct lexer_token **restrict tokens, int
             }
 
             (*tokens)[token_id].type = LEXER_TOKEN_TYPE_INT_LITERAL;
-            (*tokens)[token_id].token = strndup(&str[start], i - start); 
+            (*tokens)[token_id].str_view = str_view_make(&str[start], i - start); 
             (*tokens)[token_id].line = line_index;
             token_id++;
             continue;
@@ -300,14 +292,14 @@ int lexer_tokenize(char *restrict str, struct lexer_token **restrict tokens, int
                 }
 
                 (*tokens)[token_id].type = LEXER_TOKEN_TYPE_STRING_LITERAL;
-                (*tokens)[token_id].token = strndup(&str[start+1], i - start - 2);
+                (*tokens)[token_id].str_view = str_view_make(&str[start+1], i - start - 2);
                 (*tokens)[token_id].line = line_index;
                 token_id++;
                 continue;
             }
 
             (*tokens)[token_id].type = symbol_type;
-            (*tokens)[token_id].token = strndup(&str[i], 1 + is_double_operator_token);
+            (*tokens)[token_id].str_view = str_view_make(&str[i], 1 + is_double_operator_token);
             (*tokens)[token_id].line = line_index;
             token_id++;
             i += 1 + is_double_operator_token;

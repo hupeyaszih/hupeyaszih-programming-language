@@ -65,8 +65,8 @@ struct live_interval_t {
 
 struct IR_Operand {
     union{
-        char *imm_value;
-        char *mangled_label_name;
+        struct str_view imm_value;
+        struct str_view mangled_label_name;
         struct {
             struct symbol_t *variable;
             struct register_t *reg;
@@ -135,7 +135,7 @@ struct IR_Instruction {
         }br;
 
         struct {
-            char *asm_imm;
+            struct str_view asm_imm;
         } asm_operands;
 
     }operands;
@@ -170,7 +170,7 @@ struct IR_Block {
 
     struct vector_t *params; // struct IR_Operand *
 
-    char *mangled_name;
+    struct str_view mangled_name;
     int in_loop;
     struct IR_Instruction *loop_tail_instruction;
     struct IR_Instruction *loop_head_instruction;
@@ -197,7 +197,7 @@ struct IR_Function {
 
     struct IR_Operand *return_value;
 
-    char *name, *mangled_name;
+    struct str_view name, mangled_name;
 
     int instruction_count; // Total instruction count in the function
     int parameter_count;
@@ -234,10 +234,10 @@ void IR_delete_IR_Project(struct IR_Project **project);
 struct IR_Module *IR_create_IR_Module(char *name);
 void IR_delete_IR_Module(struct IR_Module **module);
 
-struct IR_Function *IR_create_IR_Function(char *name, char *mangled_name, int parameter_count);
+struct IR_Function *IR_create_IR_Function(struct str_view name, struct str_view mangled_name, int parameter_count);
 void IR_delete_IR_Function(struct IR_Function **function);
 
-struct IR_Block *IR_create_IR_Block(struct IR_Function *parent_function, char *mangled_name);
+struct IR_Block *IR_create_IR_Block(struct IR_Function *parent_function, struct str_view mangled_name);
 void IR_delete_IR_Block(struct IR_Block **block);
 
 struct IR_Instruction *IR_create_IR_Instruction(struct IR_Block *parent_block, enum IR_Instruction_type type);

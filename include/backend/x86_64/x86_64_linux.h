@@ -2,6 +2,7 @@
 #define BACKEND_X86_64_LINUX_H
 
 
+#include "h_string_view.h"
 #include "h_vector.h"
 #include <stdio.h>
 #define X86_64_RAX (0)
@@ -52,7 +53,7 @@ void x86_64_collect_instruction_clobbers(struct register_list_t *list, struct IR
 
 void x86_64_linux_emit_globals(struct codegen_context_t *context, bool jmp_to_main);
 void x86_64_linux_emit_jmp_main(struct codegen_context_t *context);
-void x86_64_linux_emit_label(struct codegen_context_t *context, const char *label, bool is_global);
+void x86_64_linux_emit_label(struct codegen_context_t *context, const struct str_view label, bool is_global);
 void x86_64_linux_emit_function_prologue(struct codegen_context_t *context, struct IR_Function *function);
 void x86_64_linux_emit_function_epilogue(struct codegen_context_t *context, struct IR_Function *function);
 void x86_64_linux_emit_instruction(struct codegen_context_t *context, struct IR_Instruction *instruction);
