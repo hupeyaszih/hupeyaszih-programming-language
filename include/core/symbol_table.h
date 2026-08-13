@@ -39,6 +39,7 @@ struct type_info {
 };
 
 struct type_table{
+    struct arena *arena;
     struct type_info **types;
     int count;
     int capacity;  
@@ -81,6 +82,7 @@ struct symbol_t{
 
 struct symbol_table{  
     struct vector_t *symbols; // struct symbol_t *
+    struct arena *arena;
     int scope_level;
     int total_stack_size;
     int current_total_offset;
@@ -90,7 +92,7 @@ struct symbol_table{
     struct vector_t *types;
 };
 
-struct symbol_table *symbol_table_create_symbol_table(struct symbol_table *restrict parent, int *global_scope_counter);
+struct symbol_table *symbol_table_create_symbol_table(struct arena *arena, struct symbol_table *restrict parent, int *global_scope_counter);
 
 struct symbol_t *symbol_table_define(struct symbol_table *restrict table, struct str_view name, struct type_info *restrict type, enum symbol_kind kind, int pointer_level);
 
@@ -98,11 +100,10 @@ void symbol_table_assign(struct symbol_t *restrict symbol, int *current_stack_of
 struct symbol_t* symbol_table_look_up(const struct symbol_table *table, struct str_view name);
 
 
-struct type_table *type_table_create_type_table();
-void type_table_delete_type_table(struct type_table **table);
+struct type_table *type_table_create_type_table(struct arena *arena);
 
-struct type_info *type_table_create_type_info(struct str_view name, enum type_category category, size_t size, struct symbol_table *members, struct type_info *promotable_type);
-struct type_info *type_table_create_type_info_cstr(char *name, enum type_category category, size_t size, struct symbol_table *members, struct type_info *promotable_type);
+struct type_info *type_table_create_type_info(struct arena *arena, struct str_view name, enum type_category category, size_t size, struct symbol_table *members, struct type_info *promotable_type);
+struct type_info *type_table_create_type_info_cstr(struct arena *arena, char *name, enum type_category category, size_t size, struct symbol_table *members, struct type_info *promotable_type);
 struct type_info *type_table_get_type_info(const struct type_table *restrict table, const struct str_view name, int pointer_level);
 struct type_info *type_table_get_type_info_cstr(const struct type_table *restrict table, char *name, int pointer_level);
 struct type_info *type_table_get_or_create_pointer_type_info(struct type_table *restrict table, struct str_view name, int pointer_level);
@@ -111,28 +112,26 @@ struct type_info *get_literals_type_info(struct type_table *type_table, struct t
 
 void type_table_insert(struct type_table *table, struct type_info *info);
 
-void symbol_table_delete_symbol_table(struct symbol_table **table);
-void type_table_delete_type_info(struct type_info **info);
 
 
 static inline void type_table_init_builtins(struct type_table *table) {
-    struct type_info *int64 = type_table_create_type_info_cstr("int64", TYPE_CATEGORY_BASIC, 8, NULL, NULL);
-    struct type_info *int32 = type_table_create_type_info_cstr("int32", TYPE_CATEGORY_BASIC, 4, NULL, int64);
-    struct type_info *int16 = type_table_create_type_info_cstr("int16", TYPE_CATEGORY_BASIC, 2, NULL, int32);
-    struct type_info *int8  = type_table_create_type_info_cstr("int8", TYPE_CATEGORY_BASIC, 1, NULL, int16);
+    struct type_info *int64 = type_table_create_type_info_cstr(table->arena, "int64", TYPE_CATEGORY_BASIC, 8, NULL, NULL);
+    struct type_info *int32 = type_table_create_type_info_cstr(table->arena, "int32", TYPE_CATEGORY_BASIC, 4, NULL, int64);
+    struct type_info *int16 = type_table_create_type_info_cstr(table->arena, "int16", TYPE_CATEGORY_BASIC, 2, NULL, int32);
+    struct type_info *int8  = type_table_create_type_info_cstr(table->arena, "int8", TYPE_CATEGORY_BASIC, 1, NULL, int16);
 
     type_table_insert(table, int8);
     type_table_insert(table, int16);
     type_table_insert(table, int32);
     type_table_insert(table, int64);
-    type_table_insert(table, type_table_create_type_info_cstr("bool", TYPE_CATEGORY_BASIC, 1, NULL, int8));
+    type_table_insert(table, type_table_create_type_info_cstr(table->arena, "bool", TYPE_CATEGORY_BASIC, 1, NULL, int8));
 
-    type_table_insert(table, type_table_create_type_info_cstr("float64", TYPE_CATEGORY_BASIC, 8, NULL, NULL));
-    type_table_insert(table, type_table_create_type_info_cstr("fn", TYPE_CATEGORY_BASIC, 8, NULL, NULL));
-    type_table_insert(table, type_table_create_type_info_cstr("char", TYPE_CATEGORY_BASIC, 1, NULL, NULL));
+    type_table_insert(table, type_table_create_type_info_cstr(table->arena, "float64", TYPE_CATEGORY_BASIC, 8, NULL, NULL));
+    type_table_insert(table, type_table_create_type_info_cstr(table->arena, "fn", TYPE_CATEGORY_BASIC, 8, NULL, NULL));
+    type_table_insert(table, type_table_create_type_info_cstr(table->arena, "char", TYPE_CATEGORY_BASIC, 1, NULL, NULL));
 
     table->pointers_size = 8;
-    type_table_insert(table, type_table_create_type_info_cstr("string", TYPE_CATEGORY_POINTER, 8, NULL, NULL));
+    type_table_insert(table, type_table_create_type_info_cstr(table->arena, "string", TYPE_CATEGORY_POINTER, 8, NULL, NULL));
 
     table->pointer_to_int_type = int64;
 }

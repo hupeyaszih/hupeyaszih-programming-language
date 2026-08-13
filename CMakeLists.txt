@@ -15,6 +15,7 @@ add_executable(hrsc
 
     src/h_vector.c
     src/h_bitset.c
+    src/h_arena.c
 
     src/core/semantic_analyzer.c
 

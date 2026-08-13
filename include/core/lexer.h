@@ -1,6 +1,7 @@
 #ifndef LEXER_H
 #define LEXER_H
 
+#include "h_arena.h"
 #include "h_string_view.h"
 enum token_type{
     LEXER_TOKEN_TYPE_EOF = 0,
@@ -73,6 +74,7 @@ struct lexer_token{
 
 struct lexer_file{
     struct lexer_token *tokens;
+    struct arena *arena;
 
     int char_count;
     int token_count;
@@ -94,10 +96,9 @@ extern const char language_keywords[LEXER_KEYWORD_COUNT][LEXER_MAX_KEYWORD_CHAR_
 int lexer_compare_keyword(const char *restrict word);
 
 
-int lexer_create_lexer_file(struct lexer_file *restrict file, char *restrict str, const char *restrict file_name);
-void lexer_delete_lexer_file(struct lexer_file *restrict file);
+int lexer_create_lexer_file(struct lexer_file *restrict file, char *restrict str, const char *restrict file_name, struct arena *arena);
 
-int lexer_tokenize(char *restrict str, struct lexer_token **restrict tokens, int *current_token_capacity); //Returns token count
+int lexer_tokenize(struct arena *arena, char *restrict str, struct lexer_token **restrict tokens, int *current_token_capacity); //Returns token count
 
 static const char* lexer_token_type_to_string(enum token_type type) {
     switch (type) {
@@ -167,6 +168,6 @@ static const char* lexer_token_type_to_string(enum token_type type) {
 
 int lexer_is_double_operator_token(const char *chr);
 
-char *lexer_extract_module_name(const char *filepath);
+char *lexer_extract_module_name(struct arena *arena, const char *filepath);
 #endif
 

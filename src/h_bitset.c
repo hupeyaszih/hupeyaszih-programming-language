@@ -1,24 +1,16 @@
 #include "h_bitset.h"
+#include "h_arena.h"
 #include <string.h>
 
-struct bitset_t* bitset_create(size_t max_element_count) {
-    struct bitset_t *bitset = calloc(1, sizeof(struct bitset_t));
+struct bitset_t* bitset_create(struct arena *arena, size_t max_element_count) {
+    struct bitset_t *bitset = arena_alloc(arena, sizeof(struct bitset_t));
     if (!bitset) {
         return NULL;
     }
     bitset->max_element_count = max_element_count;
     bitset->size = (max_element_count / 64) + 1;
-    bitset->bits = calloc(bitset->size, sizeof(uint64_t));
+    bitset->bits = arena_alloc(arena, bitset->size * sizeof(uint64_t));
     return bitset;
-}
-
-void bitset_free(struct bitset_t **bitset) {
-    if (bitset == NULL || *bitset == NULL) {
-        return;
-    }
-    free((*bitset)->bits);
-    free((*bitset));
-    *bitset = NULL;
 }
 
 void bitset_set(struct bitset_t *restrict bitset, int id) {

@@ -1,6 +1,7 @@
 #ifndef H_BITSET_H
 #define H_BITSET_H
 
+#include "h_arena.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -13,8 +14,7 @@ struct bitset_t {
 };
 
 
-struct bitset_t* bitset_create(size_t max_element_count);
-void bitset_free(struct bitset_t **bitset);
+struct bitset_t* bitset_create(struct arena *arena, size_t max_element_count);
 
 void bitset_set(struct bitset_t *bitset, int id);
 void bitset_set_to_zero(struct bitset_t *restrict bitset, int id);

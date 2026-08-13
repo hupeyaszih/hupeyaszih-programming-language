@@ -2,6 +2,7 @@
 #define BACKEND_X86_64_LINUX_H
 
 
+#include "h_arena.h"
 #include "h_string_view.h"
 #include "h_vector.h"
 #include <stdio.h>
@@ -40,9 +41,9 @@ enum IR_Instruction_type;
 
 
 
-struct codegen_build_target_t *x86_64_linux_create_build_target();
+struct codegen_build_target_t *x86_64_linux_create_build_target(struct arena *arena);
 
-struct register_list_t *x86_64_linux_create_register_list(struct codegen_build_target_t *arch);
+struct register_list_t *x86_64_linux_create_register_list(struct arena *arena, struct codegen_build_target_t *arch);
 
 const char *x86_64_linux_get_register_name(struct register_list_t *list, struct register_t *reg, enum register_size size);
 struct register_t *x86_64_linux_get_best_available_register(struct register_list_t *list, struct register_t *preferred_register, struct vector_t *clobber_list, struct IR_Operand *vreg);

@@ -3,6 +3,7 @@
 #include <string.h>
 #include <ctype.h>
 #include "core/globals.h"
+#include "h_arena.h"
 #include "h_string_view.h"
 
 const char LEXER_DELIM[] = " \t\r\n";
@@ -179,25 +180,19 @@ static inline int calculate_statement_count(const struct lexer_file *restrict fi
     return statement_count;
 }
 
-int lexer_create_lexer_file(struct lexer_file *restrict file, char *restrict str, const char *restrict file_name){
+int lexer_create_lexer_file(struct lexer_file *restrict file, char *restrict str, const char *restrict file_name, struct arena *arena){
     int current_capacity = 16;
-    file->tokens = malloc(sizeof(struct lexer_token) * current_capacity);
-    file->file_name = strdup(file_name);
+    file->tokens = arena_alloc(arena, sizeof(struct lexer_token) * current_capacity);
+    file->file_name = arena_strdup(arena, file_name);
 
     file->char_count = strlen(str);
     file->line_count = calculate_line_count(str);
 
-    int token_count = lexer_tokenize(str, &file->tokens, &current_capacity);
+    int token_count = lexer_tokenize(arena, str, &file->tokens, &current_capacity);
     file->token_count = token_count;
     if(token_count <= 0) {
         C_LOG_ERR("\"lexer_create_lexer_file\" function failed to create lexer file because \"token_count<=0\"\n");
-        lexer_delete_lexer_file(file);
         return 0;
-    }
-
-    struct lexer_token *temp = realloc(file->tokens, sizeof(struct lexer_token) * (file->token_count + 1));
-    if(temp){
-        file->tokens = temp;
     }
 
     file->statement_count = calculate_statement_count(file);
@@ -206,42 +201,47 @@ int lexer_create_lexer_file(struct lexer_file *restrict file, char *restrict str
     return 0;
 }
 
-void lexer_delete_lexer_file(struct lexer_file *restrict file){
-   if (!file) return;
-   free(file->tokens);
-   free(file->file_name);
-   free(file);
-}
-
-int lexer_tokenize(char *restrict str, struct lexer_token **restrict tokens, int *current_token_capacity){ //Returns token count
+int lexer_tokenize(struct arena *arena, char *restrict str, struct lexer_token **restrict tokens, int *current_token_capacity) { // Returns token count
     int line_index = 1;
     int i = 0;
     int token_id = 0;
     int str_len = strlen(str);
 
-    while(i < str_len){
-        if((*current_token_capacity) <= token_id){
-            (*current_token_capacity) *= 2;
-            struct lexer_token *temp = realloc((*tokens), sizeof(struct lexer_token) * (*current_token_capacity));
-            if(temp){
-                (*tokens) = temp;
-            }else {
+    while (i < str_len) {
+        if (*current_token_capacity <= token_id) {
+            size_t old_capacity = *current_token_capacity;
+            size_t new_capacity = (old_capacity == 0) ? 16 : old_capacity * 2;
+
+            size_t old_bytes = sizeof(struct lexer_token) * old_capacity;
+            size_t new_bytes = sizeof(struct lexer_token) * new_capacity;
+
+            struct lexer_token *temp = (struct lexer_token*)arena_alloc(arena, new_bytes);
+            if (!temp) {
                 return -1;
             }
+
+            if (*tokens != NULL && old_capacity > 0) {
+                memcpy(temp, *tokens, old_bytes);
+            }
+
+            *tokens = temp;
+            *current_token_capacity = (int)new_capacity;
         }
 
-        if('/' == str[i] && (i+1 < str_len && '/' == str[i+1])) {
-            while(str[i] != '\n') {
-                if(str[i] == '\0') break;
+        if ('/' == str[i] && (i + 1 < str_len && '/' == str[i + 1])) {
+            while (i < str_len && str[i] != '\n') {
                 i++;
             }
+            continue;
         }
+
         char curr = str[i];
-        if('\n' == curr) line_index++;
-        if(isspace(curr)) {i++; continue;}
-        if(isalpha(curr)){
+        if ('\n' == curr) line_index++;
+        if (isspace((unsigned char)curr)) { i++; continue; }
+
+        if (isalpha((unsigned char)curr) || curr == '_') {
             int start = i;
-            while(i < str_len && (!isspace(str[i]) && LEXER_TOKEN_TYPE_UNKNOWN == lexer_get_symbol_type(&str[i])) ){
+            while (i < str_len && (!isspace((unsigned char)str[i]) && LEXER_TOKEN_TYPE_UNKNOWN == lexer_get_symbol_type(&str[i]))) {
                 i++;
             }
 
@@ -249,9 +249,9 @@ int lexer_tokenize(char *restrict str, struct lexer_token **restrict tokens, int
             (*tokens)[token_id].line = line_index;
             int is_keyword = lexer_is_keyword((*tokens)[token_id].str_view);
 
-            if(-1 == is_keyword){
+            if (-1 == is_keyword) {
                 (*tokens)[token_id].type = LEXER_TOKEN_TYPE_IDENTIFIER;
-            }else {
+            } else {
                 (*tokens)[token_id].type = get_keyword_type((*tokens)[token_id].str_view);
             }
 
@@ -259,10 +259,10 @@ int lexer_tokenize(char *restrict str, struct lexer_token **restrict tokens, int
             continue;
         }
 
-        if(isdigit(curr)){
+        if (isdigit((unsigned char)curr)) {
             int start = i;
 
-            while (i < str_len && isdigit(str[i])) {
+            while (i < str_len && isdigit((unsigned char)str[i])) {
                 i++;
             }
 
@@ -275,24 +275,28 @@ int lexer_tokenize(char *restrict str, struct lexer_token **restrict tokens, int
 
         int symbol_type = lexer_get_symbol_type(&str[i]);
         int is_double_operator_token = (0 == lexer_is_double_operator_token(&str[i]));
+
         if (symbol_type != -1) {
-            
-            if(LEXER_TOKEN_TYPE_DOUBLE_QUOTES == symbol_type){
+            if (LEXER_TOKEN_TYPE_DOUBLE_QUOTES == symbol_type) {
                 int start = i;
-                i++;
+                i++; 
                 while (i < str_len) {
-                    if('\\' == str[i]) {
-                        i+=2;
+                    if ('\\' == str[i]) {
+                        if (i + 1 < str_len) i += 2;
+                        else i++;
                         continue;
-                    }else if('"' == str[i]) {
-                        i++;
+                    } else if ('"' == str[i]) {
+                        i++; 
                         break;
                     }
                     i++;
                 }
 
+                int content_len = i - start - 2;
+                if (content_len < 0) content_len = 0; 
+
                 (*tokens)[token_id].type = LEXER_TOKEN_TYPE_STRING_LITERAL;
-                (*tokens)[token_id].str_view = str_view_make(&str[start+1], i - start - 2);
+                (*tokens)[token_id].str_view = str_view_make(&str[start + 1], content_len);
                 (*tokens)[token_id].line = line_index;
                 token_id++;
                 continue;
@@ -312,7 +316,7 @@ int lexer_tokenize(char *restrict str, struct lexer_token **restrict tokens, int
     return token_id;
 }
 
-char *lexer_extract_module_name(const char *filepath) {
+char *lexer_extract_module_name(struct arena *arena, const char *filepath) {
     if (!filepath) return strdup("unnamed_module");
 
     const char *filename = strrchr(filepath, '/');
@@ -329,7 +333,7 @@ char *lexer_extract_module_name(const char *filepath) {
         filename = filepath;
     }
 
-    char *mod_name = strdup(filename);
+    char *mod_name = arena_strdup(arena, filename);
     if (!mod_name) return NULL;
 
     char *dot = strrchr(mod_name, '.');

@@ -121,6 +121,8 @@ static inline int is_node_type_operator(struct parser_node *restrict node){
 }
 
 struct parser_t{
+    struct arena *arena;
+    struct arena *symbol_arena;
     struct vector_t *nodes; // struct parser_node *
     struct symbol_table *current_scope;
     struct type_table *type_table;
@@ -133,11 +135,9 @@ struct parser_t{
     int successful;
 };
 
-struct parser_t *parser_create_parser();
-void parser_delete_parser(struct parser_t **parser);
+struct parser_t *parser_create_parser(struct arena *arena, struct arena *symbol_arena);
 
-struct parser_node *parser_create_node(enum parser_node_type type, int line);
-void parser_delete_node(struct parser_node **node);
+struct parser_node *parser_create_node(struct arena *arena, enum parser_node_type type, int line);
 
 void parser_parser_add_node(struct parser_t *parser, struct parser_node *node);
 

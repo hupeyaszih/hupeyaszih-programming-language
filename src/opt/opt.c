@@ -1,13 +1,14 @@
 #include "opt/opt.h"
 #include "backend/codegen.h"
 #include "core/ir_gen.h"
+#include "h_arena.h"
 #include "h_bitset.h"
 #include "h_vector.h"
 #include "opt/register_allocator.h"
 #include <stdio.h>
 
-static inline struct vector_t *get_used_operands(struct IR_Instruction *instruction) {
-    struct vector_t *list = vector_create_vector(3, sizeof(struct IR_Operand *));
+static inline struct vector_t *get_used_operands(struct arena *arena, struct IR_Instruction *instruction) {
+    struct vector_t *list = vector_create_vector(arena, 3, sizeof(struct IR_Operand *));
 
     switch (instruction->type) {
         case IR_INSTRUCTION_TYPE_MOV:
@@ -85,8 +86,8 @@ static inline struct vector_t *get_used_operands(struct IR_Instruction *instruct
 
     return list;
 }
-static inline struct vector_t *get_defined_operands(struct IR_Instruction *instruction) {
-    struct vector_t *list = vector_create_vector(3, sizeof(struct IR_Operand *));
+static inline struct vector_t *get_defined_operands(struct arena *arena, struct IR_Instruction *instruction) {
+    struct vector_t *list = vector_create_vector(arena, 3, sizeof(struct IR_Operand *));
 
     switch (instruction->type) {
         case IR_INSTRUCTION_TYPE_MOV:
@@ -132,14 +133,12 @@ void opt_optimize_project(struct IR_Project *restrict project, struct codegen_t 
     struct opt_context_t opt_context;
     opt_context.register_allocator = register_allocator_create_register_allocator(codegen);
     opt_context.codegen = codegen;
+    opt_context.temp_arena = codegen->temp_arena;
 
     for(int i = 0;i < project->modules->element_count; ++i) {
         struct IR_Module *module = *(struct IR_Module **) vector_get(project->modules, i);
         opt_optimize_module(&opt_context, module);
     }
-
-
-    register_allocator_delete_register_allocator(&opt_context.register_allocator);
 }
 
 void opt_optimize_module(struct opt_context_t *context, struct IR_Module *restrict module) {
@@ -149,14 +148,15 @@ void opt_optimize_module(struct opt_context_t *context, struct IR_Module *restri
         struct IR_Function *function = *(struct IR_Function **) vector_get(module->functions, i);
         //
         opt_run_cfg_analysis(function);
-        opt_compute_use_def(function);
+        opt_compute_use_def(context->temp_arena, function);
         opt_run_live_range_analysis(function, context);
         register_allocator_run_allocator(context->register_allocator, function);
         //
     }
 
-    register_allocator_compute_caller_saved_registers(context->codegen->current_build_target, module->parent_project->main_function);
+    register_allocator_compute_caller_saved_registers(context->temp_arena, context->codegen->current_build_target, module->parent_project->main_function);
 
+    arena_reset(context->temp_arena);
 }
 
 void opt_run_cfg_analysis(struct IR_Function *function) {
@@ -216,14 +216,14 @@ static inline void process_def(const struct IR_Operand *operand, struct bitset_t
     bitset_set(def, operand->data.vreg.vreg_id);
 }
 
-void opt_compute_use_def(struct IR_Function *function) {
+void opt_compute_use_def(struct arena *arena, struct IR_Function *function) {
     int vreg_count = function->unique_vregs->element_count;
 
     struct IR_Block *block = function->head_block;
     while(NULL != block) {
         struct IR_Instruction *instruction = block->head_instruction;
-        block->use       = bitset_create(vreg_count);
-        block->def       = bitset_create(vreg_count);
+        block->use       = bitset_create(arena, vreg_count);
+        block->def       = bitset_create(arena, vreg_count);
 
         while(NULL != instruction) {
             switch (instruction->type) {
@@ -334,8 +334,8 @@ void opt_run_live_range_analysis(struct IR_Function *function, struct opt_contex
         struct IR_Instruction *instruction = block->tail_instruction;
         while(NULL != instruction) {
 
-            struct vector_t *used_operands = get_used_operands(instruction);
-            struct vector_t *defined_operands = get_defined_operands(instruction);
+            struct vector_t *used_operands    = get_used_operands   (context->temp_arena, instruction);
+            struct vector_t *defined_operands = get_defined_operands(context->temp_arena, instruction);
 
             for(int i = 0; i < used_operands->element_count; ++i) {
                 struct IR_Operand *operand = *(struct IR_Operand **) vector_get(used_operands, i);
@@ -362,10 +362,6 @@ void opt_run_live_range_analysis(struct IR_Function *function, struct opt_contex
                     operand->data.vreg.live_interval.end = instruction->id;
                 }
             }
-
-            vector_free(&used_operands);
-            vector_free(&defined_operands);
-
 
             instruction = instruction->prev;
         }

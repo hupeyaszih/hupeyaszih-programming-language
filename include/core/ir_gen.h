@@ -218,6 +218,9 @@ struct IR_Module {
 };
 
 struct IR_Project {
+    struct arena *arena;
+    struct arena *temp_arena;
+
     struct vector_t *modules; // struct IR_Module *
     struct IR_Function *main_function;
     struct IR_Module *main_module;
@@ -225,26 +228,13 @@ struct IR_Project {
 
 
 // create/free
-struct stack_slot_t *IR_create_stack_slot(struct type_info *type, struct IR_Function *function, bool is_argument);
-void IR_delete_stack_slot(struct stack_slot_t **slot);
-
-struct IR_Project *IR_create_IR_Project();
-void IR_delete_IR_Project(struct IR_Project **project);
-
-struct IR_Module *IR_create_IR_Module(char *name);
-void IR_delete_IR_Module(struct IR_Module **module);
-
-struct IR_Function *IR_create_IR_Function(struct str_view name, struct str_view mangled_name, int parameter_count);
-void IR_delete_IR_Function(struct IR_Function **function);
-
-struct IR_Block *IR_create_IR_Block(struct IR_Function *parent_function, struct str_view mangled_name);
-void IR_delete_IR_Block(struct IR_Block **block);
-
-struct IR_Instruction *IR_create_IR_Instruction(struct IR_Block *parent_block, enum IR_Instruction_type type);
-void IR_delete_IR_Instruction(struct IR_Instruction **instruction);
-
-struct IR_Operand *IR_create_IR_Operand(enum IR_Operand_type type, struct IR_Instruction *definition_instruction, struct IR_Function *parent_function, int in_loop);
-void IR_delete_IR_Operand(struct IR_Operand **operand);
+struct stack_slot_t *IR_create_stack_slot(struct arena *arena, struct type_info *type, struct IR_Function *function, bool is_argument);
+struct IR_Project *IR_create_IR_Project(struct arena *arena, struct arena *temp_arena);
+struct IR_Module *IR_create_IR_Module(struct arena *arena, char *name);
+struct IR_Function *IR_create_IR_Function(struct arena *arena, struct str_view name, struct str_view mangled_name, int parameter_count);
+struct IR_Block *IR_create_IR_Block(struct arena *arena, struct IR_Function *parent_function, struct str_view mangled_name);
+struct IR_Instruction *IR_create_IR_Instruction(struct arena *arena, struct IR_Block *parent_block, enum IR_Instruction_type type);
+struct IR_Operand *IR_create_IR_Operand(struct arena *arena, enum IR_Operand_type type, struct IR_Instruction *definition_instruction, struct IR_Function *parent_function, int in_loop);
 
 void IR_init_live_interval(struct live_interval_t *interval, struct IR_Operand *operand, int start, int end, int weight);
 
@@ -262,7 +252,7 @@ void IR_Block_add_instruction_after(struct IR_Block *block, struct IR_Instructio
 
 // Helpers
 
-struct IR_Operand *IR_create_new_vreg(struct IR_Function *parent_function, struct IR_Instruction *definition_instruction, struct symbol_t *variable, int in_loop);
+struct IR_Operand *IR_create_new_vreg(struct arena *arena, struct IR_Function *parent_function, struct IR_Instruction *definition_instruction, struct symbol_t *variable, int in_loop);
 
 int IR_call_get_arg_index(struct IR_Instruction *call, struct IR_Operand *target_arg);
 

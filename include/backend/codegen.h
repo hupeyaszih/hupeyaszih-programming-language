@@ -104,31 +104,29 @@ struct codegen_build_target_t{
 void codegen_emit(FILE *file, const char *format,...);
 
 struct codegen_t {
+    struct arena *arena;
+    struct arena *temp_arena;
     struct vector_t *build_targets; // struct codegen_build_target_t *
     struct codegen_build_target_t *current_build_target;
     char *build_path;
 };
 
-struct codegen_t *codegen_create_codegen(char *build_path);
-void codegen_delete_codegen(struct codegen_t **codegen);
+struct codegen_t *codegen_create_codegen(struct arena *arena, struct arena *temp_arena, char *build_path);
 
-struct codegen_build_target_t *codegen_create_build_target();
-void codegen_delete_build_target(struct codegen_build_target_t **target);
+struct codegen_build_target_t *codegen_create_build_target(struct arena *arena);
 
-struct register_list_t *codegen_create_register_list(struct codegen_build_target_t *arch, int register_count);
-void codegen_delete_register_list(struct register_list_t **list);
+struct register_list_t *codegen_create_register_list(struct arena *arena, struct codegen_build_target_t *arch, int register_count);
 
-struct register_t *codegen_init_register(struct register_t *reg, int id, enum register_size size, enum register_type type, enum register_bank bank, bool is_arg_reg, int arg_index, bool is_ret_reg, bool is_reserved);
-void codegen_delete_register(struct register_t *reg);
+struct register_t *codegen_init_register(struct arena *arena, struct register_t *reg, int id, enum register_size size, enum register_type type, enum register_bank bank, bool is_arg_reg, int arg_index, bool is_ret_reg, bool is_reserved);
 
-struct register_t *codegen_create_register_and_add_to_list(int id, enum register_size size, enum register_type type, enum register_bank bank, bool is_arg_reg, int arg_index, bool is_ret_reg, bool is_reserved, struct register_list_t *list);
+struct register_t *codegen_create_register_and_add_to_list(struct arena *arena, int id, enum register_size size, enum register_type type, enum register_bank bank, bool is_arg_reg, int arg_index, bool is_ret_reg, bool is_reserved, struct register_list_t *list);
 
 void codegen_build_project(struct codegen_t *codegen, struct IR_Project *project, char *build_target_name);
 void codegen_build_module(struct codegen_t *codegen, struct IR_Module *module);
 void codegen_build_function(struct codegen_context_t *context, struct IR_Function *function);
 
 static inline void codegen_init_build_targets(struct codegen_t *codegen) {
-    struct codegen_build_target_t *x86_64_linux = x86_64_linux_create_build_target();
+    struct codegen_build_target_t *x86_64_linux = x86_64_linux_create_build_target(codegen->arena);
     vector_add(codegen->build_targets, &x86_64_linux);
 }
 

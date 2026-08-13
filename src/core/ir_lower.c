@@ -2,6 +2,7 @@
 #include "core/ir_gen.h"
 #include "core/parser.h"
 #include "core/symbol_table.h"
+#include "h_arena.h"
 #include "h_vector.h"
 #include <stdbool.h>
 #include <stdio.h>
@@ -9,9 +10,9 @@
 
 
 
-struct IR_Operand *IRL_create_stack_slot(struct IR_Function *function, struct type_info *type, struct IR_Instruction *definition_instruction, bool is_argument) {
-    struct IR_Operand *stack_slot = IR_create_IR_Operand(IR_OPERAND_TYPE_STACK_SLOT, definition_instruction, function, -1);
-    struct stack_slot_t *slot = IR_create_stack_slot(type, function, is_argument);
+struct IR_Operand *IRL_create_stack_slot(struct arena *arena, struct IR_Function *function, struct type_info *type, struct IR_Instruction *definition_instruction, bool is_argument) {
+    struct IR_Operand *stack_slot = IR_create_IR_Operand(arena, IR_OPERAND_TYPE_STACK_SLOT, definition_instruction, function, -1);
+    struct stack_slot_t *slot = IR_create_stack_slot(arena, type, function, is_argument);
 
     stack_slot->data.slot.stack_slot = slot;
     stack_slot->type_info = type->pointer_type;
@@ -20,8 +21,8 @@ struct IR_Operand *IRL_create_stack_slot(struct IR_Function *function, struct ty
     return stack_slot;
 }
 
-static inline void IRL_instruction_jmp_add_args(struct IR_Instruction *jmp, struct vector_t *args) {
-    jmp->operands.jmp.args = vector_create_vector(args->element_count, sizeof(struct symbol_t *));
+static inline void IRL_instruction_jmp_add_args(struct arena *arena, struct IR_Instruction *jmp, struct vector_t *args) {
+    jmp->operands.jmp.args = vector_create_vector(arena, args->element_count, sizeof(struct symbol_t *));
     for(int i = 0; i < args->element_count; ++i) {
         struct IR_Operand *param = *(struct IR_Operand **) vector_get(args, i);
         if(IR_OPERAND_TYPE_VREG != param->type) continue;
@@ -29,8 +30,8 @@ static inline void IRL_instruction_jmp_add_args(struct IR_Instruction *jmp, stru
     }
 }
 
-static inline struct vector_t *IRL_block_filter(struct vector_t *mutated_variables, struct vector_t *declarated_variables) {
-    struct vector_t *filtered = vector_create_vector(2, sizeof(struct IR_Operand *));
+static inline struct vector_t *IRL_block_filter(struct arena *arena, struct vector_t *mutated_variables, struct vector_t *declarated_variables) {
+    struct vector_t *filtered = vector_create_vector(arena, 2, sizeof(struct IR_Operand *));
     for (int i = 0; i < mutated_variables->element_count; i++) {
         struct symbol_t *mutated_sym = *(struct symbol_t **) vector_get(mutated_variables, i);
 
@@ -54,17 +55,17 @@ static inline struct vector_t *IRL_block_filter(struct vector_t *mutated_variabl
 
 static inline void variable_declaration(struct ir_context *context, struct symbol_t *sym, struct parser_node *node) {
     if(LOCATION_STACK == sym->location_kind) {
-        struct IR_Instruction *alloca = IR_create_IR_Instruction(context->current_block, IR_INSTRUCTION_TYPE_ALLOCA);
+        struct IR_Instruction *alloca = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_ALLOCA);
         IR_Block_add_instruction(context->current_block, alloca);
 
-        struct IR_Operand *stack_slot = IRL_create_stack_slot(context->current_function, sym->type, alloca, false);
+        struct IR_Operand *stack_slot = IRL_create_stack_slot(context->arena, context->current_function, sym->type, alloca, false);
         sym->stack_slot = stack_slot;
 
         alloca->operands.alloca.type_info = sym->type;
 
         alloca->operands.alloca.destination = stack_slot;
     }else {
-        struct IR_Operand *vreg = IR_create_new_vreg(context->current_function, NULL, sym, context->current_block->in_loop);
+        struct IR_Operand *vreg = IR_create_new_vreg(context->arena, context->current_function, NULL, sym, context->current_block->in_loop);
         vreg->type_info = sym->type;
         sym->current_vreg = vreg;
     }
@@ -76,10 +77,10 @@ static inline struct IR_Operand *load_variable(struct ir_context *context, struc
         case LOCATION_VREG: {
             return sym->current_vreg;
         }case LOCATION_STACK: {
-            struct IR_Instruction *load = IR_create_IR_Instruction(context->current_block, IR_INSTRUCTION_TYPE_LOAD);
+            struct IR_Instruction *load = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_LOAD);
             IR_Block_add_instruction(context->current_block, load);
 
-            struct IR_Operand *vreg = IR_create_new_vreg(context->current_function, load, sym, context->current_block->in_loop);
+            struct IR_Operand *vreg = IR_create_new_vreg(context->arena, context->current_function, load, sym, context->current_block->in_loop);
             vreg->type_info = sym->type;
 
             load->operands.double_operands.source_1 = sym->stack_slot;
@@ -99,10 +100,10 @@ static inline void emit_cast(struct ir_context *context, struct type_info *targe
     if(IR_OPERAND_TYPE_IMM == (*val)->type) return;
 
     if (type_table_can_that_promote_to((*val)->type_info, target_type)) {
-        struct IR_Instruction *cast = IR_create_IR_Instruction(context->current_block, IR_INSTRUCTION_TYPE_CAST);
+        struct IR_Instruction *cast = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_CAST);
         IR_Block_add_instruction(context->current_block, cast);
 
-        struct IR_Operand *cast_vreg = IR_create_new_vreg(context->current_function, cast, NULL, context->current_block->in_loop);
+        struct IR_Operand *cast_vreg = IR_create_new_vreg(context->arena, context->current_function, cast, NULL, context->current_block->in_loop);
         cast_vreg->type_info = target_type;
 
         cast->operands.double_operands.source_1 = *val;
@@ -121,10 +122,10 @@ static inline void store_variable(struct ir_context *context, struct symbol_t *s
     switch (location_kind) {
         case LOCATION_VREG: {
             if(val->type == IR_OPERAND_TYPE_VREG) {
-                struct IR_Instruction *assign = IR_create_IR_Instruction(context->current_block, IR_INSTRUCTION_TYPE_MOV);
+                struct IR_Instruction *assign = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_MOV);
                 IR_Block_add_instruction(context->current_block, assign);
 
-                struct IR_Operand *vreg = IR_create_new_vreg(context->current_function, assign, sym, context->current_block->in_loop);
+                struct IR_Operand *vreg = IR_create_new_vreg(context->arena, context->current_function, assign, sym, context->current_block->in_loop);
                 vreg->type_info = sym->type;
 
                 assign->operands.double_operands.source_1 = val;
@@ -132,10 +133,10 @@ static inline void store_variable(struct ir_context *context, struct symbol_t *s
 
                 sym->current_vreg = vreg;
             }else {
-                struct IR_Instruction *assign = IR_create_IR_Instruction(context->current_block, IR_INSTRUCTION_TYPE_MOV);
+                struct IR_Instruction *assign = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_MOV);
                 IR_Block_add_instruction(context->current_block, assign);
 
-                struct IR_Operand *vreg = IR_create_new_vreg(context->current_function, assign, sym, context->current_block->in_loop);
+                struct IR_Operand *vreg = IR_create_new_vreg(context->arena, context->current_function, assign, sym, context->current_block->in_loop);
                 vreg->type_info = sym->type;
 
                 assign->operands.double_operands.source_1 = val;
@@ -145,7 +146,7 @@ static inline void store_variable(struct ir_context *context, struct symbol_t *s
             }
             break;
         }case LOCATION_STACK: {
-            struct IR_Instruction *store = IR_create_IR_Instruction(context->current_block, IR_INSTRUCTION_TYPE_STORE);
+            struct IR_Instruction *store = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_STORE);
             IR_Block_add_instruction(context->current_block, store);
 
             store->operands.double_operands.source_1 = val;
@@ -171,7 +172,7 @@ static inline struct type_info *get_best_type_info_to_assign(struct type_info *l
 }
 
 struct IR_Operand *IRL_run_module_lower(struct parser_node *node, struct ir_context *context) {
-    struct IR_Module *module = IR_create_IR_Module(node->data.module.name);
+    struct IR_Module *module = IR_create_IR_Module(context->arena, node->data.module.name);
     vector_add(context->project->modules, &module);
     module->parent_project = context->project;
 
@@ -181,7 +182,7 @@ struct IR_Operand *IRL_run_module_lower(struct parser_node *node, struct ir_cont
     struct symbol_table *old_scope = context->current_scope;
     for(int i = 0;i < function_count; ++i) {
         struct parser_node *function_node = *(struct parser_node **) vector_get(node->data.module.functions, i);
-        struct IR_Function *function = IR_create_IR_Function(function_node->data.function.name, function_node->data.function.mangled_name, function_node->data.function.param_count);
+        struct IR_Function *function = IR_create_IR_Function(context->arena, function_node->data.function.name, function_node->data.function.mangled_name, function_node->data.function.param_count);
         IR_Module_add_function(module, function);
 
         context->current_scope = old_scope;
@@ -189,6 +190,7 @@ struct IR_Operand *IRL_run_module_lower(struct parser_node *node, struct ir_cont
         context->current_function = function;
         last_operand = IRL_run_function_lower(function_node, context);
     }
+    arena_reset(context->temp_arena);
     return last_operand;
 }
 
@@ -196,7 +198,7 @@ struct IR_Operand *IRL_run_function_lower(struct parser_node *node, struct ir_co
     struct symbol_t *sym = symbol_table_look_up(context->current_scope, node->data.function.name);
     sym->function.ir_function = context->current_function;
 
-    struct IR_Block *params_b = IR_create_IR_Block(context->current_function, node->data.function.params->data.block.mangled_name);
+    struct IR_Block *params_b = IR_create_IR_Block(context->arena, context->current_function, node->data.function.params->data.block.mangled_name);
     context->current_block = params_b;
     IR_Function_add_block(context->current_function, params_b);
 
@@ -213,7 +215,7 @@ struct IR_Operand *IRL_run_function_lower(struct parser_node *node, struct ir_co
         if(LOCATION_STACK == param->data.variable.symbol->location_kind) {
             // load arg to param
             struct symbol_t *var_sym = param->data.variable.symbol;
-            struct IR_Operand *vreg = IR_create_new_vreg(context->current_function, NULL, var_sym, params_b->in_loop);
+            struct IR_Operand *vreg = IR_create_new_vreg(context->arena, context->current_function, NULL, var_sym, params_b->in_loop);
             vreg->type_info = var_sym->type;
             param_op = vreg;
             IRL_run_statement_lower(param, context, LOWER_UNDEFINED);
@@ -227,7 +229,7 @@ struct IR_Operand *IRL_run_function_lower(struct parser_node *node, struct ir_co
     context->current_scope = last_scope;
 
 
-    struct IR_Block *block = IR_create_IR_Block(context->current_function, node->data.function.body->data.block.mangled_name);
+    struct IR_Block *block = IR_create_IR_Block(context->arena, context->current_function, node->data.function.body->data.block.mangled_name);
     context->current_block = block;
 
 
@@ -235,7 +237,7 @@ struct IR_Operand *IRL_run_function_lower(struct parser_node *node, struct ir_co
     // emit_cast(context, node->data.function.return_type, &return_value);
     context->current_function->return_value = return_value;
 
-    struct IR_Instruction *ret = IR_create_IR_Instruction(context->current_block, IR_INSTRUCTION_TYPE_RET);
+    struct IR_Instruction *ret = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_RET);
     IR_Block_add_instruction(context->current_block, ret);
     ret->operands.ret.function = context->current_function;
     ret->operands.ret.return_value = return_value;
@@ -254,6 +256,7 @@ struct IR_Operand *IRL_run_function_lower(struct parser_node *node, struct ir_co
         curr_block = curr_block->next;
     }
 
+    arena_reset(context->temp_arena);
     return return_value;
 }
 
@@ -315,10 +318,10 @@ static inline struct IR_Operand *IRL_run_alu_lower(struct ir_context *context, s
     if(left_operand->type_info->type_id != right_operand->type_info->type_id) emit_cast(context, right_operand->type_info, &left_operand);
     
 
-    struct IR_Instruction *instruction = IR_create_IR_Instruction(context->current_block, alu_type);
+    struct IR_Instruction *instruction = IR_create_IR_Instruction(context->arena, context->current_block, alu_type);
     IR_Block_add_instruction(context->current_block, instruction);
 
-    struct IR_Operand *dest = IR_create_new_vreg(context->current_function, instruction, NULL, context->current_block->in_loop);
+    struct IR_Operand *dest = IR_create_new_vreg(context->arena, context->current_function, instruction, NULL, context->current_block->in_loop);
     dest->type_info = dest_type_info;
 
 
@@ -337,12 +340,12 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
         case PARSER_NODE_FUNCTION: {
             return IRL_run_function_lower(node, context);
         }case PARSER_NODE_BLOCK: {
-            struct IR_Block *block = IR_create_IR_Block(context->current_function, node->data.block.mangled_name);
+            struct IR_Block *block = IR_create_IR_Block(context->arena, context->current_function, node->data.block.mangled_name);
             context->current_block = block;
             return IRL_run_block_lower(node, context);
         }case PARSER_NODE_LOOP: {
-            struct vector_t *declared_variables = vector_create_vector(2, sizeof(struct symbol_t *));
-            struct vector_t *mutated_variables = vector_create_vector(2, sizeof(struct symbol_t *));
+            struct vector_t *declared_variables = vector_create_vector(context->temp_arena, 2, sizeof(struct symbol_t *));
+            struct vector_t *mutated_variables = vector_create_vector(context->temp_arena, 2, sizeof(struct symbol_t *));
             IRL_find_mutations(node->data.loop.body_block, mutated_variables, declared_variables);
             IRL_find_mutations(node->data.loop.continue_block, mutated_variables, declared_variables);
 
@@ -353,22 +356,22 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
                 }
             }
 
-            struct vector_t *entry_params = IRL_block_filter(mutated_variables, declared_variables);
+            struct vector_t *entry_params = IRL_block_filter(context->temp_arena, mutated_variables, declared_variables);
             
             struct IR_Block *b_entry = context->current_block;
 
-            struct IR_Block *b_body = IR_create_IR_Block(context->current_function, node->data.loop.body_block->data.block.mangled_name);
+            struct IR_Block *b_body = IR_create_IR_Block(context->arena, context->current_function, node->data.loop.body_block->data.block.mangled_name);
             b_body->in_loop = b_entry->in_loop + 1;
 
-            struct IR_Block *b_continue = IR_create_IR_Block(context->current_function, node->data.loop.continue_block->data.block.mangled_name);
+            struct IR_Block *b_continue = IR_create_IR_Block(context->arena, context->current_function, node->data.loop.continue_block->data.block.mangled_name);
             b_continue->in_loop = b_entry->in_loop + 1;
 
-            struct IR_Block *b_return = IR_create_IR_Block(context->current_function, node->data.loop.return_block->data.block.mangled_name);
+            struct IR_Block *b_return = IR_create_IR_Block(context->arena, context->current_function, node->data.loop.return_block->data.block.mangled_name);
             b_return->in_loop = b_entry->in_loop;
 
-            struct IR_Instruction *entry_jmp = IR_create_IR_Instruction(b_entry, IR_INSTRUCTION_TYPE_JMP);
+            struct IR_Instruction *entry_jmp = IR_create_IR_Instruction(context->arena, b_entry, IR_INSTRUCTION_TYPE_JMP);
             entry_jmp->operands.jmp.target_block = b_body;
-            IRL_instruction_jmp_add_args(entry_jmp, entry_params);
+            IRL_instruction_jmp_add_args(context->arena, entry_jmp, entry_params);
             IR_Block_add_instruction(b_entry, entry_jmp);
 
             //
@@ -378,7 +381,7 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
                 if(IR_OPERAND_TYPE_STACK_SLOT == old_op->type) continue;
                 
 
-                struct IR_Operand *arg_op = IR_create_new_vreg(b_body->parent_function, old_op->definition_instruction, var, context->current_block->in_loop);
+                struct IR_Operand *arg_op = IR_create_new_vreg(context->arena, b_body->parent_function, old_op->definition_instruction, var, context->current_block->in_loop);
                 arg_op->type_info = var->type;
                 var->current_vreg = arg_op;
 
@@ -393,7 +396,7 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
             struct IR_Operand *body_res = IRL_run_block_lower(node->data.loop.body_block, context);
             struct IR_Block *body_end_b = context->current_block;
 
-            struct vector_t *body_end_vregs = vector_create_vector(2, sizeof(struct IR_Operand *));
+            struct vector_t *body_end_vregs = vector_create_vector(context->temp_arena, 2, sizeof(struct IR_Operand *));
             for (int i = 0; i < b_body->params->element_count; ++i) {
                 struct IR_Operand *arg_op = *(struct IR_Operand **) vector_get(b_body->params, i);
                 struct symbol_t *var = arg_op->data.vreg.variable;
@@ -406,10 +409,10 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
             struct IR_Block *continue_end_b = context->current_block;
 
             //
-            struct vector_t *continue_params = IRL_block_filter(mutated_variables, declared_variables);
-            struct IR_Instruction *jmp = IR_create_IR_Instruction(b_continue, IR_INSTRUCTION_TYPE_JMP);
+            struct vector_t *continue_params = IRL_block_filter(context->temp_arena,mutated_variables, declared_variables);
+            struct IR_Instruction *jmp = IR_create_IR_Instruction(context->arena, b_continue, IR_INSTRUCTION_TYPE_JMP);
             jmp->operands.jmp.target_block = b_body;
-            IRL_instruction_jmp_add_args(jmp, continue_params);
+            IRL_instruction_jmp_add_args(context->arena, jmp, continue_params);
             IR_Block_add_instruction(continue_end_b, jmp);
             //
 
@@ -427,17 +430,12 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
             context->current_block = b_return;
             struct IR_Operand *return_res = IRL_run_block_lower(node->data.loop.return_block, context);
 
-            struct IR_Instruction *branch = IR_create_IR_Instruction(body_end_b, IR_INSTRUCTION_TYPE_BR);
+            struct IR_Instruction *branch = IR_create_IR_Instruction(context->arena, body_end_b, IR_INSTRUCTION_TYPE_BR);
             IR_Block_add_instruction(body_end_b, branch);
             branch->operands.br.condition   = body_res;
             branch->operands.br.true_block  = b_continue;
             branch->operands.br.false_block = b_return;
 
-            vector_free(&mutated_variables);
-            vector_free(&declared_variables);
-            vector_free(&entry_params);
-            vector_free(&continue_params);
-            vector_free(&body_end_vregs);
 
             struct IR_Instruction *loop_head_instruction = b_body->head_instruction;
             struct IR_Instruction *loop_tail_instruction = b_continue->tail_instruction;
@@ -454,19 +452,19 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
             return return_res;
         }case PARSER_NODE_NUMBER: {
             struct type_info *info = node->type_info;
-            struct IR_Operand *operand = IR_create_IR_Operand(IR_OPERAND_TYPE_IMM, NULL, context->current_function, context->current_block->in_loop);
+            struct IR_Operand *operand = IR_create_IR_Operand(context->arena, IR_OPERAND_TYPE_IMM, NULL, context->current_function, context->current_block->in_loop);
             operand->type_info = info;
             operand->data.imm_value = node->data.literal_data;
             return operand;
         }case PARSER_NODE_STRING: {
             struct type_info *info = node->type_info;
-            struct IR_Operand *operand = IR_create_IR_Operand(IR_OPERAND_TYPE_IMM, NULL, context->current_function, context->current_block->in_loop);
+            struct IR_Operand *operand = IR_create_IR_Operand(context->arena, IR_OPERAND_TYPE_IMM, NULL, context->current_function, context->current_block->in_loop);
             operand->type_info = info;
             operand->data.imm_value = node->data.literal_data;
             return operand;
         }case PARSER_NODE_CALL: {
-            struct IR_Instruction *call = IR_create_IR_Instruction(context->current_block, IR_INSTRUCTION_TYPE_CALL);
-            call->operands.call.arguments = vector_create_vector(2, sizeof(struct IR_Operand *));
+            struct IR_Instruction *call = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_CALL);
+            call->operands.call.arguments = vector_create_vector(context->arena, 2, sizeof(struct IR_Operand *));
 
             int arg_count = node->data.call.arg_count;
             struct str_view calling_function_name = node->data.call.name;
@@ -480,7 +478,7 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
                 emit_cast(context, arg->type_info, &op);
             }
 
-            struct IR_Operand *return_val = IR_create_new_vreg(context->current_function, call, NULL, context->current_block->in_loop);
+            struct IR_Operand *return_val = IR_create_new_vreg(context->arena, context->current_function, call, NULL, context->current_block->in_loop);
             return_val->type_info = calling_function->function.return_type;
 
             call->operands.call.return_val = return_val;
@@ -494,12 +492,12 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
             if(node->left_node) left_operand = IRL_run_statement_lower(node->left_node, context, LOWER_L);
             if(node->right_node) right_operand = IRL_run_statement_lower(node->right_node, context, LOWER_L);
 
-            struct IR_Instruction *instruction = IR_create_IR_Instruction(context->current_block, IR_INSTRUCTION_TYPE_UNARY_ADDRESS_OF);
+            struct IR_Instruction *instruction = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_UNARY_ADDRESS_OF);
             IR_Block_add_instruction(context->current_block, instruction);
 
             struct symbol_t *sym = node->right_node->data.variable.symbol;
 
-            struct IR_Operand *destination = IR_create_new_vreg(context->current_function, instruction, sym, context->current_block->in_loop);
+            struct IR_Operand *destination = IR_create_new_vreg(context->arena, context->current_function, instruction, sym, context->current_block->in_loop);
             destination->type_info = type_table_get_type_info(context->type_table, destination->data.vreg.variable->type->name, destination->data.vreg.variable->pointer_level+1);
 
             instruction->operands.double_operands.source_1 = right_operand;
@@ -510,8 +508,8 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
             struct IR_Operand *ptr_op = IRL_run_statement_lower(node->right_node, context, LOWER_R);
 
             if (lower_type == LOWER_R) {
-                struct IR_Instruction *load_inst = IR_create_IR_Instruction(context->current_block, IR_INSTRUCTION_TYPE_UNARY_DEREFERENCE);
-                struct IR_Operand *dest = IR_create_new_vreg(context->current_function, load_inst, node->right_node->data.variable.symbol, context->current_block->in_loop);
+                struct IR_Instruction *load_inst = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_UNARY_DEREFERENCE);
+                struct IR_Operand *dest = IR_create_new_vreg(context->arena, context->current_function, load_inst, node->right_node->data.variable.symbol, context->current_block->in_loop);
                 dest->type_info = node->type_info;
 
                 load_inst->operands.double_operands.destination = dest;
@@ -524,11 +522,11 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
             }
             break;
         }case PARSER_NODE_UNARY_BANG: {
-            struct IR_Instruction *instruction = IR_create_IR_Instruction(context->current_block, IR_INSTRUCTION_TYPE_UNARY_BANG);
+            struct IR_Instruction *instruction = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_UNARY_BANG);
 
             struct IR_Operand *src = IRL_run_statement_lower(node->right_node, context, LOWER_R);
 
-            struct IR_Operand *destination = IR_create_new_vreg(context->current_function, instruction, src->data.vreg.variable, context->current_block->in_loop);
+            struct IR_Operand *destination = IR_create_new_vreg(context->arena, context->current_function, instruction, src->data.vreg.variable, context->current_block->in_loop);
             destination->type_info = node->type_info;
 
             instruction->operands.double_operands.source_1 = src;
@@ -537,11 +535,11 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
             IR_Block_add_instruction(context->current_block, instruction);
             return destination;
         }case PARSER_NODE_UNARY_MINUS: {
-            struct IR_Instruction *instruction = IR_create_IR_Instruction(context->current_block, IR_INSTRUCTION_TYPE_UNARY_MINUS);
+            struct IR_Instruction *instruction = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_UNARY_MINUS);
 
             struct IR_Operand *src = IRL_run_statement_lower(node->right_node, context, LOWER_R);
 
-            struct IR_Operand *destination = IR_create_new_vreg(context->current_function, instruction, src->data.vreg.variable, context->current_block->in_loop);
+            struct IR_Operand *destination = IR_create_new_vreg(context->arena, context->current_function, instruction, src->data.vreg.variable, context->current_block->in_loop);
             destination->type_info = node->type_info;
 
             instruction->operands.double_operands.source_1 = src;
@@ -593,7 +591,7 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
             if (node->left_node->type == PARSER_NODE_UNARY_DEREFERENCE) {
                 struct IR_Operand *ptr_operand = IRL_run_statement_lower(node->left_node, context, LOWER_L);
 
-                struct IR_Instruction *store= IR_create_IR_Instruction(context->current_block, IR_INSTRUCTION_TYPE_STORE);
+                struct IR_Instruction *store= IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_STORE);
 
                 store->operands.double_operands.destination = ptr_operand;
                 store->operands.double_operands.source_1 = right_operand; 
@@ -609,7 +607,7 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
 
             break;
         }case PARSER_NODE_ASM: {
-            struct IR_Instruction *instruction = IR_create_IR_Instruction(context->current_block, IR_INSTRUCTION_TYPE_ASM);
+            struct IR_Instruction *instruction = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_ASM);
             IR_Block_add_instruction(context->current_block, instruction);
 
             instruction->operands.asm_operands.asm_imm = node->data.literal_data;
@@ -629,6 +627,8 @@ int IRL_build_ir(struct IR_Project *project, struct parser_t *parser) {
     context.project = project;
     context.type_table = parser->type_table;
     context.error = 0;
+    context.arena = project->arena;
+    context.temp_arena = project->temp_arena;
 
 
     int module_count = parser->nodes->element_count;

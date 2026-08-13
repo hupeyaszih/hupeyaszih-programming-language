@@ -8,8 +8,8 @@
 
 // create/free
 
-struct stack_slot_t *IR_create_stack_slot(struct type_info *type, struct IR_Function *function, bool is_argument) {
-    struct stack_slot_t *slot = calloc(1, sizeof(struct stack_slot_t));
+struct stack_slot_t *IR_create_stack_slot(struct arena *arena, struct type_info *type, struct IR_Function *function, bool is_argument) {
+    struct stack_slot_t *slot = arena_alloc(arena, sizeof(struct stack_slot_t));
     slot->type = type;
     slot->current_vreg = NULL;
     slot->is_busy = false;
@@ -26,56 +26,33 @@ struct stack_slot_t *IR_create_stack_slot(struct type_info *type, struct IR_Func
     vector_add(function->stack_slots, &slot);
     return slot;
 }
-void IR_delete_stack_slot(struct stack_slot_t **slot) {
-    free((*slot));
-    (*slot) = NULL;
-}
 
-struct IR_Project *IR_create_IR_Project() {
-    struct IR_Project *project = calloc(1, sizeof(struct IR_Project));
-    project->modules = vector_create_vector(1, sizeof(struct IR_Module *));
+struct IR_Project *IR_create_IR_Project(struct arena *arena, struct arena *temp_arena) {
+    struct IR_Project *project = arena_alloc(arena, sizeof(struct IR_Project));
+    project->modules = vector_create_vector(arena, 1, sizeof(struct IR_Module *));
+    project->arena = arena;
+    project->temp_arena = temp_arena;
 
     return project;
 }
-void IR_delete_IR_Project(struct IR_Project **project) {
-    if(!project || !(*project)) return;
-    for(int i = 0;i < (*project)->modules->element_count; ++i) {
-        struct IR_Module *module = *(struct IR_Module **)vector_get((*project)->modules, i);
-        IR_delete_IR_Module(&module);
-    }
 
-    vector_free(&(*project)->modules);
-    free((*project));
-    (*project) = NULL;
-}
-
-struct IR_Module *IR_create_IR_Module(char *name) {
-    struct IR_Module *module = calloc(1, sizeof(struct IR_Module));
-    module->functions = vector_create_vector(1, sizeof(struct IR_Function *));
+struct IR_Module *IR_create_IR_Module(struct arena *arena, char *name) {
+    struct IR_Module *module = arena_alloc(arena, sizeof(struct IR_Module));
+    module->functions = vector_create_vector(arena, 4, sizeof(struct IR_Function *));
     module->name = name;
 
     return module;
 }
-void IR_delete_IR_Module(struct IR_Module **module) {
-    for(int i = 0;i < (*module)->functions->element_count; ++i) {
-        struct IR_Function *function = *(struct IR_Function **)vector_get((*module)->functions, i);
-        IR_delete_IR_Function(&function);
-    }
 
-    vector_free(&(*module)->functions);
-    free((*module));
-    (*module) = NULL;
-}
-
-struct IR_Function *IR_create_IR_Function(struct str_view name, struct str_view mangled_name, int parameter_count) {
-    struct IR_Function *function = calloc(1, sizeof(struct IR_Function));
+struct IR_Function *IR_create_IR_Function(struct arena *arena, struct str_view name, struct str_view mangled_name, int parameter_count) {
+    struct IR_Function *function = arena_alloc(arena, sizeof(struct IR_Function));
     function->name = name;
     function->mangled_name = mangled_name;
 
-    function->parameters = vector_create_vector(6, sizeof(struct IR_Operand *));
-    function->operands = vector_create_vector(16, sizeof(struct IR_Operand *));
-    function->stack_slots = vector_create_vector(8, sizeof(struct stack_slot_t *));
-    function->unique_vregs = vector_create_vector(16, sizeof(struct IR_Operand *));
+    function->parameters   = vector_create_vector(arena, 6, sizeof(struct IR_Operand *));
+    function->operands     = vector_create_vector(arena, 16, sizeof(struct IR_Operand *));
+    function->stack_slots  = vector_create_vector(arena, 8, sizeof(struct stack_slot_t *));
+    function->unique_vregs = vector_create_vector(arena, 16, sizeof(struct IR_Operand *));
     function->used_callee_saved_registers = NULL;
 
     function->parameter_count = parameter_count;
@@ -88,45 +65,13 @@ struct IR_Function *IR_create_IR_Function(struct str_view name, struct str_view 
     function->is_visiting = false;
     return function;
 }
-void IR_delete_IR_Function(struct IR_Function **function) {
-    if (function == NULL || *function == NULL) return;
 
-    struct IR_Block *block = (*function)->head_block;
-    while (block != NULL) {
-        struct IR_Block *next_block = block->next;
-        IR_delete_IR_Block(&block);
-        block = next_block;
-    }
-
-    for(int i = 0; i < (*function)->operands->element_count; ++i) {
-        struct IR_Operand *operand = *(struct IR_Operand **)vector_get((*function)->operands, i);
-        IR_delete_IR_Operand(&operand);
-    }
-
-    for(int i = 0; i < (*function)->stack_slots->element_count; ++i) {
-        struct stack_slot_t *slot = *(struct stack_slot_t **)vector_get((*function)->stack_slots, i);
-        IR_delete_stack_slot(&slot);
-    }
-
-    vector_free(&(*function)->unique_vregs);
-    vector_free(&(*function)->operands);
-    vector_free(&(*function)->parameters);
-    vector_free(&(*function)->stack_slots);
-
-    bitset_free(&(*function)->used_callee_saved_registers);
-    bitset_free(&(*function)->used_caller_saved_registers);
-    bitset_free(&(*function)->directly_used_caller_saved_registers);
-
-    free((*function));
-    (*function) = NULL;
-}
-
-struct IR_Block *IR_create_IR_Block(struct IR_Function *parent_function, struct str_view mangled_name) {
-    struct IR_Block *block = calloc(1, sizeof(struct IR_Block));
+struct IR_Block *IR_create_IR_Block(struct arena *arena, struct IR_Function *parent_function, struct str_view mangled_name) {
+    struct IR_Block *block = arena_alloc(arena, sizeof(struct IR_Block));
     block->mangled_name = mangled_name;
     block->parent_function = parent_function;
-    block->predecessor = vector_create_vector(1, sizeof(struct IR_Block *));
-    block->successors = vector_create_vector(1, sizeof(struct IR_Block *));
+    block->predecessor = vector_create_vector(arena, 1, sizeof(struct IR_Block *));
+    block->successors  = vector_create_vector(arena, 1, sizeof(struct IR_Block *));
 
     block->use = NULL;
     block->def = NULL;
@@ -141,31 +86,13 @@ struct IR_Block *IR_create_IR_Block(struct IR_Function *parent_function, struct 
     block->instruction_count = 0;
     block->in_loop = 0;
 
-    block->params = vector_create_vector(2, sizeof(struct IR_Operand *));
+    block->params = vector_create_vector(arena, 2, sizeof(struct IR_Operand *));
 
     return block;
 }
-void IR_delete_IR_Block(struct IR_Block **block) {
-    struct IR_Instruction *instruction = (*block)->head_instruction;
-    while(instruction != NULL) {
-        struct IR_Instruction *next_instruction = instruction->next;
-        IR_delete_IR_Instruction(&instruction);
-        instruction = next_instruction;
-    }
 
-    vector_free(&(*block)->predecessor);
-    vector_free(&(*block)->successors);
-    vector_free(&(*block)->params);
-
-    bitset_free(&(*block)->use);
-    bitset_free(&(*block)->def);
-
-    free((*block));
-    (*block) = NULL;
-}
-
-struct IR_Instruction *IR_create_IR_Instruction(struct IR_Block *parent_block, enum IR_Instruction_type type) {
-    struct IR_Instruction *instruction = calloc(1, sizeof(struct IR_Instruction));
+struct IR_Instruction *IR_create_IR_Instruction(struct arena *arena, struct IR_Block *parent_block, enum IR_Instruction_type type) {
+    struct IR_Instruction *instruction = arena_alloc(arena, sizeof(struct IR_Instruction));
     instruction->parent_block = parent_block;
     instruction->next = NULL;
     instruction->prev = NULL;
@@ -176,22 +103,13 @@ struct IR_Instruction *IR_create_IR_Instruction(struct IR_Block *parent_block, e
     return instruction;
 }
 
-void IR_delete_IR_Instruction(struct IR_Instruction **instruction) {
-    if(IR_INSTRUCTION_TYPE_JMP == (*instruction)->type && (*instruction)->operands.jmp.args) {
-        vector_free(&(*instruction)->operands.jmp.args);
-    }else if(IR_INSTRUCTION_TYPE_CALL == (*instruction)->type) {
-        vector_free(&(*instruction)->operands.call.arguments);
-    }
-    free((*instruction));
-    (*instruction) = NULL;
-}
 
-struct IR_Operand *IR_create_IR_Operand(enum IR_Operand_type type, struct IR_Instruction *definition_instruction, struct IR_Function *parent_function, int in_loop) {
-    struct IR_Operand *operand = calloc(1, sizeof(struct IR_Operand));
+struct IR_Operand *IR_create_IR_Operand(struct arena *arena, enum IR_Operand_type type, struct IR_Instruction *definition_instruction, struct IR_Function *parent_function, int in_loop) {
+    struct IR_Operand *operand = arena_alloc(arena, sizeof(struct IR_Operand));
     operand->type = type;
     operand->type_info = NULL;
     operand->definition_instruction = definition_instruction;
-    operand->use_list = vector_create_vector(1, sizeof(struct IR_Instruction *));
+    operand->use_list = vector_create_vector(arena, 1, sizeof(struct IR_Instruction *));
     operand->in_loop = in_loop;
 
     if(parent_function) {
@@ -206,11 +124,6 @@ struct IR_Operand *IR_create_IR_Operand(enum IR_Operand_type type, struct IR_Ins
     }
 
     return operand;
-}
-void IR_delete_IR_Operand(struct IR_Operand **operand) {
-    vector_free(&(*operand)->use_list);
-    free((*operand));
-    (*operand) = NULL;
 }
 
 void IR_init_live_interval(struct live_interval_t *interval, struct IR_Operand *operand, int start, int end, int weight) {
@@ -295,8 +208,8 @@ void IR_Block_add_instruction_after(struct IR_Block *block, struct IR_Instructio
 
 // Helpers
 
-struct IR_Operand *IR_create_new_vreg(struct IR_Function *parent_function, struct IR_Instruction *definition_instruction, struct symbol_t *variable, int in_loop) {
-    struct IR_Operand *operand = IR_create_IR_Operand(IR_OPERAND_TYPE_VREG, definition_instruction, parent_function, in_loop);
+struct IR_Operand *IR_create_new_vreg(struct arena *arena, struct IR_Function *parent_function, struct IR_Instruction *definition_instruction, struct symbol_t *variable, int in_loop) {
+    struct IR_Operand *operand = IR_create_IR_Operand(arena, IR_OPERAND_TYPE_VREG, definition_instruction, parent_function, in_loop);
     IR_init_live_interval(&operand->data.vreg.live_interval, operand, -1, -1, -1);
 
     operand->data.vreg.variable = variable;

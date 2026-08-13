@@ -1,18 +1,16 @@
 #include "opt/register_allocator.h"
 #include "backend/codegen.h"
 #include "core/ir_gen.h"
+#include "h_arena.h"
 #include "h_bitset.h"
 #include "h_vector.h"
 #include <stdbool.h>
 #include <stdlib.h>
 
 struct register_allocator_t *register_allocator_create_register_allocator(struct codegen_t *codegen) {
-    struct register_allocator_t *allocator = calloc(1, sizeof(struct register_allocator_t));
+    struct register_allocator_t *allocator = arena_alloc(codegen->arena, sizeof(struct register_allocator_t));
     allocator->codegen = codegen;
     return allocator;
-}
-void register_allocator_delete_register_allocator(struct register_allocator_t **register_allocator) {
-    free(*register_allocator);
 }
 
 int register_allocator_compare_operands_by_weight(const void *a, const void *b) {
@@ -80,14 +78,14 @@ bool register_allocator_vreg_crosses_call(struct IR_Function *function, struct I
 }
 
 
-void register_allocator_compute_caller_saved_registers(struct codegen_build_target_t *target, struct IR_Function  *current) {
+void register_allocator_compute_caller_saved_registers(struct arena *arena, struct codegen_build_target_t *target, struct IR_Function  *current) {
     if (!current) return;
     if (current->is_visiting) return;
     if (current->is_fully_processed) return;
     current->is_visiting = true;
 
     if (!current->used_caller_saved_registers) {
-        current->used_caller_saved_registers = bitset_create(target->registers->register_count);
+        current->used_caller_saved_registers = bitset_create(arena, target->registers->register_count);
     }
 
     if (current->directly_used_caller_saved_registers) {
@@ -103,7 +101,7 @@ void register_allocator_compute_caller_saved_registers(struct codegen_build_targ
                 struct IR_Function *callee = instruction->operands.call.target_function;
 
                 if (callee) {
-                    register_allocator_compute_caller_saved_registers(target, callee);
+                    register_allocator_compute_caller_saved_registers(arena, target, callee);
 
                     if (callee->used_caller_saved_registers) {
                         bitset_or(current->used_caller_saved_registers, 
@@ -155,18 +153,18 @@ void register_allocator_run_allocator(struct register_allocator_t *allocator, st
     }
 
 
-    function->used_callee_saved_registers = bitset_create(target->registers->register_count);
-    function->used_caller_saved_registers = bitset_create(target->registers->register_count);
-    function->directly_used_caller_saved_registers = bitset_create(target->registers->register_count);
+    function->used_callee_saved_registers          = bitset_create(allocator->codegen->temp_arena, target->registers->register_count);
+    function->used_caller_saved_registers          = bitset_create(allocator->codegen->temp_arena, target->registers->register_count);
+    function->directly_used_caller_saved_registers = bitset_create(allocator->codegen->temp_arena, target->registers->register_count);
 
-    struct vector_t *clobbers = vector_create_vector(function->unique_vregs->element_count / 8+1, sizeof(struct clobber_t));
+    struct vector_t *clobbers = vector_create_vector(allocator->codegen->temp_arena, function->unique_vregs->element_count / 8+1, sizeof(struct clobber_t));
     calculate_clobbers(function, target, clobbers);
 
     // calculate weights
     int vreg_count = function->unique_vregs->element_count;
     if(vreg_count <= 0) return;
-    struct vector_t *vregs = vector_create_vector(vreg_count, sizeof(struct IR_Operand *));
-    struct vector_t *slots = vector_create_vector((vreg_count/4)+1, sizeof(struct stack_slot_t *));
+    struct vector_t *vregs = vector_create_vector(allocator->codegen->temp_arena, vreg_count, sizeof(struct IR_Operand *));
+    struct vector_t *slots = vector_create_vector(allocator->codegen->temp_arena, (vreg_count/4)+1, sizeof(struct stack_slot_t *));
 
 
     for(int i = 0;i < vreg_count; ++i) {
@@ -189,14 +187,14 @@ void register_allocator_run_allocator(struct register_allocator_t *allocator, st
     qsort(vregs->data, vregs->element_count, vregs->type_size, &register_allocator_compare_operands_by_live_interval);
     // Register Allocator
 
-    bool *is_allocated = calloc(vreg_count, sizeof(bool));
+    bool *is_allocated = arena_alloc(codegen->temp_arena, vreg_count * sizeof(bool));
     int parameter_count = function->parameters->element_count;
     for(int i = 0; i < parameter_count; ++i) {
         struct IR_Operand *param = *(struct IR_Operand **) vector_get(function->parameters, i);
         is_allocated[param->data.vreg.vreg_id] = true;
 
         if (i >= target->argument_register_count) {
-            register_allocator_spill(param, slots, function, true);
+            register_allocator_spill(allocator->codegen->arena, param, slots, function, true);
             continue;
         }
 
@@ -225,7 +223,7 @@ void register_allocator_run_allocator(struct register_allocator_t *allocator, st
 
         struct register_t *reg = target->get_best_available_register(target->registers, preferred_reg, clobbers, vreg);
         if(!reg) {
-            register_allocator_spill(vreg, slots, function, false);
+            register_allocator_spill(allocator->codegen->arena, vreg, slots, function, false);
             continue;
         } 
         reg->is_busy = true;
@@ -240,13 +238,9 @@ void register_allocator_run_allocator(struct register_allocator_t *allocator, st
         }
     }
 
-    vector_free(&clobbers);
-    vector_free(&vregs);
-    vector_free(&slots);
-    free(is_allocated);
 }
 
-struct stack_slot_t *register_allocator_spill(struct IR_Operand *vreg, struct vector_t *stack_slots, struct IR_Function *function, bool is_argument) {
+struct stack_slot_t *register_allocator_spill(struct arena *arena, struct IR_Operand *vreg, struct vector_t *stack_slots, struct IR_Function *function, bool is_argument) {
     if(!vreg || !vreg) return NULL;
     vreg->type = IR_OPERAND_TYPE_STACK_SLOT;
     vreg->data.slot.live_interval = vreg->data.vreg.live_interval;
@@ -262,7 +256,7 @@ struct stack_slot_t *register_allocator_spill(struct IR_Operand *vreg, struct ve
         }
     }
 
-    struct stack_slot_t *slot = IR_create_stack_slot(vreg->type_info, function, is_argument);
+    struct stack_slot_t *slot = IR_create_stack_slot(arena, vreg->type_info, function, is_argument);
     slot->current_vreg = vreg;
     vreg->data.slot.stack_slot = slot;
     slot->is_busy = true;

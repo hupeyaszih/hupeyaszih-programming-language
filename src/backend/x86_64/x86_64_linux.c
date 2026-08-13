@@ -8,11 +8,11 @@
 #include "h_vector.h"
 #include <stdbool.h>
 
-struct codegen_build_target_t *x86_64_linux_create_build_target() {
-    struct codegen_build_target_t *target = codegen_create_build_target();
+struct codegen_build_target_t *x86_64_linux_create_build_target(struct arena *arena) {
+    struct codegen_build_target_t *target = codegen_create_build_target(arena);
 
     target->name = "x86_64_linux";
-    target->registers = x86_64_linux_create_register_list(target);
+    target->registers = x86_64_linux_create_register_list(arena, target);
     target->get_register_name = &x86_64_linux_get_register_name;
     target->get_best_available_register = &x86_64_linux_get_best_available_register;
     target->get_fixed_register_for_instruction = &x86_64_linux_get_fixed_register_for_instruction;
@@ -40,31 +40,31 @@ struct codegen_build_target_t *x86_64_linux_create_build_target() {
     return target;
 }
 
-struct register_list_t *x86_64_linux_create_register_list(struct codegen_build_target_t *arch) {
+struct register_list_t *x86_64_linux_create_register_list(struct arena *arena, struct codegen_build_target_t *arch) {
     const int register_count = 16; // general purpose register count
-    struct register_list_t *list = codegen_create_register_list(arch, register_count);
+    struct register_list_t *list = codegen_create_register_list(arena, arch, register_count);
     arch->registers = list;
 
-    struct register_t *rax = codegen_create_register_and_add_to_list(X86_64_RAX, REGISTER_SIZE_64, REGISTER_TYPE_CALLER_SAVED, REGISTER_BANK_GPR, false, -1, true , false, list);
+    struct register_t *rax = codegen_create_register_and_add_to_list(arena, X86_64_RAX, REGISTER_SIZE_64, REGISTER_TYPE_CALLER_SAVED, REGISTER_BANK_GPR, false, -1, true , false, list);
 
-    struct register_t *rdi = codegen_create_register_and_add_to_list(X86_64_RDI, REGISTER_SIZE_64, REGISTER_TYPE_CALLER_SAVED, REGISTER_BANK_GPR, true ,  0, false, false, list);
-    struct register_t *rsi = codegen_create_register_and_add_to_list(X86_64_RSI, REGISTER_SIZE_64, REGISTER_TYPE_CALLER_SAVED, REGISTER_BANK_GPR, true ,  1, false, false, list);
-    struct register_t *rdx = codegen_create_register_and_add_to_list(X86_64_RDX, REGISTER_SIZE_64, REGISTER_TYPE_CALLER_SAVED, REGISTER_BANK_GPR, true ,  2, false, false, list);
-    struct register_t *rcx = codegen_create_register_and_add_to_list(X86_64_RCX, REGISTER_SIZE_64, REGISTER_TYPE_CALLER_SAVED, REGISTER_BANK_GPR, true ,  3, false, false, list);
-    struct register_t *r8  = codegen_create_register_and_add_to_list(X86_64_R8 , REGISTER_SIZE_64, REGISTER_TYPE_CALLER_SAVED, REGISTER_BANK_GPR, true ,  4, false, false, list);
-    struct register_t *r9  = codegen_create_register_and_add_to_list(X86_64_R9 , REGISTER_SIZE_64, REGISTER_TYPE_CALLER_SAVED, REGISTER_BANK_GPR, true ,  5, false, false, list);
+    struct register_t *rdi = codegen_create_register_and_add_to_list(arena, X86_64_RDI, REGISTER_SIZE_64, REGISTER_TYPE_CALLER_SAVED, REGISTER_BANK_GPR, true ,  0, false, false, list);
+    struct register_t *rsi = codegen_create_register_and_add_to_list(arena, X86_64_RSI, REGISTER_SIZE_64, REGISTER_TYPE_CALLER_SAVED, REGISTER_BANK_GPR, true ,  1, false, false, list);
+    struct register_t *rdx = codegen_create_register_and_add_to_list(arena, X86_64_RDX, REGISTER_SIZE_64, REGISTER_TYPE_CALLER_SAVED, REGISTER_BANK_GPR, true ,  2, false, false, list);
+    struct register_t *rcx = codegen_create_register_and_add_to_list(arena, X86_64_RCX, REGISTER_SIZE_64, REGISTER_TYPE_CALLER_SAVED, REGISTER_BANK_GPR, true ,  3, false, false, list);
+    struct register_t *r8  = codegen_create_register_and_add_to_list(arena, X86_64_R8 , REGISTER_SIZE_64, REGISTER_TYPE_CALLER_SAVED, REGISTER_BANK_GPR, true ,  4, false, false, list);
+    struct register_t *r9  = codegen_create_register_and_add_to_list(arena, X86_64_R9 , REGISTER_SIZE_64, REGISTER_TYPE_CALLER_SAVED, REGISTER_BANK_GPR, true ,  5, false, false, list);
 
-    struct register_t *r10 = codegen_create_register_and_add_to_list(X86_64_R10, REGISTER_SIZE_64, REGISTER_TYPE_CALLER_SAVED, REGISTER_BANK_GPR, false, -1, false, true, list);
-    struct register_t *r11 = codegen_create_register_and_add_to_list(X86_64_R11, REGISTER_SIZE_64, REGISTER_TYPE_CALLER_SAVED, REGISTER_BANK_GPR, false, -1, false, true, list);
+    struct register_t *r10 = codegen_create_register_and_add_to_list(arena, X86_64_R10, REGISTER_SIZE_64, REGISTER_TYPE_CALLER_SAVED, REGISTER_BANK_GPR, false, -1, false, true, list);
+    struct register_t *r11 = codegen_create_register_and_add_to_list(arena, X86_64_R11, REGISTER_SIZE_64, REGISTER_TYPE_CALLER_SAVED, REGISTER_BANK_GPR, false, -1, false, true, list);
 
-    struct register_t *rsp = codegen_create_register_and_add_to_list(X86_64_RSP, REGISTER_SIZE_64, REGISTER_TYPE_RESERVED    , REGISTER_BANK_GPR, false, -1, false, false, list);
-    struct register_t *rbp = codegen_create_register_and_add_to_list(X86_64_RBP, REGISTER_SIZE_64, REGISTER_TYPE_RESERVED    , REGISTER_BANK_GPR, false, -1, false, false, list);
+    struct register_t *rsp = codegen_create_register_and_add_to_list(arena, X86_64_RSP, REGISTER_SIZE_64, REGISTER_TYPE_RESERVED    , REGISTER_BANK_GPR, false, -1, false, false, list);
+    struct register_t *rbp = codegen_create_register_and_add_to_list(arena, X86_64_RBP, REGISTER_SIZE_64, REGISTER_TYPE_RESERVED    , REGISTER_BANK_GPR, false, -1, false, false, list);
 
-    struct register_t *rbx = codegen_create_register_and_add_to_list(X86_64_RBX, REGISTER_SIZE_64, REGISTER_TYPE_CALLEE_SAVED, REGISTER_BANK_GPR, false, -1, false, false, list);
-    struct register_t *r12 = codegen_create_register_and_add_to_list(X86_64_R12, REGISTER_SIZE_64, REGISTER_TYPE_CALLEE_SAVED, REGISTER_BANK_GPR, false, -1, false, false, list);
-    struct register_t *r13 = codegen_create_register_and_add_to_list(X86_64_R13, REGISTER_SIZE_64, REGISTER_TYPE_CALLEE_SAVED, REGISTER_BANK_GPR, false, -1, false, false, list);
-    struct register_t *r14 = codegen_create_register_and_add_to_list(X86_64_R14, REGISTER_SIZE_64, REGISTER_TYPE_CALLEE_SAVED, REGISTER_BANK_GPR, false, -1, false, false, list);
-    struct register_t *r15 = codegen_create_register_and_add_to_list(X86_64_R15, REGISTER_SIZE_64, REGISTER_TYPE_CALLEE_SAVED, REGISTER_BANK_GPR, false, -1, false, false, list);
+    struct register_t *rbx = codegen_create_register_and_add_to_list(arena, X86_64_RBX, REGISTER_SIZE_64, REGISTER_TYPE_CALLEE_SAVED, REGISTER_BANK_GPR, false, -1, false, false, list);
+    struct register_t *r12 = codegen_create_register_and_add_to_list(arena, X86_64_R12, REGISTER_SIZE_64, REGISTER_TYPE_CALLEE_SAVED, REGISTER_BANK_GPR, false, -1, false, false, list);
+    struct register_t *r13 = codegen_create_register_and_add_to_list(arena, X86_64_R13, REGISTER_SIZE_64, REGISTER_TYPE_CALLEE_SAVED, REGISTER_BANK_GPR, false, -1, false, false, list);
+    struct register_t *r14 = codegen_create_register_and_add_to_list(arena, X86_64_R14, REGISTER_SIZE_64, REGISTER_TYPE_CALLEE_SAVED, REGISTER_BANK_GPR, false, -1, false, false, list);
+    struct register_t *r15 = codegen_create_register_and_add_to_list(arena, X86_64_R15, REGISTER_SIZE_64, REGISTER_TYPE_CALLEE_SAVED, REGISTER_BANK_GPR, false, -1, false, false, list);
 
     codegen_register_add_name(rax ,"al");
     codegen_register_add_name(rax ,"ax");
@@ -826,7 +826,7 @@ void x86_64_linux_emit_instruction(struct codegen_context_t *context, struct IR_
             struct IR_Function *caller_func = instruction->parent_block->parent_function;
             int arg_count = instruction->operands.call.arguments->element_count;
 
-            struct bitset_t *mask = bitset_create(context->build_target->registers->register_count);
+            struct bitset_t *mask = bitset_create(context->codegen->temp_arena, context->build_target->registers->register_count);
             bitset_set(mask, X86_64_RAX);
             // push caller saved registers
             int pushed_caller_saved_register_count = push_or_pop_registers(context, func->used_caller_saved_registers, caller_func->directly_used_caller_saved_registers, mask, REGISTER_SIZE_64, "push", false, false);
@@ -854,13 +854,12 @@ void x86_64_linux_emit_instruction(struct codegen_context_t *context, struct IR_
             }
 
 
-            struct vector_t *out_regs = vector_create_vector(args_via_registers, sizeof(struct register_t *));
+            struct vector_t *out_regs = vector_create_vector(context->codegen->temp_arena, args_via_registers, sizeof(struct register_t *));
             for(int i = 0;i < args_via_registers; ++i) {
                 struct register_t *reg = x86_64_linux_get_reg_with_arg_index(context->build_target->registers, i);
                 vector_add(out_regs, &reg);
             }
-            codegen_utils_emit_call_args(context, instruction->operands.call.arguments, out_regs, args_via_registers);
-            vector_free(&out_regs);
+            codegen_utils_emit_call_args(context->codegen->temp_arena, context, instruction->operands.call.arguments, out_regs, args_via_registers);
 
             codegen_emit(context->file, "    call " SV_FMT "\n", SV_ARG(func->mangled_name));
 
@@ -873,7 +872,6 @@ void x86_64_linux_emit_instruction(struct codegen_context_t *context, struct IR_
 
             struct register_t *rax = context->build_target->registers->registers + X86_64_RAX;
             x86_64_linux_emit_mov_reg_to_operand(context, return_val, rax);
-            bitset_free(&mask);
             break;
         }case IR_INSTRUCTION_TYPE_JMP: {
             struct vector_t *args = instruction->operands.jmp.args;
@@ -883,13 +881,12 @@ void x86_64_linux_emit_instruction(struct codegen_context_t *context, struct IR_
                 int arg_count = args->element_count;
 
 
-                struct vector_t *out_regs = vector_create_vector(arg_count, sizeof(struct register_t *));
+                struct vector_t *out_regs = vector_create_vector(context->codegen->temp_arena, arg_count, sizeof(struct register_t *));
                 for(int i = 0;i < arg_count; ++i) {
                     struct IR_Operand *op = *(struct IR_Operand **)vector_get(target_block->params, i);
                     vector_add(out_regs, &(op->data.vreg.reg));
                 }
-                codegen_utils_emit_call_args(context, args, out_regs, arg_count);
-                vector_free(&out_regs);
+                codegen_utils_emit_call_args(context->codegen->temp_arena, context, args, out_regs, arg_count);
             }
 
             codegen_emit(context->file, "    jmp ." SV_FMT "\n", SV_ARG(target_block->mangled_name));
@@ -907,13 +904,12 @@ void x86_64_linux_emit_instruction(struct codegen_context_t *context, struct IR_
 
                 if(args) {
                     int arg_count = args->element_count;
-                    struct vector_t *out_regs = vector_create_vector(arg_count, sizeof(struct register_t *));
+                    struct vector_t *out_regs = vector_create_vector(context->codegen->temp_arena, arg_count, sizeof(struct register_t *));
                     for(int i = 0;i < arg_count; ++i) {
                         struct IR_Operand *op = *(struct IR_Operand **)vector_get(target_block->params, i);
                         vector_add(out_regs, &(op->data.vreg.reg));
                     }
-                    codegen_utils_emit_call_args(context, args, out_regs, arg_count);
-                    vector_free(&out_regs);
+                    codegen_utils_emit_call_args(context->codegen->temp_arena, context, args, out_regs, arg_count);
                 }
 
                 codegen_emit(context->file, "    je ." SV_FMT "\n", SV_ARG(target_block->mangled_name));

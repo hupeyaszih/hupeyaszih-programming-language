@@ -6,6 +6,7 @@
 #include "core/ir_lower.h"
 #include "core/parser.h"
 #include "core/symbol_table.h"
+#include "h_arena.h"
 #include "h_bitset.h"
 #include "opt/opt.h"
 #include <stdio.h>
@@ -39,7 +40,8 @@ int main(int argc, char *argv[]) {
     char *output_path = "../out/";
     char *build_target = "x86_64_linux";
 
-    struct bitset_t *flags = bitset_create(FLAG_COUNT);
+    struct arena main_arena = arena_create();
+    struct bitset_t *flags = bitset_create(&main_arena, FLAG_COUNT);
 
     for(int i = 1; i < argc; ++i) {
         if(0 == strcmp("-o", argv[i])) {
@@ -95,13 +97,15 @@ int main(int argc, char *argv[]) {
     C_LOG_INFO("To enable internal compiler logs, define \"DEBUG\" in globals.h");
 #endif
 
+    struct main_context context = init_main();
     int build_successful = 1;
 
-    struct IR_Project *project = NULL;
-    struct parser_t *parser = parser_create_parser();
 
-    struct symbol_table *global_scope = symbol_table_create_symbol_table(NULL, &parser->scope_counter);
-    struct type_table *type_table = type_table_create_type_table();
+    struct IR_Project *project = NULL;
+    struct parser_t *parser = parser_create_parser(&context.parser_arena, &context.symbol_arena);
+
+    struct symbol_table *global_scope = symbol_table_create_symbol_table(&context.symbol_arena, NULL, &parser->scope_counter);
+    struct type_table *type_table = type_table_create_type_table(&context.symbol_arena);
     type_table_init_builtins(type_table);
 
 
@@ -110,16 +114,16 @@ int main(int argc, char *argv[]) {
     parser->current_scope = global_scope;
 
     char *input = hrs_file_io_read_file(input_path);
-    struct lexer_file *file = lexer_test(parser, input, input_path, &build_successful);
+    struct lexer_file *file = lexer_test(parser, input, input_path, &build_successful, &context);
     build_successful *= parser->successful;
 
-    struct codegen_t *codegen = codegen_create_codegen(output_path);
+    struct codegen_t *codegen = codegen_create_codegen(&context.codegen_arena, &context.temp_arena, output_path);
     codegen_init_build_targets(codegen);
 
     codegen->current_build_target = *(struct codegen_build_target_t **)vector_get(codegen->build_targets, 0);
 
     if(1 == build_successful){
-        project = IR_create_IR_Project();
+        project = IR_create_IR_Project(&context.ir_arena, &context.temp_arena);
         IRL_build_ir(project, parser);
 
 
@@ -143,15 +147,17 @@ int main(int argc, char *argv[]) {
 
     // Free
 clean_0:
-    codegen_delete_codegen(&codegen);
-    IR_delete_IR_Project(&project);
-    parser_delete_parser(&parser);
-    symbol_table_delete_symbol_table(&global_scope);
-    type_table_delete_type_table(&type_table);
-    lexer_delete_lexer_file(file);
     free(input);
+    
+
 clean_1:
-    bitset_free(&flags);
+    arena_destroy(&context.temp_arena);
+    arena_destroy(&context.symbol_arena);
+    arena_destroy(&context.ir_arena);
+    arena_destroy(&context.codegen_arena);
+    arena_destroy(&context.parser_arena);
+    arena_destroy(&context.lexer_arena);
+    arena_destroy(&main_arena);
 
 
     return 0;

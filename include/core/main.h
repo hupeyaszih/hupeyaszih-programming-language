@@ -5,6 +5,7 @@
 #include "core/ir_lower.h"
 #include "core/semantic_analyzer.h"
 #include "globals.h"
+#include "h_arena.h"
 #include "lexer.h"
 #include "parser.h"
 #include <stdlib.h>
@@ -15,15 +16,35 @@
 #define M_FLAG_CLEAN (1)
 #define M_FLAG_IR_DUMP (2)
 
-static inline struct lexer_file *lexer_test(struct parser_t *restrict parser, char fl[], const char *file_name, int *build_successful){
+struct main_context {
+    struct arena symbol_arena;
+    struct arena lexer_arena;
+    struct arena parser_arena;
+    struct arena ir_arena;
+    struct arena codegen_arena;
+    struct arena temp_arena;
+};
+
+struct main_context init_main(void) {
+    struct main_context context;
+    context.symbol_arena = arena_create();
+    context.lexer_arena = arena_create();
+    context.parser_arena = arena_create();
+    context.ir_arena = arena_create();
+    context.codegen_arena = arena_create();
+    context.temp_arena = arena_create();
+    return context;
+}
+
+static inline struct lexer_file *lexer_test(struct parser_t *restrict parser, char fl[], const char *file_name, int *build_successful, struct main_context *context){
     if(NULL == fl) {
         *build_successful = 0;
         return NULL;
     }
 
     LOG_M("Lexer started...");
-    struct lexer_file *file = malloc(sizeof(struct lexer_file));
-    if(lexer_create_lexer_file(file, fl, file_name)) return NULL;
+    struct lexer_file *file = arena_alloc(&context->lexer_arena, sizeof(struct lexer_file));
+    if(lexer_create_lexer_file(file, fl, file_name, &context->lexer_arena)) return NULL;
     LOG_M("line count: %d, statement count: %d", file->line_count, file->statement_count);
     
     // for(int i = 0;i < file->token_count; ++i){

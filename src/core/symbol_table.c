@@ -8,9 +8,10 @@
 #include <string.h>
 #include <stdatomic.h>
 
-struct symbol_table *symbol_table_create_symbol_table(struct symbol_table *restrict parent, int *global_scope_counter){
-    struct symbol_table *table = calloc(1, sizeof(struct symbol_table));
-    table->symbols = vector_create_vector(8, sizeof(struct symbol_t *));
+struct symbol_table *symbol_table_create_symbol_table(struct arena *arena, struct symbol_table *restrict parent, int *global_scope_counter){
+    struct symbol_table *table = arena_alloc(arena, sizeof(struct symbol_table));
+    table->symbols = vector_create_vector(arena, 8, sizeof(struct symbol_t *));
+    table->arena = arena;
     table->parent = parent;
     table->scope_level = (parent == NULL) ? 0 : parent->scope_level + 1;
     table->total_stack_size = 0;
@@ -28,6 +29,10 @@ struct symbol_t *symbol_table_define(struct symbol_table *restrict table, struct
         C_LOG_ERR("Unknown type for \""SV_FMT"\"", SV_ARG(name));
         return NULL;
     }
+    if (NULL == table->arena) {
+        LOG_M_ERR("symbol_table_define - \"table->arena\" is null");
+        return NULL;
+    }
     if(str_view_is_empty(name)){
         LOG_M_ERR("symbol_table_define - \"char *restrict name\" is null");
         return NULL;
@@ -40,7 +45,7 @@ struct symbol_t *symbol_table_define(struct symbol_table *restrict table, struct
         }
     }
     
-    struct symbol_t *s = calloc(1, sizeof(struct symbol_t));
+    struct symbol_t *s = arena_alloc(table->arena, sizeof(struct symbol_t));
     s->name = name;
     s->mangled_name = NULL;
     s->type = type;
@@ -78,36 +83,23 @@ struct symbol_t* symbol_table_look_up(const struct symbol_table *table, struct s
 }
 
 
-struct type_table *type_table_create_type_table(){
-    struct type_table *table = malloc(sizeof(struct type_table));
+struct type_table *type_table_create_type_table(struct arena *arena){
+    struct type_table *table = arena_alloc(arena, sizeof(struct type_table));
+    table->arena = arena;
     table->capacity = 16;
     table->count = 0;
-    table->types = malloc(sizeof(struct type_info *) * table->capacity);
+    table->types = arena_alloc(arena, sizeof(struct type_info *) * table->capacity);
     return table;
 }
-void type_table_delete_type_table(struct type_table **table){
-    if(NULL == table || NULL == *table) {
-        LOG_M_ERR("type_table_delete_type_table - \"struct type_table **table\" or \"*table\" is null");
-        return;
-    }
-    for(int i = 0; i < (*table)->count; ++i){
-        type_table_delete_type_info(&(*table)->types[i]);
-    }
-    free((*table)->types);
-    (*table)->types = NULL;
-    free((*table));
-    (*table) = NULL;
-}
 
-
-struct type_info *type_table_create_type_info_cstr(char *name, enum type_category category, size_t size, struct symbol_table *members, struct type_info *promotable_type) {
+struct type_info *type_table_create_type_info_cstr(struct arena *arena, char *name, enum type_category category, size_t size, struct symbol_table *members, struct type_info *promotable_type) {
     size_t str_size = strlen(name);
-    return type_table_create_type_info(str_view_make(name, str_size), category, size, members, promotable_type);
+    return type_table_create_type_info(arena, str_view_make(name, str_size), category, size, members, promotable_type);
 }
 
-struct type_info *type_table_create_type_info(struct str_view name, enum type_category category, size_t size, struct symbol_table *members, struct type_info *promotable_type) {
+struct type_info *type_table_create_type_info(struct arena *arena, struct str_view name, enum type_category category, size_t size, struct symbol_table *members, struct type_info *promotable_type) {
     static atomic_int id_counter = 0;
-    struct type_info *info = malloc(sizeof(struct type_info));
+    struct type_info *info = arena_alloc(arena, sizeof(struct type_info));
     info->name = name;
     info->category = category;
     info->size = size;
@@ -145,7 +137,7 @@ struct type_info *type_table_get_or_create_pointer_type_info(struct type_table *
             info = curr;
             continue;
         } 
-        info = type_table_create_type_info(name, TYPE_CATEGORY_POINTER, table->pointers_size, NULL, NULL);
+        info = type_table_create_type_info(table->arena, name, TYPE_CATEGORY_POINTER, table->pointers_size, NULL, NULL);
         info->pointer_level = p;
         info->points_to = type_table_get_type_info(table, name, p-1);
         info->points_to->pointer_type = info;
@@ -163,26 +155,6 @@ void type_table_insert(struct type_table *table, struct type_info *info) {
     table->types[table->count++] = info;
 }
 
-void symbol_table_delete_symbol_table(struct symbol_table **table){
-    if(NULL == table || NULL == *table) {
-        LOG_M_ERR("symbol_table_delete_symbol_table - \"struct symbol_table **table\" or \"*table\" is null");
-        return;
-    }
-    for (int i = 0; i < (*table)->symbols->element_count; i++) {
-        struct symbol_t *sym = *(struct symbol_t **) vector_get((*table)->symbols, i);
-        free(sym->mangled_name);
-        free(sym);
-    }
-    vector_free(&(*table)->symbols);
-    free(*table);
-    *table = NULL;
-}
-void type_table_delete_type_info(struct type_info **info){
-    if(NULL != (*info)->members)symbol_table_delete_symbol_table(&(*info)->members);
-    free((*info));
-
-    *info = NULL;
-}
 
 struct type_info *get_literals_type_info(struct type_table *type_table, struct type_info *target_info, enum parser_node_type literal_type) {
     switch (literal_type) {

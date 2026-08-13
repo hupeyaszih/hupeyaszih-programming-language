@@ -36,7 +36,7 @@ static inline void build_graph(struct node_t *nodes, int node_count) {
     }
 }
 
-void codegen_utils_emit_call_args(struct codegen_context_t *context, struct vector_t *arguments, struct vector_t *out_regs, int arg_count) {
+void codegen_utils_emit_call_args(struct arena *arena, struct codegen_context_t *context, struct vector_t *arguments, struct vector_t *out_regs, int arg_count) {
     if(!context || !arguments || arg_count <= 0) return;
     struct codegen_build_target_t *build_target = context->build_target;
 
@@ -58,8 +58,8 @@ void codegen_utils_emit_call_args(struct codegen_context_t *context, struct vect
         node->in_degree = 0;
         node->out_degree = 0;
 
-        node->in = bitset_create(build_target->registers->register_count);
-        node->out = bitset_create(build_target->registers->register_count);
+        node->in  = bitset_create(arena, build_target->registers->register_count);
+        node->out = bitset_create(arena, build_target->registers->register_count);
 
         if(IR_OPERAND_TYPE_VREG == arg->type) {
             bitset_set(node->in, arg->data.vreg.reg->id);
@@ -137,11 +137,5 @@ void codegen_utils_emit_call_args(struct codegen_context_t *context, struct vect
             node->out_degree = 0;
             break; 
         }
-    }
-
-    for(int i = 0; i < args_via_registers; ++i) {
-        struct node_t *node = nodes + i;
-        bitset_free(&node->in);
-        bitset_free(&node->out);
     }
 }

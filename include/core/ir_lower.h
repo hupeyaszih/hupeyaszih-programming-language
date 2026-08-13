@@ -7,6 +7,8 @@
 #include "h_vector.h"
 
 struct ir_context {
+    struct arena *arena;
+    struct arena *temp_arena;
     struct IR_Project *project;
     struct IR_Function *current_function;
     struct IR_Block *current_block;
