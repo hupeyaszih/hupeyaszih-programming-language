@@ -164,9 +164,6 @@ void IR_Function_add_block(struct IR_Function *function, struct IR_Block *block)
     }
 }
 
-void IR_Function_add_parameter(struct IR_Function *function, struct IR_Operand *operand) {
-}
-
 void IR_Block_add_instruction(struct IR_Block *block, struct IR_Instruction *instruction) {
     if(NULL == block->head_instruction) {
         block->head_instruction = instruction;
@@ -206,6 +203,26 @@ void IR_Block_add_instruction_after(struct IR_Block *block, struct IR_Instructio
     }
 }
 
+void IR_Block_remove_instruction(struct IR_Block *block, struct IR_Instruction *instruction) {
+    if (NULL == block || NULL == instruction) return;
+
+    if (instruction->prev) {
+        instruction->prev->next = instruction->next;
+    } else {
+        block->head_instruction = instruction->next;
+    }
+
+    if (instruction->next) {
+        instruction->next->prev = instruction->prev;
+    } else {
+        block->tail_instruction = instruction->prev;
+    }
+
+    instruction->prev = NULL;
+    instruction->next = NULL;
+
+    --block->instruction_count;
+}
 // Helpers
 
 struct IR_Operand *IR_create_new_vreg(struct arena *arena, struct IR_Function *parent_function, struct IR_Instruction *definition_instruction, struct symbol_t *variable, int in_loop) {

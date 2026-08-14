@@ -241,10 +241,10 @@ void IR_init_live_interval(struct live_interval_t *interval, struct IR_Operand *
 // add/remove
 void IR_Module_add_function(struct IR_Module *module, struct IR_Function *function);
 void IR_Function_add_block(struct IR_Function *function, struct IR_Block *block);
-void IR_Function_add_parameter(struct IR_Function *function, struct IR_Operand *operand);
 void IR_Block_add_instruction(struct IR_Block *block, struct IR_Instruction *instruction);
 void IR_Block_add_instruction_before(struct IR_Block *block, struct IR_Instruction *target_instruction, struct IR_Instruction *instruction);
 void IR_Block_add_instruction_after(struct IR_Block *block, struct IR_Instruction *target_instruction, struct IR_Instruction *instruction);
+void IR_Block_remove_instruction(struct IR_Block *block, struct IR_Instruction *instruction);
 
 // calculation functions
 
