@@ -55,7 +55,7 @@ struct parser_node{
        } module;
 
        struct {
-           struct parser_node **statements;
+           struct vector_t *statements;
            struct symbol_table *scope;
 
            struct str_view mangled_name;
@@ -88,7 +88,7 @@ struct parser_node{
 
        struct {
            struct str_view name;
-           struct parser_node **args;
+           struct vector_t *args; // struct parser_node *
            int arg_count;
        } call;
 

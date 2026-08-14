@@ -78,7 +78,7 @@ struct symbol_t* symbol_table_look_up(const struct symbol_table *table, struct s
         }
         table = table->parent; 
     }
-    LOG_M_ERR("variable/function \"%s\" is not defined", name);
+    LOG_M_ERR("variable/function \"" SV_FMT "\" is not defined", SV_ARG(name));
     return NULL; 
 }
 
@@ -86,9 +86,7 @@ struct symbol_t* symbol_table_look_up(const struct symbol_table *table, struct s
 struct type_table *type_table_create_type_table(struct arena *arena){
     struct type_table *table = arena_alloc(arena, sizeof(struct type_table));
     table->arena = arena;
-    table->capacity = 16;
-    table->count = 0;
-    table->types = arena_alloc(arena, sizeof(struct type_info *) * table->capacity);
+    table->types = vector_create_vector(arena, 16, sizeof(struct type_info *));
     return table;
 }
 
@@ -112,17 +110,19 @@ struct type_info *type_table_create_type_info(struct arena *arena, struct str_vi
     return info;
 }
 struct type_info *type_table_get_type_info_cstr(const struct type_table *restrict table, char *name, int pointer_level){
-    for(int i = 0; i < table->count; ++i){
-        if(table->types[i]->pointer_level == pointer_level && str_view_eq_cstr(table->types[i]->name, name)){
-            return table->types[i];
+    for(int i = 0; i < table->types->element_count; ++i){
+        struct type_info *curr = *(struct type_info **) vector_get(table->types, i);
+        if(curr->pointer_level == pointer_level && str_view_eq_cstr(curr->name, name)){
+            return curr;
         }
     }
     return NULL;
 }
 struct type_info *type_table_get_type_info(const struct type_table *restrict table, const struct str_view name, int pointer_level){
-    for(int i = 0; i < table->count; ++i){
-        if(table->types[i]->pointer_level == pointer_level && str_view_eq(name, table->types[i]->name)){
-            return table->types[i];
+    for(int i = 0; i < table->types->element_count; ++i){
+        struct type_info *curr = *(struct type_info **) vector_get(table->types, i);
+        if(curr->pointer_level == pointer_level && str_view_eq(name, curr->name)){
+            return curr;
         }
     }
     return NULL;
@@ -148,11 +148,7 @@ struct type_info *type_table_get_or_create_pointer_type_info(struct type_table *
 }
 
 void type_table_insert(struct type_table *table, struct type_info *info) {
-    if (table->count >= table->capacity) {
-        table->capacity *= 2;
-        table->types = realloc(table->types, sizeof(struct type_info *) * table->capacity);
-    }
-    table->types[table->count++] = info;
+    vector_add(table->types, &info);
 }
 
 

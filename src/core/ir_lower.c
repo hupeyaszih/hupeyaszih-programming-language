@@ -210,7 +210,7 @@ struct IR_Operand *IRL_run_function_lower(struct parser_node *node, struct ir_co
     struct parser_node *params = node->data.function.params;
     int param_count = params->data.block.count;
     for(int i = 0;i < param_count; ++i) {
-        struct parser_node *param = params->data.block.statements[i];
+        struct parser_node *param = *(struct parser_node **) vector_get(params->data.block.statements, i);
         struct IR_Operand *param_op = NULL;
         if(LOCATION_STACK == param->data.variable.symbol->location_kind) {
             // load arg to param
@@ -272,7 +272,7 @@ struct IR_Operand *IRL_run_block_lower(struct parser_node *node, struct ir_conte
     int statement_count = node->data.block.count;
     struct IR_Operand *last_operand = NULL;
     for(int i = 0;i < statement_count; ++i) {
-        struct parser_node *curr = node->data.block.statements[i];
+        struct parser_node *curr = *(struct parser_node **) vector_get(node->data.block.statements, i);
         enum lower_type lower_type = LOWER_UNDEFINED;
         if(i == statement_count-1) lower_type = LOWER_R;
         last_operand = IRL_run_statement_lower(curr, context, lower_type);
@@ -471,7 +471,7 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
             struct symbol_t *calling_function = symbol_table_look_up(context->current_scope, calling_function_name);
 
             for(int i = 0;i < arg_count; ++i) {
-                struct parser_node *arg = node->data.call.args[i];
+                struct parser_node *arg = *(struct parser_node **) vector_get(node->data.call.args, i);
                 struct IR_Operand *op = IRL_run_statement_lower(arg, context, LOWER_R);
                 vector_add(call->operands.call.arguments, &op);
 
@@ -617,11 +617,6 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
     return NULL;
 }
 
-void IRL_run_cfg_analyzer(struct IR_Function *function, struct ir_context *context) {
-
-}
-
-
 int IRL_build_ir(struct IR_Project *project, struct parser_t *parser) {
     struct ir_context context;
     context.project = project;
@@ -678,7 +673,8 @@ void IRL_find_mutations(struct parser_node *node, struct vector_t *vars, struct 
         }case PARSER_NODE_BLOCK: {
             if (node->data.block.statements) {
                 for (int i = 0; i < node->data.block.count; i++) {
-                    IRL_find_mutations(node->data.block.statements[i], vars, declarated_vars);
+                    struct parser_node *statement = *(struct parser_node **) vector_get(node->data.block.statements, i);
+                    IRL_find_mutations(statement, vars, declarated_vars);
                 }
             }
             break;
@@ -709,7 +705,8 @@ void IRL_find_mutations(struct parser_node *node, struct vector_t *vars, struct 
         case PARSER_NODE_CALL: {
             if (node->data.call.args) {
                 for (int i = 0; i < node->data.call.arg_count; i++) {
-                    IRL_find_mutations(node->data.call.args[i], vars, declarated_vars);
+                    struct parser_node *arg_node = *(struct parser_node **) vector_get(node->data.call.args, i);
+                    IRL_find_mutations(arg_node, vars, declarated_vars);
                 }
             }
             break;

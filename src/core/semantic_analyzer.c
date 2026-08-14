@@ -150,7 +150,7 @@ int semantic_analyzer_analyze_block(struct parser_node *node, struct semantic_co
     int err = 0;
     int statement_count = node->data.block.count;
     for(int i = 0;i < statement_count; ++i) {
-        struct parser_node *curr = node->data.block.statements[i];
+        struct parser_node *curr = *(struct parser_node **) vector_get(node->data.block.statements, i);
         err |= semantic_analyzer_analyze_node(curr, context);
     }
     context->current_scope = old_scope;
@@ -168,7 +168,7 @@ int semantic_analyzer_analyze_function_decl(struct parser_node* node, struct sem
     if(function_flags_get_is_pure_function(node->data.function.flags)) {
         int is_pure_function = 1;
         for(int i = 0; i < statement_count; ++i) {
-            struct parser_node *statement = node->data.function.body->data.block.statements[i];
+            struct parser_node *statement = *(struct parser_node **) vector_get(node->data.function.body->data.block.statements, i);
             int is_pure = is_statement_pure(statement, context);
             is_pure_function &= is_pure;
         }
@@ -224,10 +224,12 @@ int semantic_analyzer_analyze_call(struct parser_node* node, struct semantic_con
     int err = 0;
 
     for(int i = 0;i < param_count; ++i) {
-        struct type_info *arg_type = node->data.call.args[i]->type_info;
-        struct type_info *param_type = parameters->data.block.statements[i]->type_info;
+        struct parser_node *arg_node = *(struct parser_node **) vector_get(node->data.call.args, i);
+        struct parser_node *param_node = *(struct parser_node **) vector_get(parameters->data.block.statements, i);
+        struct type_info *arg_type = arg_node->type_info;
+        struct type_info *param_type = param_node->type_info;
 
-        if(NULL == arg_type) arg_type = get_literals_type_info(context->type_table, param_type, node->data.call.args[i]->type);
+        if(NULL == arg_type) arg_type = get_literals_type_info(context->type_table, param_type, arg_node->type);
         if(NULL == arg_type) {
             print_semantic_error_call_arguments_are_not_matching(node, calling_function_name);
             context->error = 1;
@@ -286,7 +288,8 @@ struct type_info *semantic_analyzer_calculate_type_infos(struct parser_node *nod
             context->current_scope = node->data.block.scope;
             int statement_count = node->data.block.count;
             for(int i = 0; i < statement_count; ++i){
-                node->type_info = semantic_analyzer_calculate_type_infos(node->data.block.statements[i], context);
+                struct parser_node *statement = *(struct parser_node **) vector_get(node->data.block.statements, i);
+                node->type_info = semantic_analyzer_calculate_type_infos(statement, context);
             }
 
             context->current_scope = old_scope;
@@ -295,7 +298,8 @@ struct type_info *semantic_analyzer_calculate_type_infos(struct parser_node *nod
             int arg_count = node->data.call.arg_count;
 
             for(int i = 0;i < arg_count; ++i) {
-                semantic_analyzer_calculate_type_infos(node->data.call.args[i], context);
+                struct parser_node *arg_node = *(struct parser_node **) vector_get(node->data.call.args, i);
+                semantic_analyzer_calculate_type_infos(arg_node, context);
             }
             struct symbol_t *fnc_sym = symbol_table_look_up(context->current_scope, node->data.call.name);
             if(!fnc_sym) {

@@ -40,9 +40,7 @@ struct type_info {
 
 struct type_table{
     struct arena *arena;
-    struct type_info **types;
-    int count;
-    int capacity;  
+    struct vector_t *types; // struct type_info *
     int pointers_size; // for 64-bit systems, this is 8
     struct type_info *pointer_to_int_type;
 };

@@ -153,9 +153,9 @@ void register_allocator_run_allocator(struct register_allocator_t *allocator, st
     }
 
 
-    function->used_callee_saved_registers          = bitset_create(allocator->codegen->temp_arena, target->registers->register_count);
-    function->used_caller_saved_registers          = bitset_create(allocator->codegen->temp_arena, target->registers->register_count);
-    function->directly_used_caller_saved_registers = bitset_create(allocator->codegen->temp_arena, target->registers->register_count);
+    function->used_callee_saved_registers          = bitset_create(allocator->codegen->arena, target->registers->register_count);
+    function->used_caller_saved_registers          = bitset_create(allocator->codegen->arena, target->registers->register_count);
+    function->directly_used_caller_saved_registers = bitset_create(allocator->codegen->arena, target->registers->register_count);
 
     struct vector_t *clobbers = vector_create_vector(allocator->codegen->temp_arena, function->unique_vregs->element_count / 8+1, sizeof(struct clobber_t));
     calculate_clobbers(function, target, clobbers);
