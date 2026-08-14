@@ -74,7 +74,7 @@ struct symbol_t{
     enum symbol_kind kind;
     enum location_kind location_kind;
     int pointer_level;
-    int8_t flags;
+    struct bitset_t *flags;
     bool is_address_taken; // If it is true, this operand must be in the memory
 };
 

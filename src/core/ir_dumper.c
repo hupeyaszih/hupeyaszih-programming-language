@@ -204,7 +204,7 @@ static void IR_dump_instruction(const struct IR_Instruction *instruction) {
             IR_dump_operand(instruction->operands.ret.return_value);
             printf("\n");
             break;
-        }
+        }case IR_INSTRUCTION_TYPE_NOP: break;
         default: printf("%d\n", instruction->type);
     }
 }

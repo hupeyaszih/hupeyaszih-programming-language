@@ -44,10 +44,14 @@ struct IR_Module *IR_create_IR_Module(struct arena *arena, char *name) {
     return module;
 }
 
-struct IR_Function *IR_create_IR_Function(struct arena *arena, struct str_view name, struct str_view mangled_name, int parameter_count) {
+struct IR_Function *IR_create_IR_Function(struct arena *arena, struct bitset_t *flags, struct str_view name, struct str_view mangled_name, int parameter_count) {
     struct IR_Function *function = arena_alloc(arena, sizeof(struct IR_Function));
     function->name = name;
     function->mangled_name = mangled_name;
+
+
+    function->flags = bitset_create(arena, flags->max_element_count);
+    bitset_copy(function->flags, flags);
 
     function->parameters   = vector_create_vector(arena, 6, sizeof(struct IR_Operand *));
     function->operands     = vector_create_vector(arena, 16, sizeof(struct IR_Operand *));
@@ -111,6 +115,7 @@ struct IR_Operand *IR_create_IR_Operand(struct arena *arena, enum IR_Operand_typ
     operand->definition_instruction = definition_instruction;
     operand->use_list = vector_create_vector(arena, 1, sizeof(struct IR_Instruction *));
     operand->in_loop = in_loop;
+    operand->constant = false;
 
     if(parent_function) {
         vector_add(parent_function->operands, &operand);
@@ -206,22 +211,23 @@ void IR_Block_add_instruction_after(struct IR_Block *block, struct IR_Instructio
 void IR_Block_remove_instruction(struct IR_Block *block, struct IR_Instruction *instruction) {
     if (NULL == block || NULL == instruction) return;
 
-    if (instruction->prev) {
-        instruction->prev->next = instruction->next;
-    } else {
-        block->head_instruction = instruction->next;
-    }
-
-    if (instruction->next) {
-        instruction->next->prev = instruction->prev;
-    } else {
-        block->tail_instruction = instruction->prev;
-    }
-
-    instruction->prev = NULL;
-    instruction->next = NULL;
-
-    --block->instruction_count;
+    instruction->type = IR_INSTRUCTION_TYPE_NOP;
+    // if (instruction->prev) {
+    //     instruction->prev->next = instruction->next;
+    // } else {
+    //     block->head_instruction = instruction->next;
+    // }
+    //
+    // if (instruction->next) {
+    //     instruction->next->prev = instruction->prev;
+    // } else {
+    //     block->tail_instruction = instruction->prev;
+    // }
+    //
+    // instruction->prev = NULL;
+    // instruction->next = NULL;
+    //
+    // --block->instruction_count;
 }
 // Helpers
 

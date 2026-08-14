@@ -3,6 +3,7 @@
 #include "core/globals.h"
 #include "core/lexer.h"
 #include "core/symbol_table.h"
+#include "h_bitset.h"
 #include "h_string_view.h"
 #include "h_vector.h"
 #include <stddef.h>
@@ -467,7 +468,7 @@ struct parser_node *parser_parse_function(struct parser_t *restrict parser, stru
         parser->successful = 0;
         return NULL;
     }
-    function_node->data.function.flags = 0;
+    function_node->data.function.flags = bitset_create(parser->arena, 8);
 
     if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_FN)) {parser->successful = 0;return NULL;}
     struct str_view name = tokens[*cursor].str_view; 
@@ -485,10 +486,9 @@ struct parser_node *parser_parse_function(struct parser_t *restrict parser, stru
     if(NULL == ret_type) {C_LOG_ERR("Unknown return type for function on line: %d", tokens[*cursor].line);parser->successful = 0; return NULL;}
     if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER)) {parser->successful = 0;return NULL;}
 
-    function_flags_set_is_pure_function(&function_node->data.function.flags, 0);
     if(LEXER_TOKEN_TYPE_PURE == tokens[*cursor].type) {
         eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_PURE);
-        function_flags_set_is_pure_function(&function_node->data.function.flags, 1);
+        bitset_set(function_node->data.function.flags, FUNC_FLAG_IS_PURE);
     }
 
     struct symbol_table *body_scope = symbol_table_create_symbol_table(parser->symbol_arena, parser->current_scope, &parser->scope_counter);

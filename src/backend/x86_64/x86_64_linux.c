@@ -7,6 +7,7 @@
 #include "h_string_view.h"
 #include "h_vector.h"
 #include <stdbool.h>
+#include <stdio.h>
 
 struct codegen_build_target_t *x86_64_linux_create_build_target(struct arena *arena) {
     struct codegen_build_target_t *target = codegen_create_build_target(arena);
@@ -223,6 +224,33 @@ struct register_t *x86_64_linux_get_fixed_register_for_instruction(struct regist
 
             if (arg_index < 0 || arg_index >= 6) return NULL; 
             return x86_64_linux_get_reg_with_arg_index(list, arg_index);
+        }case IR_INSTRUCTION_TYPE_JMP: {
+            if(NULL == instruction->operands.jmp.args) return NULL;
+            for(int i = 0;i < instruction->operands.jmp.args->element_count; ++i) {
+                struct IR_Operand *arg = *(struct IR_Operand **) vector_get(instruction->operands.jmp.args, i);
+                struct IR_Operand *param = *(struct IR_Operand **) vector_get(instruction->operands.jmp.target_block->params, i);
+                if(IR_OPERAND_TYPE_VREG != arg->type) continue;
+                if(target_operand == arg) return param->data.vreg.reg; 
+            }
+            return NULL;
+        }case IR_INSTRUCTION_TYPE_BR: {
+            if(instruction->operands.br.true_args){
+                for(int i = 0;i < instruction->operands.br.true_args->element_count; ++i) {
+                    struct IR_Operand *arg = *(struct IR_Operand **) vector_get(instruction->operands.br.true_args, i);
+                    struct IR_Operand *param = *(struct IR_Operand **) vector_get(instruction->operands.br.true_block->params, i);
+                    if(IR_OPERAND_TYPE_VREG != arg->type) continue;
+                    if(target_operand == arg) return param->data.vreg.reg; 
+                }
+            }
+            if(instruction->operands.br.false_args) {
+                for(int i = 0;i < instruction->operands.br.false_args->element_count; ++i) {
+                    struct IR_Operand *arg = *(struct IR_Operand **) vector_get(instruction->operands.br.false_args, i);
+                    struct IR_Operand *param = *(struct IR_Operand **) vector_get(instruction->operands.br.false_block->params, i);
+                    if(IR_OPERAND_TYPE_VREG != arg->type) continue;
+                    if(target_operand == arg) return param->data.vreg.reg; 
+                }
+            }
+            return NULL;
         }
         case IR_INSTRUCTION_TYPE_RET: return list->registers+X86_64_RAX;
 
@@ -259,7 +287,17 @@ struct register_t *x86_64_linux_get_best_available_register(struct register_list
         if(!codegen_is_register_clobbered_for_vreg(preferred_register, vreg, clobber_list)) return preferred_register;
     }
 
-    for(int i = 0;i < list->register_count; ++i) {
+    if (vreg && vreg->type == IR_OPERAND_TYPE_VREG && vreg->data.vreg.crosses_call) {
+        for(int i = 0; i < list->register_count; ++i) {
+            struct register_t *reg = list->registers + REG_PREFERENCE_ORDER[i];
+            
+            if (reg->type == REGISTER_TYPE_CALLEE_SAVED && !reg->is_busy && !reg->is_reserved && !codegen_is_register_clobbered_for_vreg(reg, vreg, clobber_list)) {
+                return reg;
+            }
+        }
+    }
+
+    for(int i = 0; i < list->register_count; ++i) {
         struct register_t *reg = list->registers + REG_PREFERENCE_ORDER[i];
         if(true == reg->is_busy || true == reg->is_reserved || codegen_is_register_clobbered_for_vreg(reg, vreg, clobber_list)) continue;
 
@@ -281,6 +319,7 @@ static inline int check_stack_aligment_before_call(struct codegen_context_t *con
 }
 
 void x86_64_linux_emit_mov_reg_to_reg(struct codegen_context_t *context, struct register_t *dest, struct register_t *src, enum register_size size) {
+    if(src == dest) return;
     const char *src_str = context->build_target->get_register_name(context->build_target->registers, src, size);
     const char *dest_str = context->build_target->get_register_name(context->build_target->registers, dest, size);
 
@@ -384,48 +423,36 @@ void x86_64_linux_emit_mov_operand_to_operand(struct codegen_context_t *context,
 }
 
 static inline int push_or_pop_registers(struct codegen_context_t *context, struct bitset_t *registers, struct bitset_t *registers2, struct bitset_t *mask, enum register_size size, const char *instruction, bool reverse, bool nop) {
+    if (!registers) return 0;
+
     int pushed_or_popped_register_count = 0;
-    if(reverse) {
-        for(int i = registers->max_element_count; i >= 0; --i) {
-            int is_caller_saved_used = bitset_test(registers, i);
+    int count = registers->max_element_count;
 
-            int is_caller_saved_used_in_caller_function = 1;
-            int masked = 0;
-            if(registers2) {
-                is_caller_saved_used_in_caller_function = bitset_test(registers2, i);
-            }
-            if(mask)masked = bitset_test(mask, i);
+    int start = reverse ? count - 1 : 0;
+    int end   = reverse ? -1 : count;
+    int step  = reverse ? -1 : 1;
 
-            if(is_caller_saved_used == 0 || is_caller_saved_used_in_caller_function == 0 || masked == 1) continue;
-
-            if(!nop) {
-                const char *caller_saved_reg = x86_64_linux_get_register_name(context->build_target->registers, context->build_target->registers->registers + i, size);
-                codegen_emit(context->file, "    %s %s\n", instruction , caller_saved_reg);
-            }
-
-            ++pushed_or_popped_register_count;
-        }
-        return pushed_or_popped_register_count;
-    }
-    for(int i = 0;i < registers->max_element_count; ++i) {
+    for (int i = start; i != end; i += step) {
         int is_caller_saved_used = bitset_test(registers, i);
+        int is_caller_saved_used_in_caller_function = registers2 ? bitset_test(registers2, i) : 1;
+        int masked = mask ? bitset_test(mask, i) : 0;
 
-        int is_caller_saved_used_in_caller_function = 1;
-        int masked = 0;
-        if(registers2) {
-            is_caller_saved_used_in_caller_function = bitset_test(registers2, i);
+        if (is_caller_saved_used == 0 || is_caller_saved_used_in_caller_function == 0 || masked == 1) {
+            continue;
         }
-        if(mask)masked = bitset_test(mask, i);
 
-        if(is_caller_saved_used == 0 || is_caller_saved_used_in_caller_function == 0 || masked == 1) continue;
-
-        if(!nop) {
-            const char *caller_saved_reg = x86_64_linux_get_register_name(context->build_target->registers, context->build_target->registers->registers + i, size);
-            codegen_emit(context->file, "    %s %s\n", instruction , caller_saved_reg);
+        if (!nop) {
+            const char *caller_saved_reg = x86_64_linux_get_register_name(
+                context->build_target->registers, 
+                context->build_target->registers->registers + i, 
+                size
+            );
+            codegen_emit(context->file, "    %s %s\n", instruction, caller_saved_reg);
         }
 
         ++pushed_or_popped_register_count;
     }
+
     return pushed_or_popped_register_count;
 }
 
@@ -510,6 +537,7 @@ void emit_cast_instruction(struct codegen_context_t *context, struct IR_Instruct
     } else {
         return;
     }
+    x86_64_linux_set_free_reserved_register(context->build_target->registers, src_reg);
 }
 
 
@@ -549,6 +577,9 @@ void emit_comparison_instructions(struct codegen_context_t *context, struct IR_I
     codegen_emit(context->file, ", ");
     x86_64_linux_emit_reg(context, dest_reg, REGISTER_SIZE_8, true);
     codegen_emit(context->file, "\n");
+
+    x86_64_linux_set_free_reserved_register(context->build_target->registers, src1_reg);
+    x86_64_linux_set_free_reserved_register(context->build_target->registers, dest_reg);
 }
 
 void emit_arithmetic_instructions(struct codegen_context_t *context, struct IR_Instruction *instruction) {
@@ -750,12 +781,7 @@ void x86_64_linux_emit_instruction(struct codegen_context_t *context, struct IR_
         case IR_INSTRUCTION_TYPE_DIVIDE: emit_arithmetic_instructions(context, instruction); break;
         case IR_INSTRUCTION_TYPE_RET: {
             struct register_t *rax = context->build_target->registers->registers + X86_64_RAX;
-            // enum register_size size = codegen_calc_register_size(instruction->operands.ret.return_value->type_info->size);
-            enum register_size size = codegen_get_register_size_from_operand(instruction->operands.ret.return_value);
-            const char *dest_str = context->build_target->get_register_name(context->build_target->registers, rax, size);
-            codegen_emit(context->file, "    mov %s, ", dest_str);
-            x86_64_linux_emit_operand(context, instruction->operands.ret.return_value, size, false);
-            codegen_emit(context->file, "    \n");
+            x86_64_linux_emit_mov_operand_to_reg(context, rax, instruction->operands.ret.return_value);
             break;
         }case IR_INSTRUCTION_TYPE_UNARY_MINUS: {
             struct IR_Operand *dest = instruction->operands.double_operands.destination;
@@ -829,7 +855,7 @@ void x86_64_linux_emit_instruction(struct codegen_context_t *context, struct IR_
             struct bitset_t *mask = bitset_create(context->codegen->temp_arena, context->build_target->registers->register_count);
             bitset_set(mask, X86_64_RAX);
             // push caller saved registers
-            int pushed_caller_saved_register_count = push_or_pop_registers(context, func->used_caller_saved_registers, caller_func->directly_used_caller_saved_registers, mask, REGISTER_SIZE_64, "push", false, false);
+            int pushed_caller_saved_register_count = push_or_pop_registers(context,instruction->operands.call.across_registers,NULL, mask, REGISTER_SIZE_64, "push", false, false);
             //
 
             int args_via_registers = arg_count;
@@ -867,7 +893,7 @@ void x86_64_linux_emit_instruction(struct codegen_context_t *context, struct IR_
 
 
             // pop caller saved registers
-            push_or_pop_registers(context, func->used_caller_saved_registers, caller_func->directly_used_caller_saved_registers, mask,REGISTER_SIZE_64, "pop", true, false);
+            push_or_pop_registers(context, instruction->operands.call.across_registers, NULL, mask, REGISTER_SIZE_64, "pop", true, false);
             //
 
             struct register_t *rax = context->build_target->registers->registers + X86_64_RAX;
@@ -920,7 +946,7 @@ void x86_64_linux_emit_instruction(struct codegen_context_t *context, struct IR_
             break;
         }case IR_INSTRUCTION_TYPE_ASM: {
             struct str_view asm_imm = instruction->operands.asm_operands.asm_imm;
-            codegen_emit(context->file, SV_FMT "# inline asm\n", SV_ARG(asm_imm));
+            codegen_emit(context->file, "    "SV_FMT "# inline asm\n", SV_ARG(asm_imm));
             break;
         }
         case IR_INSTRUCTION_TYPE_EQUAL_EQUAL:   emit_comparison_instructions(context, instruction); break;

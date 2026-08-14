@@ -1,6 +1,6 @@
 // Hupeyaszih Programming Language (.hrs)
 
-fn fibonacci(n: int32) : int32 {
+fn fibonacci(n: int32) : int32 pure{
     var result: int32 = n;
     
     loop {

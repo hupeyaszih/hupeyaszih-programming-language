@@ -1,8 +1,0 @@
-fn test(x:int32) : int32 {
-3;
-}
-fn main() : int32 {
-    var n:int32 = 1;
-    n = test(n);
-    n;
-}

@@ -36,6 +36,54 @@ enum IR_Instruction_type {
     IR_INSTRUCTION_TYPE_UNDEFINED
 };
 
+enum IR_Instructions_Operands_type {
+    IR_INSTRUCTIONS_OPERANDS_TYPE_JMP,
+    IR_INSTRUCTIONS_OPERANDS_TYPE_RET,
+    IR_INSTRUCTIONS_OPERANDS_TYPE_ALLOCA,
+    IR_INSTRUCTIONS_OPERANDS_TYPE_TRIPLE,
+    IR_INSTRUCTIONS_OPERANDS_TYPE_DOUBLE,
+    IR_INSTRUCTIONS_OPERANDS_TYPE_CALL,
+    IR_INSTRUCTIONS_OPERANDS_TYPE_BR,
+    IR_INSTRUCTIONS_OPERANDS_TYPE_ASM,
+    IR_INSTRUCTIONS_OPERANDS_TYPE_UNDEFINED
+};
+
+static inline enum IR_Instructions_Operands_type IR_get_Instructions_Operands_type(enum IR_Instruction_type type) {
+    switch (type) {
+        case IR_INSTRUCTION_TYPE_UNARY_BANG:
+        case IR_INSTRUCTION_TYPE_UNARY_MINUS:
+        case IR_INSTRUCTION_TYPE_UNARY_DEREFERENCE:
+        case IR_INSTRUCTION_TYPE_UNARY_ADDRESS_OF:
+        case IR_INSTRUCTION_TYPE_CAST:
+        case IR_INSTRUCTION_TYPE_MOV:
+        case IR_INSTRUCTION_TYPE_LOAD:
+        case IR_INSTRUCTION_TYPE_STORE: return IR_INSTRUCTIONS_OPERANDS_TYPE_DOUBLE;
+
+        case IR_INSTRUCTION_TYPE_EQUAL_EQUAL:
+        case IR_INSTRUCTION_TYPE_BANG_EQUAL:
+        case IR_INSTRUCTION_TYPE_LESS_EQUAL:
+        case IR_INSTRUCTION_TYPE_GREATER_EQUAL:
+        case IR_INSTRUCTION_TYPE_LESS:
+        case IR_INSTRUCTION_TYPE_GREATER:
+        case IR_INSTRUCTION_TYPE_PLUS:
+        case IR_INSTRUCTION_TYPE_MINUS:
+        case IR_INSTRUCTION_TYPE_MUL:
+        case IR_INSTRUCTION_TYPE_DIVIDE: return IR_INSTRUCTIONS_OPERANDS_TYPE_TRIPLE;
+
+        case IR_INSTRUCTION_TYPE_ALLOCA: return IR_INSTRUCTIONS_OPERANDS_TYPE_ALLOCA;
+        case IR_INSTRUCTION_TYPE_ASM: return IR_INSTRUCTIONS_OPERANDS_TYPE_ASM;
+        case IR_INSTRUCTION_TYPE_CALL: return IR_INSTRUCTIONS_OPERANDS_TYPE_CALL;
+        case IR_INSTRUCTION_TYPE_BR: return IR_INSTRUCTIONS_OPERANDS_TYPE_BR;
+        case IR_INSTRUCTION_TYPE_JMP: return IR_INSTRUCTIONS_OPERANDS_TYPE_JMP;
+        case IR_INSTRUCTION_TYPE_RET: return IR_INSTRUCTIONS_OPERANDS_TYPE_RET;
+
+        case IR_INSTRUCTION_TYPE_UNDEFINED:
+        case IR_INSTRUCTION_TYPE_NOP: return IR_INSTRUCTIONS_OPERANDS_TYPE_UNDEFINED;
+    }
+
+    return IR_INSTRUCTIONS_OPERANDS_TYPE_UNDEFINED;
+}
+
 enum IR_Operand_type {
     IR_OPERAND_TYPE_UNDEFINED,
     IR_OPERAND_TYPE_IMM,
@@ -86,6 +134,7 @@ struct IR_Operand {
 
     enum IR_Operand_type type;
     int in_loop;
+    bool constant;
 };
 
 
@@ -123,6 +172,7 @@ struct IR_Instruction {
             struct vector_t *arguments; // struct IR_Operand *    (Argument list)
             struct IR_Function *target_function;
             struct IR_Operand *return_val;
+            struct bitset_t *across_registers;
         }call;
 
         struct {
@@ -196,6 +246,7 @@ struct IR_Function {
     struct bitset_t *directly_used_caller_saved_registers;
 
     struct IR_Operand *return_value;
+    struct bitset_t *flags;
 
     struct str_view name, mangled_name;
 
@@ -231,7 +282,7 @@ struct IR_Project {
 struct stack_slot_t *IR_create_stack_slot(struct arena *arena, struct type_info *type, struct IR_Function *function, bool is_argument);
 struct IR_Project *IR_create_IR_Project(struct arena *arena, struct arena *temp_arena);
 struct IR_Module *IR_create_IR_Module(struct arena *arena, char *name);
-struct IR_Function *IR_create_IR_Function(struct arena *arena, struct str_view name, struct str_view mangled_name, int parameter_count);
+struct IR_Function *IR_create_IR_Function(struct arena *arena, struct bitset_t *flags, struct str_view name, struct str_view mangled_name, int parameter_count);
 struct IR_Block *IR_create_IR_Block(struct arena *arena, struct IR_Function *parent_function, struct str_view mangled_name);
 struct IR_Instruction *IR_create_IR_Instruction(struct arena *arena, struct IR_Block *parent_block, enum IR_Instruction_type type);
 struct IR_Operand *IR_create_IR_Operand(struct arena *arena, enum IR_Operand_type type, struct IR_Instruction *definition_instruction, struct IR_Function *parent_function, int in_loop);

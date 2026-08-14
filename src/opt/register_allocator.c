@@ -5,6 +5,7 @@
 #include "h_bitset.h"
 #include "h_vector.h"
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 struct register_allocator_t *register_allocator_create_register_allocator(struct codegen_t *codegen) {
@@ -77,6 +78,27 @@ bool register_allocator_vreg_crosses_call(struct IR_Function *function, struct I
     return false;
 }
 
+static void register_allocator_add_to_call_across_registers(struct IR_Function *function,struct arena *arena,struct codegen_build_target_t *target,struct IR_Operand *vreg,struct register_t *reg) {
+    int start = vreg->data.vreg.live_interval.start;
+    int end   = vreg->data.vreg.live_interval.end;
+
+    struct IR_Block *block = function->head_block;
+    while (NULL != block) {
+        struct IR_Instruction *instruction = block->head_instruction;
+        while (NULL != instruction) {
+
+            if (IR_INSTRUCTION_TYPE_CALL == instruction->type && instruction->id >= start && instruction->id <= end) {
+                
+                if (!instruction->operands.call.across_registers) {
+                    instruction->operands.call.across_registers = bitset_create(arena, target->registers->register_count);
+                }
+                bitset_set(instruction->operands.call.across_registers, reg->id);
+            }
+            instruction = instruction->next;
+        }
+        block = block->next;
+    }
+}
 
 void register_allocator_compute_caller_saved_registers(struct arena *arena, struct codegen_build_target_t *target, struct IR_Function  *current) {
     if (!current) return;
@@ -169,6 +191,10 @@ void register_allocator_run_allocator(struct register_allocator_t *allocator, st
 
     for(int i = 0;i < vreg_count; ++i) {
         struct IR_Operand *operand = *(struct IR_Operand **) vector_get(function->unique_vregs, i);
+        if(IR_OPERAND_TYPE_UNDEFINED == operand->type) {
+            continue;
+        }
+
         int use_score = operand->data.vreg.live_interval.use_score;
         int live_length = operand->data.vreg.live_interval.end - operand->data.vreg.live_interval.start;
 
@@ -191,7 +217,10 @@ void register_allocator_run_allocator(struct register_allocator_t *allocator, st
     int parameter_count = function->parameters->element_count;
     for(int i = 0; i < parameter_count; ++i) {
         struct IR_Operand *param = *(struct IR_Operand **) vector_get(function->parameters, i);
+        if(IR_OPERAND_TYPE_UNDEFINED == param->type) continue;
         is_allocated[param->data.vreg.vreg_id] = true;
+        bool crosses = register_allocator_vreg_crosses_call(function, param);
+        param->data.vreg.crosses_call = crosses;
 
         if (i >= target->argument_register_count) {
             register_allocator_spill(allocator->codegen->arena, param, slots, function, true);
@@ -206,14 +235,18 @@ void register_allocator_run_allocator(struct register_allocator_t *allocator, st
         if(REGISTER_TYPE_CALLEE_SAVED == reg->type) bitset_set(function->used_callee_saved_registers, reg->id);
         if(REGISTER_TYPE_CALLER_SAVED == reg->type) bitset_set(function->directly_used_caller_saved_registers, reg->id);
 
-        if(register_allocator_vreg_crosses_call(function, param)) {
-            param->data.vreg.crosses_call = true;
+        if(crosses && REGISTER_TYPE_CALLER_SAVED == reg->type) {
+            register_allocator_add_to_call_across_registers(function, allocator->codegen->arena, target, param, reg);
         }
     }
 
     for(int i = 0;i < vregs->element_count; ++i) {
         struct IR_Operand *vreg = *(struct IR_Operand **) vector_get(vregs, i);
-        if(is_allocated[vreg->data.vreg.vreg_id]) continue;
+        if(!vreg || is_allocated[vreg->data.vreg.vreg_id]) continue;
+        if(IR_OPERAND_TYPE_UNDEFINED == vreg->type) continue;
+        bool crosses = register_allocator_vreg_crosses_call(function, vreg);
+        vreg->data.vreg.crosses_call = crosses;
+
         int current_time = vreg->data.vreg.live_interval.start;
 
         register_allocator_expire_old_intervals(target->registers, slots, current_time);
@@ -233,10 +266,11 @@ void register_allocator_run_allocator(struct register_allocator_t *allocator, st
         if(REGISTER_TYPE_CALLEE_SAVED == reg->type) bitset_set(function->used_callee_saved_registers, reg->id);
         if(REGISTER_TYPE_CALLER_SAVED == reg->type) bitset_set(function->directly_used_caller_saved_registers, reg->id);
 
-        if(register_allocator_vreg_crosses_call(function, vreg)) {
-            vreg->data.vreg.crosses_call = true;
+        if(crosses && REGISTER_TYPE_CALLER_SAVED == reg->type) {
+            register_allocator_add_to_call_across_registers(function, allocator->codegen->arena, target, vreg, reg);
         }
     }
+
 
 }
 

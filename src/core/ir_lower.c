@@ -182,7 +182,7 @@ struct IR_Operand *IRL_run_module_lower(struct parser_node *node, struct ir_cont
     struct symbol_table *old_scope = context->current_scope;
     for(int i = 0;i < function_count; ++i) {
         struct parser_node *function_node = *(struct parser_node **) vector_get(node->data.module.functions, i);
-        struct IR_Function *function = IR_create_IR_Function(context->arena, function_node->data.function.name, function_node->data.function.mangled_name, function_node->data.function.param_count);
+        struct IR_Function *function = IR_create_IR_Function(context->arena, function_node->data.function.flags, function_node->data.function.name, function_node->data.function.mangled_name, function_node->data.function.param_count);
         IR_Module_add_function(module, function);
 
         context->current_scope = old_scope;

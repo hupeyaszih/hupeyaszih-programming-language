@@ -2,7 +2,8 @@
 // Example 3: Direct Linux Kernel I/O via Inline Assembly (sys_write)
 
 fn sys_write(buffer_ptr: *int32, length: int32) : int32 {
-    asm "    mov rdx, rsi    # Arg 3: count (length of string)
+    asm "
+    mov rdx, rsi    # Arg 3: count (length of string)
     mov rsi, rdi    # Arg 2: *buf (pointer to memory)
     mov rdi, 1      # Arg 1: fd = 1 (stdout)
     mov rax, 1      # RAX = 1 (Linux sys_write syscall)

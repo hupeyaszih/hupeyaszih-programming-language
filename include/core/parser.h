@@ -1,6 +1,7 @@
 #ifndef PARSER_H
 #define PARSER_H
 
+#include "h_bitset.h"
 #include "h_vector.h"
 #include "lexer.h"
 #include "symbol_table.h"
@@ -75,7 +76,7 @@ struct parser_node{
            struct type_info *return_type;
 
            int param_count;
-           int8_t flags;
+           struct bitset_t *flags;
        } function;
 
        struct {

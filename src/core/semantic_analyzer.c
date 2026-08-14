@@ -1,11 +1,10 @@
 #include "core/semantic_analyzer.h"
-#include "core/flags/function_flags.h"
 #include "core/globals.h"
 #include "core/parser.h"
 #include "core/symbol_table.h"
 #include "h_string_view.h"
 #include "h_vector.h"
-#include <stdio.h>
+#include "core/flags/function_flags.h"
 
 static void propagate_literal_types(struct parser_node *node, struct type_info *target_type) {
     if (!node || !target_type) return;
@@ -69,7 +68,7 @@ static int is_statement_pure(struct parser_node *node, struct semantic_context *
                                   context->error = 1;
                                   return 0;
                               }
-                              if(!function_flags_get_is_pure_function(sym->flags)) {
+                              if(!bitset_test(sym->flags, FUNC_FLAG_IS_PURE)) {
                                   print_semantic_error_pure_func(node);
                                   context->error = 1;
                                   return 0;
@@ -165,7 +164,7 @@ int semantic_analyzer_analyze_function_decl(struct parser_node* node, struct sem
     int err = 0;
     err |= semantic_analyzer_analyze_node(node->data.function.body, context);
 
-    if(function_flags_get_is_pure_function(node->data.function.flags)) {
+    if(1 == bitset_test(node->data.function.flags, FUNC_FLAG_IS_PURE)) {
         int is_pure_function = 1;
         for(int i = 0; i < statement_count; ++i) {
             struct parser_node *statement = *(struct parser_node **) vector_get(node->data.function.body->data.block.statements, i);

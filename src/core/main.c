@@ -18,7 +18,7 @@ void print_help() {
 }
 
 void print_help_options() {
-    C_LOG_INFO("Usage: [-i input] [-o output] [-target build_target_name] [--run] [--clean] [--ir_dump] [-help] [-help_options] [-help_build_targets]");
+    C_LOG_INFO("Usage: [-i input] [-o output] [-target build_target_name] [-O0/O1/O2/O3] [--run] [--clean] [--ir_dump] [-help] [-help_options] [-help_build_targets]");
 }
 
 void print_help_build_targets() {
@@ -35,10 +35,12 @@ void clean_build_directory(void) {
 int main(int argc, char *argv[]) {
     const int FLAG_COUNT = 8;
     C_LOG_INFO("to take help, run with '-help' flag");
+    C_LOG_INFO("opt level is O0 by default, to switch among optimization levels please run with '-O0/1/2/3' !");
 
     char *input_path = "../example/example_00.hrs";
     char *output_path = "../out/";
     char *build_target = "x86_64_linux";
+    enum optimization_level opt_level = OPT_LEVEL_UNDEFINED;
 
     struct arena main_arena = arena_create();
     struct bitset_t *flags = bitset_create(&main_arena, FLAG_COUNT);
@@ -71,6 +73,18 @@ int main(int argc, char *argv[]) {
                 C_LOG_ERR("\"-target\" requires a build target name.");
                 return 1;
             }
+        }else if(0 == strcmp("-O0", argv[i])) {
+            if(opt_level != OPT_LEVEL_UNDEFINED) continue;
+            opt_level = OPT_LEVEL_O0;
+        }else if(0 == strcmp("-O1", argv[i])) {
+            if(opt_level != OPT_LEVEL_UNDEFINED) continue;
+            opt_level = OPT_LEVEL_O1;
+        }else if(0 == strcmp("-O2", argv[i])) {
+            if(opt_level != OPT_LEVEL_UNDEFINED) continue;
+            opt_level = OPT_LEVEL_O2;
+        }else if(0 == strcmp("-O3", argv[i])) {
+            if(opt_level != OPT_LEVEL_UNDEFINED) continue;
+            opt_level = OPT_LEVEL_O3;
         }else if(0 == strcmp("--run", argv[i])) {
             bitset_set(flags, M_FLAG_RUN);
         }else if(0 == strcmp("--clean", argv[i])) {
@@ -130,13 +144,13 @@ int main(int argc, char *argv[]) {
 
         bool ir_dump_flag = bitset_test(flags, M_FLAG_IR_DUMP);
 
+        opt_optimize_project(project, codegen, opt_level);
         if(ir_dump_flag) {
             for(int i = 0;i < project->modules->element_count; ++i) {
                 struct IR_Module *module = *(struct IR_Module **) vector_get(project->modules, i);
                 IR_dump_module(module);
             }
         }
-        opt_optimize_project(project, codegen);
 
         codegen_build_project(codegen, project, build_target);
     }

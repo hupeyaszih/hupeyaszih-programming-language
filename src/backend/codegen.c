@@ -134,6 +134,10 @@ void codegen_build_function(struct codegen_context_t *context, struct IR_Functio
         target->emit_label(context, block->mangled_name, false);
         struct IR_Instruction *instruction = block->head_instruction;
         while(NULL != instruction) {
+            if(NULL == instruction || instruction->type == IR_INSTRUCTION_TYPE_UNDEFINED || instruction->type == IR_INSTRUCTION_TYPE_NOP) {
+                instruction = instruction->next;
+                continue;
+            }
             target->emit_instruction(context, instruction);
             instruction = instruction->next;
         }

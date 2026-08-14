@@ -1,6 +1,7 @@
 #ifndef H_STRING_VIEW_H
 #define H_STRING_VIEW_H
 
+#include "h_arena.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -30,9 +31,15 @@ static inline void str_view_free(struct str_view *sv) {
     sv->len = 0;
 }
 
-static inline struct str_view str_view_from_cstr(const char *cstr) {
+static inline struct str_view str_view_from_cstr(struct arena *arena, const char *cstr) {
     if (!cstr) return (struct str_view){ NULL, 0 };
-    return str_view_make(cstr, strlen(cstr));
+    
+    size_t len = strlen(cstr);
+    
+    char *copy = arena_alloc(arena, len + 1); 
+    memcpy(copy, cstr, len + 1);
+    
+    return str_view_make(copy, len);
 }
 
 static inline struct str_view str_view_sub(struct str_view sv, size_t start, size_t len) {
