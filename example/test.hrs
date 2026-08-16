@@ -1,0 +1,45 @@
+fn main() : int32 {
+    var a1: int32 = 1;
+    var a2: int32 = 2;
+    var a3: int32 = 3;
+    var a4: int32 = 4;
+    var a5: int32 = 5;
+    var a6: int32 = 6;
+    var a7: int32 = 7;
+    var a8: int32 = 8;
+    var a9: int32 = 9;
+    var a10: int32 = 10;
+    var a11: int32 = 11;
+    var a12: int32 = 12;
+    var a13: int32 = 13;
+    var a14: int32 = 14;
+    var a15: int32 = 15;
+    var a16: int32 = 16;
+    var a17: int32 = 17;
+    var a18: int32 = 18;
+
+    var sum1: int32 = a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10 + a11 + a12 + a13 + a14 + a15 + a16 + a17 + a18;
+
+    var b1: int32 = 101;
+    var b2: int32 = 102;
+    var b3: int32 = 103;
+    var b4: int32 = 104;
+    var b5: int32 = 105;
+    var b6: int32 = 106;
+    var b7: int32 = 107;
+    var b8: int32 = 108;
+    var b9: int32 = 109;
+    var b10: int32 = 110;
+    var b11: int32 = 111;
+    var b12: int32 = 112;
+    var b13: int32 = 113;
+    var b14: int32 = 114;
+    var b15: int32 = 115;
+    var b16: int32 = 116;
+    var b17: int32 = 117;
+    var b18: int32 = 118;
+
+    var sum2: int32 = b1 + b2 + b3 + b4 + b5 + b6 + b7 + b8 + b9 + b10 + b11 + b12 + b13 + b14 + b15 + b16 + b17 + b18;
+
+    sum1 + sum2;
+}

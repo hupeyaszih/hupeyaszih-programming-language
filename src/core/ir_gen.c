@@ -77,8 +77,10 @@ struct IR_Block *IR_create_IR_Block(struct arena *arena, struct IR_Function *par
     block->predecessor = vector_create_vector(arena, 1, sizeof(struct IR_Block *));
     block->successors  = vector_create_vector(arena, 1, sizeof(struct IR_Block *));
 
-    block->use = NULL;
-    block->def = NULL;
+    block->uses = NULL;
+    block->defs = NULL;
+    block->live_in = NULL;
+    block->live_out = NULL;
 
     block->head_instruction = NULL;
     block->tail_instruction = NULL;
@@ -212,22 +214,6 @@ void IR_Block_remove_instruction(struct IR_Block *block, struct IR_Instruction *
     if (NULL == block || NULL == instruction) return;
 
     instruction->type = IR_INSTRUCTION_TYPE_NOP;
-    // if (instruction->prev) {
-    //     instruction->prev->next = instruction->next;
-    // } else {
-    //     block->head_instruction = instruction->next;
-    // }
-    //
-    // if (instruction->next) {
-    //     instruction->next->prev = instruction->prev;
-    // } else {
-    //     block->tail_instruction = instruction->prev;
-    // }
-    //
-    // instruction->prev = NULL;
-    // instruction->next = NULL;
-    //
-    // --block->instruction_count;
 }
 // Helpers
 

@@ -28,6 +28,8 @@ void opt_optimize_module(struct opt_context_t *context, struct IR_Module *restri
 
 void opt_run_cfg_analysis(struct IR_Function *function);
 void opt_compute_use_def(struct arena *arena, struct IR_Function *function);
+void opt_compute_local_liveness(struct IR_Block *block, int vreg_count, struct arena *arena ,struct arena *temp_arena);
+void opt_run_global_liveness(struct IR_Function *function, struct opt_context_t *context);
 void opt_run_live_range_analysis(struct IR_Function *function, struct opt_context_t *context);
 
 void opt_calculate_constants(struct IR_Function *function, struct opt_context_t *context);

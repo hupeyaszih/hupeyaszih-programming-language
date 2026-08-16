@@ -156,21 +156,6 @@ static inline void store_variable(struct ir_context *context, struct symbol_t *s
     }
 }
 
-static inline struct type_info *get_best_type_info_to_assign(struct type_info *left, struct type_info *right) {
-    if (!left || !right) return NULL;
-    
-    if (left == right) return left;
-
-    if (1 == type_table_can_that_promote_to(left, right)) {
-        return right;
-    } 
-    if (1 == type_table_can_that_promote_to(right, left)) {
-        return left;
-    }
-
-    return NULL;
-}
-
 struct IR_Operand *IRL_run_module_lower(struct parser_node *node, struct ir_context *context) {
     struct IR_Module *module = IR_create_IR_Module(context->arena, node->data.module.name);
     vector_add(context->project->modules, &module);

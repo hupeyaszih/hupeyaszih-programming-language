@@ -1,5 +1,6 @@
 #include "opt/register_allocator.h"
 #include "backend/codegen.h"
+#include "backend/x86_64/x86_64_linux.h"
 #include "core/ir_gen.h"
 #include "h_arena.h"
 #include "h_bitset.h"
@@ -14,38 +15,13 @@ struct register_allocator_t *register_allocator_create_register_allocator(struct
     return allocator;
 }
 
-int register_allocator_compare_operands_by_weight(const void *a, const void *b) {
-    const struct IR_Operand *op_a = *(const struct IR_Operand **)a;
-    const struct IR_Operand *op_b = *(const struct IR_Operand **)b;
-
-    if (op_b->data.vreg.live_interval.weight > op_a->data.vreg.live_interval.weight) return 1;
-    if (op_b->data.vreg.live_interval.weight < op_a->data.vreg.live_interval.weight) return -1;
-
-    if (op_a->data.vreg.vreg_id > op_b->data.vreg.vreg_id) return 1;
-    if (op_a->data.vreg.vreg_id < op_b->data.vreg.vreg_id) return -1;
-    return 0;
-}
-
-int register_allocator_compare_operands_by_live_interval(const void *a, const void *b) {
-    const struct IR_Operand *op_a = *(const struct IR_Operand **)a;
-    const struct IR_Operand *op_b = *(const struct IR_Operand **)b;
-
-    if (op_a->data.vreg.live_interval.start != op_b->data.vreg.live_interval.start) {
-        return op_a->data.vreg.live_interval.start - op_b->data.vreg.live_interval.start;
-    }
-
-    return op_a->data.vreg.live_interval.end - op_b->data.vreg.live_interval.end;
-
-    return 0;
-}
-
 struct register_t *register_allocator_check_preferred_reg(struct IR_Operand *vreg, struct codegen_build_target_t *target) {
     struct register_t *preferred_reg = NULL;
 
     if(vreg->definition_instruction){
         struct IR_Instruction *instruction = vreg->definition_instruction;
         preferred_reg = target->get_fixed_register_for_instruction(target->registers, instruction, vreg);
-        if(preferred_reg && !preferred_reg->is_busy){
+        if(preferred_reg){
             return preferred_reg;
         }
 
@@ -54,7 +30,7 @@ struct register_t *register_allocator_check_preferred_reg(struct IR_Operand *vre
     for(int i = 0;i < vreg->use_list->element_count; ++i) {
         struct IR_Instruction *instruction = *(struct IR_Instruction **) vector_get(vreg->use_list, i);
         preferred_reg = target->get_fixed_register_for_instruction(target->registers, instruction, vreg);
-        if(!preferred_reg || preferred_reg->is_busy) continue;
+        if(!preferred_reg) continue;
 
         return preferred_reg;
     }
@@ -163,17 +139,66 @@ static inline void calculate_clobbers(struct IR_Function *function, struct codeg
     }
 }
 
+static inline bool intersects(struct IR_Operand *op1, struct IR_Operand *op2) {
+    int start_1 = op1->data.vreg.live_interval.start;
+    int start_2 = op2->data.vreg.live_interval.start;
+
+    int end_1 = op1->data.vreg.live_interval.end;
+    int end_2 = op2->data.vreg.live_interval.end;
+
+    if (start_1 == -1 || end_1 == -1 || start_2 == -1 || end_2 == -1) {
+        return false;
+    }
+
+    return (start_1 <= end_2) && (start_2 <= end_1);
+}
+
+struct graph_node {
+    struct IR_Operand *vreg;
+    struct bitset_t *edges;
+    struct bitset_t *clobbers;
+    int degree;
+    int pre_colored_reg;
+    int vreg_id;
+    bool is_spilled;
+    bool is_simplified;
+};
+
+static inline void decrease_neighbours_degree(struct graph_node *node, struct vector_t *nodes) {
+    int node_count = nodes->element_count;
+    for(int k = 0;k < node_count;++k) {
+        struct graph_node *target_node = (struct graph_node *) vector_get(nodes, k);
+        struct IR_Operand *target_vreg = target_node->vreg;
+        int target_vreg_id = target_vreg->data.vreg.vreg_id;
+
+        if(bitset_test(node->edges, target_vreg_id)) {
+            --target_node->degree;
+        }
+    }
+}
+
+static inline bool is_register_using_by_neighbours(struct graph_node *node, struct vector_t *nodes, int register_id) {
+    int node_count = nodes->element_count;
+    bool result = false;
+    for(int k = 0;k < node_count; ++k) {
+        struct graph_node *target_node = (struct graph_node *) vector_get(nodes, k);
+        if(node->vreg->data.vreg.vreg_id == target_node->vreg->data.vreg.vreg_id) continue;
+        if(!bitset_test(node->edges, target_node->vreg->data.vreg.vreg_id)) continue;
+
+        if(target_node->vreg->data.vreg.reg && target_node->vreg->data.vreg.reg->id == register_id) {
+            result = true;
+            break;
+        }
+    }
+    return result;
+}
+
 void register_allocator_run_allocator(struct register_allocator_t *allocator, struct IR_Function *function) {
     if(!function || !allocator) return;
     struct codegen_t *codegen = allocator->codegen;
     struct codegen_build_target_t *target = codegen->current_build_target;
-
-    for(int i = 0;i < target->registers->register_count; ++i) {
-        struct register_t *reg = target->registers->registers + i;
-        reg->is_busy = false;
-        reg->current_vreg = NULL;
-    }
-
+    struct arena *temp_arena = allocator->codegen->temp_arena;
+    struct arena *arena = allocator->codegen->arena;
 
     function->used_callee_saved_registers          = bitset_create(allocator->codegen->arena, target->registers->register_count);
     function->used_caller_saved_registers          = bitset_create(allocator->codegen->arena, target->registers->register_count);
@@ -182,86 +207,187 @@ void register_allocator_run_allocator(struct register_allocator_t *allocator, st
     struct vector_t *clobbers = vector_create_vector(allocator->codegen->temp_arena, function->unique_vregs->element_count / 8+1, sizeof(struct clobber_t));
     calculate_clobbers(function, target, clobbers);
 
-    // calculate weights
-    int vreg_count = function->unique_vregs->element_count;
+    //
+    struct vector_t *vregs = function->unique_vregs;
+    int vreg_count = vregs->element_count;
+    int phys_reg_count = codegen->current_build_target->registers->register_count;
     if(vreg_count <= 0) return;
-    struct vector_t *vregs = vector_create_vector(allocator->codegen->temp_arena, vreg_count, sizeof(struct IR_Operand *));
-    struct vector_t *slots = vector_create_vector(allocator->codegen->temp_arena, (vreg_count/4)+1, sizeof(struct stack_slot_t *));
+    struct vector_t *nodes = vector_create_vector(temp_arena, (vreg_count), sizeof(struct graph_node));
+    struct vector_t *slots = vector_create_vector(temp_arena, (vreg_count/4)+1, sizeof(struct stack_slot_t *));
 
 
     for(int i = 0;i < vreg_count; ++i) {
-        struct IR_Operand *operand = *(struct IR_Operand **) vector_get(function->unique_vregs, i);
-        if(IR_OPERAND_TYPE_UNDEFINED == operand->type) {
+        struct IR_Operand *vreg = *(struct IR_Operand **) vector_get(vregs, i);
+        if(IR_OPERAND_TYPE_UNDEFINED == vreg->type) {
             continue;
         }
+        struct graph_node node;
+        node.vreg = vreg;
+        node.vreg_id = vreg->data.vreg.vreg_id;
+        node.degree = 0;
+        node.edges    = bitset_create(temp_arena, vreg_count);
+        node.clobbers = bitset_create(temp_arena, phys_reg_count);
+        node.pre_colored_reg = -1;
+        node.is_spilled = false;
+        node.is_simplified = false;
 
-        int use_score = operand->data.vreg.live_interval.use_score;
-        int live_length = operand->data.vreg.live_interval.end - operand->data.vreg.live_interval.start;
 
-        int weight = 0;
-        if(live_length == 0) {
-            weight = 1;
-        }else {
-            weight = (use_score << 10) / live_length;
+        for(int k = 0;k < vreg_count; ++k) {
+            struct IR_Operand *target_vreg = *(struct IR_Operand **) vector_get(vregs, k);
+            if(IR_OPERAND_TYPE_VREG != target_vreg->type) {
+                continue;
+            }
+            if(target_vreg->data.vreg.vreg_id == vreg->data.vreg.vreg_id) continue;
+            if(!intersects(vreg, target_vreg)) continue;
+            bool is_mov_source = false;
+            struct IR_Instruction *def_inst = vreg->definition_instruction;
+            if (def_inst && def_inst->type == IR_INSTRUCTION_TYPE_MOV) {
+                struct IR_Operand *src = def_inst->operands.double_operands.source_1;
+                if (src && src->type == IR_OPERAND_TYPE_VREG && src->data.vreg.vreg_id == target_vreg->data.vreg.vreg_id) {
+                    is_mov_source = true; 
+                }
+            }
+
+            if (is_mov_source) {
+                continue;
+            }
+            bitset_set(node.edges, target_vreg->data.vreg.vreg_id);
+            ++node.degree;
         }
 
-        operand->data.vreg.live_interval.weight = weight;
+        struct register_t *preferred_reg = register_allocator_check_preferred_reg(vreg, target);
+        if(preferred_reg)node.pre_colored_reg = preferred_reg->id;
 
-        vector_add(vregs, &operand);
+        for(int k = 0;k < phys_reg_count;++k) {
+            struct register_t *reg = target->registers->registers + k;
+            if(codegen_is_register_clobbered_for_vreg(reg, vreg, clobbers)) {
+                bitset_set(node.clobbers, k);
+            }
+        }
+
+        vector_add(nodes, &node);
     }
 
-    qsort(vregs->data, vregs->element_count, vregs->type_size, &register_allocator_compare_operands_by_live_interval);
-    // Register Allocator
-
-    bool *is_allocated = arena_alloc(codegen->temp_arena, vreg_count * sizeof(bool));
-    int parameter_count = function->parameters->element_count;
-    for(int i = 0; i < parameter_count; ++i) {
-        struct IR_Operand *param = *(struct IR_Operand **) vector_get(function->parameters, i);
-        if(IR_OPERAND_TYPE_UNDEFINED == param->type) continue;
-        is_allocated[param->data.vreg.vreg_id] = true;
-        bool crosses = register_allocator_vreg_crosses_call(function, param);
-        param->data.vreg.crosses_call = crosses;
+    for(int i = 0; i < function->parameters->element_count; ++i) {
+        struct IR_Operand *param_vreg = *(struct IR_Operand **) vector_get(function->parameters, i);
+        if(IR_OPERAND_TYPE_UNDEFINED == param_vreg->type) continue;
 
         if (i >= target->argument_register_count) {
-            register_allocator_spill(allocator->codegen->arena, param, slots, function, true);
+            for(int k = 0; k < nodes->element_count; ++k) {
+                struct graph_node *node = (struct graph_node *) vector_get(nodes, k);
+                if(node->vreg->data.vreg.vreg_id == param_vreg->data.vreg.vreg_id) {
+                    register_allocator_spill(allocator->codegen->arena, param_vreg, slots, function, true, node, nodes);
+                    decrease_neighbours_degree(node, nodes);
+                    node->is_simplified = true;
+                    node->is_spilled = true;
+                    break;
+                }
+            }
+
             continue;
         }
 
-        struct register_t *reg = target->get_reg_with_arg_index(target->registers, i);
-        reg->is_busy = true;
-        reg->current_vreg = param;
-        param->data.vreg.reg = reg;
-
-        if(REGISTER_TYPE_CALLEE_SAVED == reg->type) bitset_set(function->used_callee_saved_registers, reg->id);
-        if(REGISTER_TYPE_CALLER_SAVED == reg->type) bitset_set(function->directly_used_caller_saved_registers, reg->id);
-
-        if(crosses && REGISTER_TYPE_CALLER_SAVED == reg->type) {
-            register_allocator_add_to_call_across_registers(function, allocator->codegen->arena, target, param, reg);
+        for(int k = 0; k < nodes->element_count; ++k) {
+            struct graph_node *node = (struct graph_node *) vector_get(nodes, k);
+            if(node->vreg->data.vreg.vreg_id == param_vreg->data.vreg.vreg_id) {
+                struct register_t *reg = target->get_reg_with_arg_index(target->registers, i);
+                node->pre_colored_reg = reg->id;
+                node->vreg->data.vreg.reg = reg;
+                decrease_neighbours_degree(node, nodes);
+                node->is_simplified = true;
+                break;
+            }
         }
     }
 
-    for(int i = 0;i < vregs->element_count; ++i) {
-        struct IR_Operand *vreg = *(struct IR_Operand **) vector_get(vregs, i);
-        if(!vreg || is_allocated[vreg->data.vreg.vreg_id]) continue;
-        if(IR_OPERAND_TYPE_UNDEFINED == vreg->type) continue;
+    struct vector_t *simplifying_nodes = vector_create_vector(temp_arena, vreg_count, sizeof(struct graph_node *));
+    // simplifying
+    for(;;) {
+        bool made_progress = false;
+        for(int i = 0;i < nodes->element_count; ++i) {
+            struct graph_node *node = (struct graph_node *) vector_get(nodes, i);
+            if(node->is_simplified || node->is_spilled) continue;
+            if(node->degree < phys_reg_count) {
+                vector_push(simplifying_nodes, &node);
+
+                decrease_neighbours_degree(node, nodes);
+
+                made_progress = true;
+                node->is_simplified = true;
+            }
+        }
+
+        if(made_progress) continue;
+
+        struct graph_node *node_to_spill = NULL;
+        for(int i = 0;i < nodes->element_count; ++i) {
+            struct graph_node *node = (struct graph_node *) vector_get(nodes, i);
+            if(node->is_simplified || node->is_spilled) continue;
+            if(NULL == node_to_spill) {
+                node_to_spill = node;
+                continue;
+            }
+            if(node->vreg->data.vreg.live_interval.weight < node_to_spill->vreg->data.vreg.live_interval.weight) {
+                node_to_spill = node;
+            }
+        }
+
+        if(node_to_spill) {
+            node_to_spill->is_simplified = true;
+            vector_push(simplifying_nodes, &node_to_spill);
+            decrease_neighbours_degree(node_to_spill, nodes);
+        } else {
+            break;
+        }
+    }
+
+    // coloring
+    for(int i = 0;i < simplifying_nodes->element_count; ++i) {
+        struct graph_node *node = *(struct graph_node **) vector_get(simplifying_nodes, i);
+        if(!node || !node->vreg || -1 == node->pre_colored_reg) continue;
+        struct register_t *reg = target->registers->registers + node->pre_colored_reg;
+        if(!is_register_using_by_neighbours(node, nodes, reg->id) && !bitset_test(node->clobbers, reg->id)) {
+            node->vreg->data.vreg.reg = reg;
+        }
+    }
+
+    for(;;) {
+        if(simplifying_nodes->element_count <= 0) break;
+        struct graph_node *node = *(struct graph_node **) vector_pop(simplifying_nodes);
+        if(node->vreg->data.vreg.reg) continue;
+
+        if(-1 != node->pre_colored_reg) {
+            struct register_t *reg = target->registers->registers + node->pre_colored_reg;
+            if(!is_register_using_by_neighbours(node, nodes, reg->id) && !bitset_test(node->clobbers, reg->id)) {
+                node->vreg->data.vreg.reg = reg;
+                continue;
+            }
+        }
+
+        bool assigned = false;
+        for(int i = 0;i < phys_reg_count;++i) {
+            struct register_t *reg = target->registers->registers + target->get_reg_in_reg_preference_order(i);
+            if(!reg) continue;
+            if(is_register_using_by_neighbours(node, nodes, reg->id)) continue;
+            if(bitset_test(node->clobbers, reg->id)) continue;
+
+            node->vreg->data.vreg.reg = reg;
+            assigned = true;
+            break;
+        }
+        if(!assigned) {
+            register_allocator_spill(arena, node->vreg, slots, function, false, node,nodes);
+            node->is_spilled = true;
+        }
+    }
+
+    for(int i = 0;i < function->unique_vregs->element_count;++i) {
+        struct IR_Operand *vreg = *(struct IR_Operand **) vector_get(function->unique_vregs, i);
+        if(!vreg || IR_OPERAND_TYPE_VREG != vreg->type) continue;
+        struct register_t *reg = vreg->data.vreg.reg;
+        if(!reg) continue;
         bool crosses = register_allocator_vreg_crosses_call(function, vreg);
         vreg->data.vreg.crosses_call = crosses;
-
-        int current_time = vreg->data.vreg.live_interval.start;
-
-        register_allocator_expire_old_intervals(target->registers, slots, current_time);
-
-        is_allocated[vreg->data.vreg.vreg_id] = true;
-        struct register_t *preferred_reg = register_allocator_check_preferred_reg(vreg, target);
-
-        struct register_t *reg = target->get_best_available_register(target->registers, preferred_reg, clobbers, vreg);
-        if(!reg) {
-            register_allocator_spill(allocator->codegen->arena, vreg, slots, function, false);
-            continue;
-        } 
-        reg->is_busy = true;
-        reg->current_vreg = vreg;
-        vreg->data.vreg.reg = reg;
 
         if(REGISTER_TYPE_CALLEE_SAVED == reg->type) bitset_set(function->used_callee_saved_registers, reg->id);
         if(REGISTER_TYPE_CALLER_SAVED == reg->type) bitset_set(function->directly_used_caller_saved_registers, reg->id);
@@ -272,51 +398,49 @@ void register_allocator_run_allocator(struct register_allocator_t *allocator, st
     }
 
 
+    arena_reset(temp_arena);
 }
 
-struct stack_slot_t *register_allocator_spill(struct arena *arena, struct IR_Operand *vreg, struct vector_t *stack_slots, struct IR_Function *function, bool is_argument) {
-    if(!vreg || !vreg) return NULL;
-    vreg->type = IR_OPERAND_TYPE_STACK_SLOT;
-    vreg->data.slot.live_interval = vreg->data.vreg.live_interval;
+struct stack_slot_t *register_allocator_spill(struct arena *arena, struct IR_Operand *vreg, struct vector_t *stack_slots, struct IR_Function *function, bool is_argument,struct graph_node *current_node,struct vector_t *nodes) {
+    if (!vreg) return NULL;
 
-    for(int i = 0;i < stack_slots->element_count;++i) {
-        struct stack_slot_t *slot = *(struct stack_slot_t **) vector_get(stack_slots, i);
-        if(!slot || vreg->type_info->size != slot->type->size) continue;
-        if(false == slot->is_busy && is_argument == slot->is_argument) {
-            vreg->data.slot.stack_slot = slot;
-            slot->current_vreg = vreg;
-            slot->is_busy = true;
-            return slot;
+    if (current_node && nodes) {
+        for (int i = 0; i < stack_slots->element_count; ++i) {
+            struct stack_slot_t *slot = *(struct stack_slot_t **) vector_get(stack_slots, i);
+            if (!slot || vreg->type_info->size != slot->type->size) continue;
+            if (is_argument != slot->is_argument) continue;
+
+            bool interferes = false;
+
+            for (int k = 0; k < nodes->element_count; ++k) {
+                struct graph_node *other = (struct graph_node *) vector_get(nodes, k);
+                if (other == current_node || !other->is_spilled) continue;
+
+                if (other->vreg->type == IR_OPERAND_TYPE_STACK_SLOT && 
+                    other->vreg->data.slot.stack_slot == slot) {
+                    
+                    int other_vreg_id = other->vreg_id;
+                    if (bitset_test(current_node->edges, other_vreg_id)) {
+                        interferes = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!interferes) {
+                vreg->type = IR_OPERAND_TYPE_STACK_SLOT;
+                vreg->data.slot.live_interval = vreg->data.vreg.live_interval;
+                vreg->data.slot.stack_slot = slot;
+                return slot;
+            }
         }
     }
 
     struct stack_slot_t *slot = IR_create_stack_slot(arena, vreg->type_info, function, is_argument);
-    slot->current_vreg = vreg;
+    vreg->type = IR_OPERAND_TYPE_STACK_SLOT;
+    vreg->data.slot.live_interval = vreg->data.vreg.live_interval;
     vreg->data.slot.stack_slot = slot;
-    slot->is_busy = true;
 
     vector_add(stack_slots, &slot);
     return slot;
-}
-
-void register_allocator_expire_old_intervals(struct register_list_t *registers, struct vector_t *stack_slots,int time) {
-    for(int i = 0;i < registers->register_count; ++i) {
-        struct register_t *reg = registers->registers + i;
-        if(!reg->is_busy || !reg->current_vreg) continue;
-
-        if(reg->current_vreg->data.vreg.live_interval.end < time) {
-            reg->current_vreg = NULL;
-            reg->is_busy = false;
-        }
-    }
-    if(!stack_slots) return;
-    for(int i = 0;i < stack_slots->element_count; ++i) {
-        struct stack_slot_t *slot = *(struct stack_slot_t **) vector_get(stack_slots, i);
-        if(NULL == slot || NULL == slot->current_vreg) continue;
-
-        if(slot->current_vreg->data.slot.live_interval.end < time) {
-            slot->current_vreg = NULL;
-            slot->is_busy = false;
-        }
-    }
 }

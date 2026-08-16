@@ -142,9 +142,4 @@ static inline void run_flag_func(const char *restrict build_path, struct IR_Proj
 }
 
 
-static inline void ir_test(struct parser_t *parser, struct symbol_table *global_scope) {
-}
-
-
-
 #endif

@@ -20,6 +20,7 @@ void register_allocator_expire_old_intervals(struct register_list_t *registers, 
 struct register_t *register_allocator_check_preferred_reg(struct IR_Operand *vreg, struct codegen_build_target_t *target);
 void register_allocator_emit_movs_for_fixed_regs(struct IR_Operand *vreg, struct codegen_build_target_t *target);
 
-struct stack_slot_t *register_allocator_spill(struct arena *arena, struct IR_Operand *vreg, struct vector_t *stack_slots, struct IR_Function *function, bool is_argument);
+struct graph_node;
+struct stack_slot_t *register_allocator_spill(struct arena *arena, struct IR_Operand *vreg, struct vector_t *stack_slots, struct IR_Function *function, bool is_argument,struct graph_node *current_node,struct vector_t *nodes);
 
 #endif

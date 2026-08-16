@@ -127,13 +127,6 @@ static inline enum token_type lexer_get_symbol_type(const char *chr) {
     }
 }
 
-static inline int lexer_is_number(const char chr) {
-    if (chr >= '0' && chr <= '9') {
-        return LEXER_TOKEN_TYPE_INT_LITERAL;
-    }
-    return -1;
-}
-
 static inline int lexer_is_keyword(const struct str_view view){
     for(int i = 0;i < LEXER_KEYWORD_COUNT; ++i){
         if(str_view_eq_cstr(view, language_keywords[i])) return i;
@@ -141,14 +134,6 @@ static inline int lexer_is_keyword(const struct str_view view){
     return -1;
 }
 
-
-int lexer_compare_keyword(const char *restrict word){ //Returns Keyword ID
-    for(int i = 0;i < LEXER_KEYWORD_COUNT; ++i){
-        const char *restrict keyword = language_keywords[i];
-        if(0 == strcmp(word, keyword)) return i;
-    }
-    return -1;
-}
 
 static inline int calculate_line_count(const char *restrict str) {
     if (!str || '\0' == str[0]) return 0;

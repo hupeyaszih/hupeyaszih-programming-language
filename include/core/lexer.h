@@ -93,8 +93,6 @@ extern const char LEXER_DELIM[];
 
 extern const char language_keywords[LEXER_KEYWORD_COUNT][LEXER_MAX_KEYWORD_CHAR_LENGHT];
 
-int lexer_compare_keyword(const char *restrict word);
-
 
 int lexer_create_lexer_file(struct lexer_file *restrict file, char *restrict str, const char *restrict file_name, struct arena *arena);
 

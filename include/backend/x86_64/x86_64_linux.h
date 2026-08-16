@@ -46,6 +46,7 @@ struct codegen_build_target_t *x86_64_linux_create_build_target(struct arena *ar
 struct register_list_t *x86_64_linux_create_register_list(struct arena *arena, struct codegen_build_target_t *arch);
 
 const char *x86_64_linux_get_register_name(struct register_list_t *list, struct register_t *reg, enum register_size size);
+int x86_64_linux_get_reg_in_reg_preference_order(int index);
 struct register_t *x86_64_linux_get_best_available_register(struct register_list_t *list, struct register_t *preferred_register, struct vector_t *clobber_list, struct IR_Operand *vreg);
 
 struct register_t *x86_64_linux_get_fixed_register_for_instruction(struct register_list_t *list, struct IR_Instruction *instruction, struct IR_Operand *target_operand);

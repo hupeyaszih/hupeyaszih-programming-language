@@ -462,6 +462,11 @@ cleanup_err_level_0:
 
 struct parser_node *parser_parse_function(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor) {
     if(NULL == parser) {LOG_M_ERR("parser_parse_function - \"struct parser_t *restrict parser\" is null"); return NULL;}
+    if(parser->current_scope && parser->current_scope->parent) {
+        C_LOG_ERR("cannot define a function in another function, line: %d", tokens[*cursor].line);
+        parser->successful = 0;
+        return NULL;
+    }
     struct parser_node *function_node = parser_create_node(parser->arena, PARSER_NODE_FUNCTION, tokens[*cursor].line);
     if(NULL == function_node){
         LOG_M_ERR("parser_parse_function - \"struct parser_node *function_node\" is null");
@@ -938,20 +943,4 @@ struct parser_node *parser_parse_unary(struct parser_t *restrict parser, struct 
     }
 
     return parser_parse_factor(parser, tokens, token_count, cursor);
-}
-
-
-int parser_parse_control_depth(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int cursor){
-    int depth = 0;
-    int max_depth = 0;
-    while(cursor < token_count){
-        enum token_type current_type = tokens[cursor].type;
-        if(LEXER_TOKEN_TYPE_LPAREN == current_type) {depth++;}
-        else if(LEXER_TOKEN_TYPE_RPAREN == current_type) {depth--;}
-
-        if(depth < 0) return -1;
-
-        cursor++;
-    }
-    return 0;
 }

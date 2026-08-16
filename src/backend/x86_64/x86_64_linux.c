@@ -3,6 +3,7 @@
 #include "backend/codegen_utils.h"
 #include "core/ir_gen.h"
 #include "core/symbol_table.h"
+#include "h_arena.h"
 #include "h_bitset.h"
 #include "h_string_view.h"
 #include "h_vector.h"
@@ -15,6 +16,7 @@ struct codegen_build_target_t *x86_64_linux_create_build_target(struct arena *ar
     target->name = "x86_64_linux";
     target->registers = x86_64_linux_create_register_list(arena, target);
     target->get_register_name = &x86_64_linux_get_register_name;
+    target->get_reg_in_reg_preference_order = &x86_64_linux_get_reg_in_reg_preference_order;
     target->get_best_available_register = &x86_64_linux_get_best_available_register;
     target->get_fixed_register_for_instruction = &x86_64_linux_get_fixed_register_for_instruction;
     target->collect_instruction_clobbers = &x86_64_collect_instruction_clobbers;
@@ -191,7 +193,7 @@ void x86_64_collect_instruction_clobbers(struct register_list_t *list, struct IR
             rax_clobber.time = time;
             vector_add(clobber_list, &rax_clobber);
             break;
-        }
+        }default: break;
     }
 }
 
@@ -224,33 +226,6 @@ struct register_t *x86_64_linux_get_fixed_register_for_instruction(struct regist
 
             if (arg_index < 0 || arg_index >= 6) return NULL; 
             return x86_64_linux_get_reg_with_arg_index(list, arg_index);
-        }case IR_INSTRUCTION_TYPE_JMP: {
-            if(NULL == instruction->operands.jmp.args) return NULL;
-            for(int i = 0;i < instruction->operands.jmp.args->element_count; ++i) {
-                struct IR_Operand *arg = *(struct IR_Operand **) vector_get(instruction->operands.jmp.args, i);
-                struct IR_Operand *param = *(struct IR_Operand **) vector_get(instruction->operands.jmp.target_block->params, i);
-                if(IR_OPERAND_TYPE_VREG != arg->type) continue;
-                if(target_operand == arg) return param->data.vreg.reg; 
-            }
-            return NULL;
-        }case IR_INSTRUCTION_TYPE_BR: {
-            if(instruction->operands.br.true_args){
-                for(int i = 0;i < instruction->operands.br.true_args->element_count; ++i) {
-                    struct IR_Operand *arg = *(struct IR_Operand **) vector_get(instruction->operands.br.true_args, i);
-                    struct IR_Operand *param = *(struct IR_Operand **) vector_get(instruction->operands.br.true_block->params, i);
-                    if(IR_OPERAND_TYPE_VREG != arg->type) continue;
-                    if(target_operand == arg) return param->data.vreg.reg; 
-                }
-            }
-            if(instruction->operands.br.false_args) {
-                for(int i = 0;i < instruction->operands.br.false_args->element_count; ++i) {
-                    struct IR_Operand *arg = *(struct IR_Operand **) vector_get(instruction->operands.br.false_args, i);
-                    struct IR_Operand *param = *(struct IR_Operand **) vector_get(instruction->operands.br.false_block->params, i);
-                    if(IR_OPERAND_TYPE_VREG != arg->type) continue;
-                    if(target_operand == arg) return param->data.vreg.reg; 
-                }
-            }
-            return NULL;
         }
         case IR_INSTRUCTION_TYPE_RET: return list->registers+X86_64_RAX;
 
@@ -269,21 +244,23 @@ static const int REG_PREFERENCE_ORDER[X86_64_REGISTER_COUNT] = {
 void x86_64_linux_set_free_reserved_register(struct register_list_t *list, struct register_t *reg) {
     if(!reg || !list) return;
     if(!reg->is_reserved) return;
-    reg->is_busy = false;
+    reg->is_reserved_reg_busy = false;
 }
 struct register_t *x86_64_linux_get_available_reserved_register(struct register_list_t *list) {
     for(int i = 0;i < list->register_count; ++i) {
         struct register_t *reg = list->registers + REG_PREFERENCE_ORDER[i];
-        if(true == reg->is_busy || false == reg->is_reserved) continue;
-        reg->is_busy = true;
+        if(true == reg->is_reserved_reg_busy  || false == reg->is_reserved) continue;
+        reg->is_reserved_reg_busy = true;
 
         return reg;
     }
     return NULL;
 }
-
+int x86_64_linux_get_reg_in_reg_preference_order(int index) {
+    return REG_PREFERENCE_ORDER[index];
+}
 struct register_t *x86_64_linux_get_best_available_register(struct register_list_t *list, struct register_t *preferred_register, struct vector_t *clobber_list, struct IR_Operand *vreg) {
-    if(NULL != preferred_register && !preferred_register->is_busy && !preferred_register->is_reserved) {
+    if(NULL != preferred_register && !preferred_register->is_reserved) {
         if(!codegen_is_register_clobbered_for_vreg(preferred_register, vreg, clobber_list)) return preferred_register;
     }
 
@@ -291,7 +268,7 @@ struct register_t *x86_64_linux_get_best_available_register(struct register_list
         for(int i = 0; i < list->register_count; ++i) {
             struct register_t *reg = list->registers + REG_PREFERENCE_ORDER[i];
             
-            if (reg->type == REGISTER_TYPE_CALLEE_SAVED && !reg->is_busy && !reg->is_reserved && !codegen_is_register_clobbered_for_vreg(reg, vreg, clobber_list)) {
+            if (reg->type == REGISTER_TYPE_CALLEE_SAVED && !reg->is_reserved && !codegen_is_register_clobbered_for_vreg(reg, vreg, clobber_list)) {
                 return reg;
             }
         }
@@ -299,7 +276,7 @@ struct register_t *x86_64_linux_get_best_available_register(struct register_list
 
     for(int i = 0; i < list->register_count; ++i) {
         struct register_t *reg = list->registers + REG_PREFERENCE_ORDER[i];
-        if(true == reg->is_busy || true == reg->is_reserved || codegen_is_register_clobbered_for_vreg(reg, vreg, clobber_list)) continue;
+        if(true == reg->is_reserved || codegen_is_register_clobbered_for_vreg(reg, vreg, clobber_list)) continue;
 
         return reg;
     }
@@ -309,17 +286,8 @@ struct register_t *x86_64_linux_get_best_available_register(struct register_list
 
 
 // emit
-static inline struct register_t *get_function_return_register(struct IR_Function *function, struct register_list_t *list) {
-    struct register_t *rax = list->registers + X86_64_RAX;
-    return rax;
-}
-
-static inline int check_stack_aligment_before_call(struct codegen_context_t *context, int *stack_size) {
-    return *stack_size % 16;
-}
-
 void x86_64_linux_emit_mov_reg_to_reg(struct codegen_context_t *context, struct register_t *dest, struct register_t *src, enum register_size size) {
-    if(src == dest) return;
+    if(src->id == dest->id) return;
     const char *src_str = context->build_target->get_register_name(context->build_target->registers, src, size);
     const char *dest_str = context->build_target->get_register_name(context->build_target->registers, dest, size);
 
@@ -389,6 +357,7 @@ void x86_64_linux_emit_mov_reg_to_operand(struct codegen_context_t *context, str
     }
 }
 void x86_64_linux_emit_mov_operand_to_operand(struct codegen_context_t *context, struct IR_Operand *dest, struct IR_Operand *src) {
+    if(dest == src) return;
     enum register_size dest_size = codegen_get_register_size_from_operand(dest);
     enum register_size src_size = codegen_get_register_size_from_operand(src);
 

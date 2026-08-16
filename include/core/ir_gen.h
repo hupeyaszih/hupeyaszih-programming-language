@@ -215,8 +215,10 @@ struct IR_Block {
     struct vector_t *predecessor;  // struct IR_Block *
     struct vector_t *successors;   // struct IR_Block *
 
-    struct bitset_t *use;       // All vreg_ids used in the block
-    struct bitset_t *def;       // All vreg_ids defined in the block
+    struct bitset_t *uses;
+    struct bitset_t *defs;
+    struct bitset_t *live_in;
+    struct bitset_t *live_out;
 
     struct vector_t *params; // struct IR_Operand *
 
@@ -306,45 +308,4 @@ void IR_Block_remove_instruction(struct IR_Block *block, struct IR_Instruction *
 struct IR_Operand *IR_create_new_vreg(struct arena *arena, struct IR_Function *parent_function, struct IR_Instruction *definition_instruction, struct symbol_t *variable, int in_loop);
 
 int IR_call_get_arg_index(struct IR_Instruction *call, struct IR_Operand *target_arg);
-
-// Other Functions
-static inline int IR_get_instruction_cost(enum IR_Instruction_type type) {
-    switch (type) {
-        case IR_INSTRUCTION_TYPE_NOP:
-            return 0;
-        case IR_INSTRUCTION_TYPE_PLUS:
-        case IR_INSTRUCTION_TYPE_MINUS:
-        case IR_INSTRUCTION_TYPE_EQUAL_EQUAL:
-        case IR_INSTRUCTION_TYPE_BANG_EQUAL:
-        case IR_INSTRUCTION_TYPE_LESS_EQUAL:
-        case IR_INSTRUCTION_TYPE_GREATER_EQUAL:
-        case IR_INSTRUCTION_TYPE_GREATER:
-        case IR_INSTRUCTION_TYPE_LESS:
-        case IR_INSTRUCTION_TYPE_UNARY_BANG:
-        case IR_INSTRUCTION_TYPE_UNARY_MINUS:
-        case IR_INSTRUCTION_TYPE_UNARY_ADDRESS_OF:
-            return 1;
-        case IR_INSTRUCTION_TYPE_MOV:
-        case IR_INSTRUCTION_TYPE_UNARY_DEREFERENCE:
-            return 2;
-        case IR_INSTRUCTION_TYPE_MUL:
-            return 3;
-        case IR_INSTRUCTION_TYPE_DIVIDE:
-        case IR_INSTRUCTION_TYPE_ALLOCA:
-        case IR_INSTRUCTION_TYPE_STORE:
-        case IR_INSTRUCTION_TYPE_LOAD:
-            return 10;
-        case IR_INSTRUCTION_TYPE_BR:
-        case IR_INSTRUCTION_TYPE_JMP:
-            return 6;
-        case IR_INSTRUCTION_TYPE_CALL:
-            return 20;
-        case IR_INSTRUCTION_TYPE_ASM:
-            return 10;
-        case IR_INSTRUCTION_TYPE_UNDEFINED:
-            return 1;
-
-    }
-    return 1;
-}
 #endif 

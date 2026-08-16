@@ -105,22 +105,6 @@ struct parser_node{
    int line; 
 };
 
-static inline int is_node_type_operator(struct parser_node *restrict node){
-    switch (node->type) {
-        case PARSER_NODE_PLUS:
-            return 0;
-        case PARSER_NODE_MINUS:
-            return 0;
-        case PARSER_NODE_DIVIDE:
-            return 0;
-        case PARSER_NODE_MUL:
-            return 0;
-        default:
-            return -1;
-    }
-    return -1;
-}
-
 struct parser_t{
     struct arena *arena;
     struct arena *symbol_arena;
@@ -158,8 +142,6 @@ struct parser_node *parser_parse_expression(struct parser_t *restrict parser, st
 struct parser_node *parser_parse_term(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
 struct parser_node *parser_parse_unary(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
 struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
-
-int parser_parse_control_depth(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int cursor);
 
 void parser_print_tree(struct parser_node *node, int depth);
 #endif

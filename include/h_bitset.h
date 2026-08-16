@@ -15,6 +15,7 @@ struct bitset_t {
 
 
 struct bitset_t* bitset_create(struct arena *arena, size_t max_element_count);
+struct bitset_t* bitset_copy_to_temp(struct arena *arena, struct bitset_t *src);
 
 void bitset_set(struct bitset_t *bitset, int id);
 void bitset_set_to_zero(struct bitset_t *restrict bitset, int id);

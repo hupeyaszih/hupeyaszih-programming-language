@@ -18,6 +18,19 @@ struct vector_t *vector_create_vector(struct arena *arena, int capacity, size_t 
     return vector;
 }
 
+void vector_reset_vector(struct vector_t *vector) {
+    vector->element_count = 0;
+}
+
+int vector_push(struct vector_t *restrict vector, void *data) {
+    return vector_add(vector, data);
+}
+void *vector_pop(struct vector_t *restrict vector) {
+    void *r_val = vector_get(vector, vector->element_count-1);
+    --vector->element_count;
+    return r_val;
+}
+
 int vector_add(struct vector_t *restrict vector, void *data) {
     if (NULL == vector || NULL == data) {
         return 1;

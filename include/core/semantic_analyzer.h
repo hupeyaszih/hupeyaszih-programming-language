@@ -29,9 +29,4 @@ struct type_info *semantic_analyzer_calculate_type_infos(struct parser_node *nod
 
 static void semantic_analyzer_propagate_literal_types(struct parser_node *node, struct type_info *target_type);
 
-static inline int type_check(struct type_info *t1, struct type_info *t2) {
-    if(NULL == t1 || NULL == t2) return -1;
-    return str_view_eq(t1->name, t2->name);
-}
-
 #endif

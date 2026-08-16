@@ -36,8 +36,7 @@ static inline struct vector_t *get_used_operands(struct arena *arena, struct IR_
             vector_add(list, &instruction->operands.triple_operands.source_1);
             vector_add(list, &instruction->operands.triple_operands.source_2);
             break;
-        }
-        case IR_INSTRUCTION_TYPE_BR: {
+        }case IR_INSTRUCTION_TYPE_BR: {
             vector_add(list, &instruction->operands.br.condition);
             struct vector_t *false_args = instruction->operands.br.false_args;
             if(false_args) {
@@ -63,20 +62,17 @@ static inline struct vector_t *get_used_operands(struct arena *arena, struct IR_
                 vector_add(list, &arg);
             }
             break;
-        }
-        case IR_INSTRUCTION_TYPE_RET: {
+        }case IR_INSTRUCTION_TYPE_RET: {
             vector_add(list, &instruction->operands.ret.return_value);
             break;
-        }
-        case IR_INSTRUCTION_TYPE_CAST:
+        }case IR_INSTRUCTION_TYPE_CAST:
         case IR_INSTRUCTION_TYPE_UNARY_BANG:
         case IR_INSTRUCTION_TYPE_UNARY_MINUS: 
         case IR_INSTRUCTION_TYPE_UNARY_ADDRESS_OF:
         case IR_INSTRUCTION_TYPE_UNARY_DEREFERENCE: {
             vector_add(list, &instruction->operands.double_operands.source_1);
             break;
-        }
-        case IR_INSTRUCTION_TYPE_CALL: {
+        }case IR_INSTRUCTION_TYPE_CALL: {
            struct vector_t *args = instruction->operands.call.arguments;
            int arg_count = args->element_count;
 
@@ -105,8 +101,7 @@ static inline struct vector_t *get_defined_operands(struct arena *arena, struct 
         }case IR_INSTRUCTION_TYPE_ALLOCA: {
             vector_add(list, &instruction->operands.alloca.destination);
             break;
-        }
-        case IR_INSTRUCTION_TYPE_EQUAL_EQUAL:
+        }case IR_INSTRUCTION_TYPE_EQUAL_EQUAL:
         case IR_INSTRUCTION_TYPE_BANG_EQUAL:
         case IR_INSTRUCTION_TYPE_LESS_EQUAL:
         case IR_INSTRUCTION_TYPE_GREATER_EQUAL:
@@ -118,18 +113,41 @@ static inline struct vector_t *get_defined_operands(struct arena *arena, struct 
         case IR_INSTRUCTION_TYPE_MUL: {
             vector_add(list, &instruction->operands.triple_operands.destination);
             break;
-        }
-        case IR_INSTRUCTION_TYPE_CAST:
+        }case IR_INSTRUCTION_TYPE_CAST:
         case IR_INSTRUCTION_TYPE_UNARY_BANG:
         case IR_INSTRUCTION_TYPE_UNARY_MINUS: 
         case IR_INSTRUCTION_TYPE_UNARY_ADDRESS_OF:
         case IR_INSTRUCTION_TYPE_UNARY_DEREFERENCE: {
             vector_add(list, &instruction->operands.double_operands.destination);
             break;
-        }
-        case IR_INSTRUCTION_TYPE_CALL: {
+        }case IR_INSTRUCTION_TYPE_CALL: {
            vector_add(list, &instruction->operands.call.return_val);
            break;
+        }case IR_INSTRUCTION_TYPE_JMP: {
+            if(!instruction->operands.jmp.target_block->params) break;
+            struct vector_t *params = instruction->operands.jmp.target_block->params;
+            for(int i = 0; i < params->element_count; ++i) {
+                struct IR_Operand *arg = *(struct IR_Operand **) vector_get(params, i);
+                vector_add(list, &arg);
+            }
+            break;
+        }case IR_INSTRUCTION_TYPE_BR: {
+            struct vector_t *false_params = instruction->operands.br.false_block->params;
+            if(false_params) {
+                for(int i = 0; i < false_params->element_count; ++i) {
+                    struct IR_Operand *arg = *(struct IR_Operand **) vector_get(false_params, i);
+                    vector_add(list, &arg);
+                }
+            }
+
+            struct vector_t *true_params = instruction->operands.br.true_block->params;
+            if(true_params) {
+                for(int i = 0; i < true_params->element_count; ++i) {
+                    struct IR_Operand *arg = *(struct IR_Operand **) vector_get(true_params, i);
+                    vector_add(list, &arg);
+                }
+            }
+            break;
         }default: {
             break;
         }
@@ -250,22 +268,22 @@ void opt_compute_use_def(struct arena *arena, struct IR_Function *function) {
     struct IR_Block *block = function->head_block;
     while(NULL != block) {
         struct IR_Instruction *instruction = block->head_instruction;
-        block->use       = bitset_create(arena, vreg_count);
-        block->def       = bitset_create(arena, vreg_count);
+        block->uses       = bitset_create(arena, vreg_count);
+        block->defs       = bitset_create(arena, vreg_count);
 
         while(NULL != instruction) {
             switch (instruction->type) {
                 case IR_INSTRUCTION_TYPE_MOV:
                 case IR_INSTRUCTION_TYPE_LOAD: {
-                    process_use(instruction->operands.double_operands.source_1, block->use, instruction);
-                    process_def(instruction->operands.double_operands.destination, block->def);
+                    process_use(instruction->operands.double_operands.source_1, block->uses, instruction);
+                    process_def(instruction->operands.double_operands.destination, block->defs);
                     break;
                 }case IR_INSTRUCTION_TYPE_ALLOCA: {
-                    process_def(instruction->operands.alloca.destination, block->def);
+                    process_def(instruction->operands.alloca.destination, block->defs);
                     break;
                 }case IR_INSTRUCTION_TYPE_STORE: {
-                    process_use(instruction->operands.double_operands.source_1, block->use, instruction);
-                    process_use(instruction->operands.double_operands.destination, block->use, instruction);
+                    process_use(instruction->operands.double_operands.source_1, block->uses, instruction);
+                    process_use(instruction->operands.double_operands.destination, block->uses, instruction);
                     break;
                 }
                 case IR_INSTRUCTION_TYPE_EQUAL_EQUAL:
@@ -278,19 +296,19 @@ void opt_compute_use_def(struct arena *arena, struct IR_Function *function) {
                 case IR_INSTRUCTION_TYPE_MINUS:
                 case IR_INSTRUCTION_TYPE_DIVIDE:
                 case IR_INSTRUCTION_TYPE_MUL: {
-                    process_use(instruction->operands.triple_operands.source_1, block->use, instruction);
-                    process_use(instruction->operands.triple_operands.source_2, block->use, instruction);
-                    process_def(instruction->operands.triple_operands.destination, block->def);
+                    process_use(instruction->operands.triple_operands.source_1, block->uses, instruction);
+                    process_use(instruction->operands.triple_operands.source_2, block->uses, instruction);
+                    process_def(instruction->operands.triple_operands.destination, block->defs);
                     break;
                 }
                 case IR_INSTRUCTION_TYPE_BR: {
-                    process_use(instruction->operands.br.condition, block->use, instruction);
+                    process_use(instruction->operands.br.condition, block->uses, instruction);
 
                     struct vector_t *false_args = instruction->operands.br.false_args;
                     if(false_args) {
                         for(int i = 0; i < false_args->element_count; ++i) {
                             struct IR_Operand *arg = *(struct IR_Operand **) vector_get(false_args, i);
-                            process_use(arg, block->use, instruction);
+                            process_use(arg, block->uses, instruction);
                         }
                     }
 
@@ -298,7 +316,7 @@ void opt_compute_use_def(struct arena *arena, struct IR_Function *function) {
                     if(true_args) {
                         for(int i = 0; i < true_args->element_count; ++i) {
                             struct IR_Operand *arg = *(struct IR_Operand **) vector_get(true_args, i);
-                            process_use(arg, block->use, instruction);
+                            process_use(arg, block->uses, instruction);
                         }
                     }
 
@@ -308,11 +326,11 @@ void opt_compute_use_def(struct arena *arena, struct IR_Function *function) {
                     struct vector_t *args = instruction->operands.jmp.args;
                     for(int i = 0; i < args->element_count; ++i) {
                         struct IR_Operand *arg = *(struct IR_Operand **) vector_get(args, i);
-                        process_use(arg, block->use, instruction);
+                        process_use(arg, block->uses, instruction);
                     }
                     break;
                 }case IR_INSTRUCTION_TYPE_RET: {
-                    process_use(instruction->operands.ret.return_value, block->use, instruction);
+                    process_use(instruction->operands.ret.return_value, block->uses, instruction);
                     break;
                 }
                 case IR_INSTRUCTION_TYPE_CAST:
@@ -320,8 +338,8 @@ void opt_compute_use_def(struct arena *arena, struct IR_Function *function) {
                 case IR_INSTRUCTION_TYPE_UNARY_MINUS: 
                 case IR_INSTRUCTION_TYPE_UNARY_ADDRESS_OF:
                 case IR_INSTRUCTION_TYPE_UNARY_DEREFERENCE: {
-                    process_use(instruction->operands.double_operands.source_1, block->use, instruction);
-                    process_def(instruction->operands.double_operands.destination, block->def);
+                    process_use(instruction->operands.double_operands.source_1, block->uses, instruction);
+                    process_def(instruction->operands.double_operands.destination, block->defs);
                     break;
                 }
                 case IR_INSTRUCTION_TYPE_CALL: {
@@ -330,10 +348,10 @@ void opt_compute_use_def(struct arena *arena, struct IR_Function *function) {
 
                     for(int i = 0;i < arg_count; ++i) {
                         struct IR_Operand *arg = *(struct IR_Operand **) vector_get(args, i);
-                        process_use(arg, block->use, instruction);
+                        process_use(arg, block->uses, instruction);
                     }
 
-                    process_def(instruction->operands.call.return_val, block->def);
+                    process_def(instruction->operands.call.return_val, block->defs);
                     break;
                 }
                 case IR_INSTRUCTION_TYPE_ASM:
@@ -346,8 +364,86 @@ void opt_compute_use_def(struct arena *arena, struct IR_Function *function) {
         block = block->next;
     }
 }
+void opt_compute_local_liveness(struct IR_Block *block, int vreg_count, struct arena *arena ,struct arena *temp_arena) {
+    block->uses     = bitset_create(arena, vreg_count);
+    block->defs     = bitset_create(arena, vreg_count);
+    block->live_in  = bitset_create(arena, vreg_count);
+    block->live_out = bitset_create(arena, vreg_count);
+
+    struct IR_Instruction *inst = block->head_instruction;
+    while (inst) {
+        struct vector_t *used_ops = get_used_operands(temp_arena, inst);
+        struct vector_t *def_ops  = get_defined_operands(temp_arena, inst);
+
+        for (int i = 0; i < used_ops->element_count; ++i) {
+            struct IR_Operand *op = *(struct IR_Operand **) vector_get(used_ops, i);
+            if (op && IR_OPERAND_TYPE_VREG == op->type) {
+                int id = op->data.vreg.vreg_id;
+                if (!bitset_test(block->defs, id)) {
+                    bitset_set(block->uses, id);
+                }
+            }
+        }
+
+        for (int i = 0; i < def_ops->element_count; ++i) {
+            struct IR_Operand *op = *(struct IR_Operand **) vector_get(def_ops, i);
+            if (op && IR_OPERAND_TYPE_VREG == op->type) {
+                bitset_set(block->defs, op->data.vreg.vreg_id);
+            }
+        }
+
+        arena_reset(temp_arena);
+        inst = inst->next;
+    }
+}
+
+void opt_run_global_liveness(struct IR_Function *function, struct opt_context_t *context) {
+    int vreg_count = function->unique_vregs->element_count;
+    struct arena *arena = context->codegen->arena;
+    struct arena *temp_arena = context->temp_arena;
+    struct IR_Block *block = function->tail_block;
+    while (block) {
+        opt_compute_local_liveness(block, vreg_count, arena, temp_arena);
+        block = block->prev;
+    }
+
+    bool changed = true;
+    while (changed) {
+        changed = false;
+
+        block = function->tail_block;
+        while (block) {
+            struct bitset_t *old_live_in = bitset_create(temp_arena, vreg_count);
+            bitset_copy(old_live_in, block->live_in);
+
+            bitset_clear_all(block->live_out);
+            for (int i = 0; i < block->successors->element_count; ++i) {
+                struct IR_Block *succ = *(struct IR_Block **) vector_get(block->successors, i);
+                bitset_or(block->live_out, succ->live_in);
+            }
+
+            struct bitset_t *temp = bitset_copy_to_temp(temp_arena, block->live_out);
+
+            bitset_and_not(temp, block->defs);
+
+            bitset_copy(block->live_in, block->uses);
+            bitset_or(block->live_in, temp);
+
+            if (!bitset_equals(block->live_in, old_live_in)) {
+                changed = true;
+            }
+
+            arena_reset(temp_arena);
+            block = block->prev;
+        }
+    }
+    arena_reset(temp_arena);
+}
 
 void opt_run_live_range_analysis(struct IR_Function *function, struct opt_context_t *context) {
+    int vreg_count = function->unique_vregs->element_count;
+    struct arena *temp_arena = context->temp_arena;
+
     for(int i = 0; i < function->parameters->element_count; ++i) {
         struct IR_Operand *param = *(struct IR_Operand **) vector_get(function->parameters, i);
         if (param && IR_OPERAND_TYPE_VREG == param->type) {
@@ -355,69 +451,73 @@ void opt_run_live_range_analysis(struct IR_Function *function, struct opt_contex
         }
     }
 
+    opt_run_global_liveness(function, context);
+
     struct IR_Block *block = function->tail_block;
     while(NULL != block) {
+        if (NULL != block->head_instruction) {
+            struct IR_Instruction *instruction = block->tail_instruction;
+            while(NULL != instruction) {
+                if(IR_INSTRUCTION_TYPE_NOP == instruction->type) {
+                    instruction = instruction->prev;
+                    continue;
+                }
 
-        if (NULL == block->head_instruction) {
-            block = block->prev;
-            continue;
-        }
+                struct vector_t *used_operands    = get_used_operands(temp_arena, instruction);
+                struct vector_t *defined_operands = get_defined_operands(temp_arena, instruction);
 
-        struct IR_Instruction *instruction = block->tail_instruction;
-        while(NULL != instruction) {
-            if(IR_INSTRUCTION_TYPE_NOP == instruction->type) {
-                instruction = instruction->prev;
-                continue;
-            }
+                for(int i = 0; i < used_operands->element_count; ++i) {
+                    struct IR_Operand *operand = *(struct IR_Operand **) vector_get(used_operands, i);
+                    if(!operand || IR_OPERAND_TYPE_VREG != operand->type) continue;
+                    operand->data.vreg.live_interval.use_score += block->in_loop * 10 + 1;
 
-            struct vector_t *used_operands    = get_used_operands   (context->temp_arena, instruction);
-            struct vector_t *defined_operands = get_defined_operands(context->temp_arena, instruction);
-
-            for(int i = 0; i < used_operands->element_count; ++i) {
-                struct IR_Operand *operand = *(struct IR_Operand **) vector_get(used_operands, i);
-                if(!operand || IR_OPERAND_TYPE_VREG != operand->type) continue;
-                operand->data.vreg.live_interval.use_score += block->in_loop*10+1;
-
-                if(0 < block->in_loop && block->loop_tail_instruction) {
-                    int loop_end_id = block->loop_tail_instruction->id;
-                    if (operand->data.vreg.live_interval.end < loop_end_id) {
-                        operand->data.vreg.live_interval.end = loop_end_id;
+                    if(0 < block->in_loop && block->loop_tail_instruction) {
+                        int loop_end_id = block->loop_tail_instruction->id;
+                        if (operand->data.vreg.live_interval.end < loop_end_id) {
+                            operand->data.vreg.live_interval.end = loop_end_id;
+                        }
+                    }
+                    if (operand->data.vreg.live_interval.end < instruction->id) {
+                        operand->data.vreg.live_interval.end = instruction->id;
                     }
                 }
-                if (operand->data.vreg.live_interval.end < instruction->id) {
-                    operand->data.vreg.live_interval.end = instruction->id;
+
+                for(int i = 0; i < defined_operands->element_count; ++i) {
+                    struct IR_Operand *operand = *(struct IR_Operand **) vector_get(defined_operands, i);
+                    if(!operand || IR_OPERAND_TYPE_VREG != operand->type) continue;
+                    operand->data.vreg.live_interval.start = instruction->id;
+
+                    if(operand->data.vreg.live_interval.end < instruction->id) {
+                        operand->data.vreg.live_interval.end = instruction->id;
+                    }
                 }
+
+                instruction = instruction->prev;
             }
-
-            for(int i = 0; i < defined_operands->element_count; ++i) {
-                struct IR_Operand *operand = *(struct IR_Operand **) vector_get(defined_operands, i);
-                if(!operand || IR_OPERAND_TYPE_VREG != operand->type) continue;
-                operand->data.vreg.live_interval.start = instruction->id;
-
-                if(operand->data.vreg.live_interval.end < instruction->id) {
-                    operand->data.vreg.live_interval.end = instruction->id;
-                }
-            }
-
-            instruction = instruction->prev;
         }
 
-        int block_start_id = block->head_instruction->id;
+        int block_start_id = block->head_instruction ? block->head_instruction->id : 0;
         int block_end_id = block->tail_instruction ? block->tail_instruction->id : block_start_id;
 
-        for(int i = 0; i < block->params->element_count; ++i) {
-            struct IR_Operand *param = *(struct IR_Operand **) vector_get(block->params, i);
-            if(!param || IR_OPERAND_TYPE_VREG != param->type) continue;
-
-            param->data.vreg.live_interval.start = block_start_id;
-            if (param->data.vreg.live_interval.end <= block_start_id) {
-                param->data.vreg.live_interval.end = block_end_id + 1;
+        for (int id = 0; id < vreg_count; ++id) {
+            if (bitset_test(block->live_in, id)) {
+                struct IR_Operand *vreg = *(struct IR_Operand **) vector_get(function->unique_vregs, id);
+                if (vreg && vreg->data.vreg.live_interval.start > block_start_id) {
+                    vreg->data.vreg.live_interval.start = block_start_id;
+                }
+            }
+            if (bitset_test(block->live_out, id)) {
+                struct IR_Operand *vreg = *(struct IR_Operand **) vector_get(function->unique_vregs, id);
+                if (vreg && vreg->data.vreg.live_interval.end < block_end_id) {
+                    vreg->data.vreg.live_interval.end = block_end_id;
+                }
             }
         }
 
         block = block->prev;
     }
 
+    arena_reset(temp_arena);
 }
 
 bool get_operand_imm_value(struct IR_Operand *op, int64_t *out_val) {
@@ -495,18 +595,19 @@ bool opt_dead_code_elimination(struct opt_context_t *context, struct IR_Function
         while (NULL != instruction) {
             struct IR_Instruction *next_instruction = instruction->next;
 
+            struct IR_Operand *dest = NULL;
+            struct IR_Operand *src1 = NULL;
+            struct IR_Operand *src2 = NULL;
+            enum IR_Instructions_Operands_type ops_type = IR_get_Instructions_Operands_type(instruction->type);
+            switch (ops_type) {
+                case IR_INSTRUCTIONS_OPERANDS_TYPE_DOUBLE: dest = instruction->operands.double_operands.destination; src1 = instruction->operands.double_operands.source_1; src2 = NULL; break;
+                case IR_INSTRUCTIONS_OPERANDS_TYPE_TRIPLE: dest = instruction->operands.triple_operands.destination; src1 = instruction->operands.triple_operands.source_1; src2 = instruction->operands.triple_operands.source_2; break;
+                case IR_INSTRUCTIONS_OPERANDS_TYPE_ALLOCA: dest = instruction->operands.alloca.destination;          src1 = NULL; src2 = NULL;
+                case IR_INSTRUCTIONS_OPERANDS_TYPE_CALL:   dest = instruction->operands.call.return_val;             src1 = NULL; src2 = NULL;
+                default: break;
+            }
+
             if (!instruction_has_side_effects(instruction)) {
-                struct IR_Operand *dest = NULL;
-                struct IR_Operand *src1 = NULL;
-                struct IR_Operand *src2 = NULL;
-                enum IR_Instructions_Operands_type ops_type = IR_get_Instructions_Operands_type(instruction->type);
-                switch (ops_type) {
-                    case IR_INSTRUCTIONS_OPERANDS_TYPE_DOUBLE: dest = instruction->operands.double_operands.destination; src1 = instruction->operands.double_operands.source_1; src2 = NULL; break;
-                    case IR_INSTRUCTIONS_OPERANDS_TYPE_TRIPLE: dest = instruction->operands.triple_operands.destination; src1 = instruction->operands.triple_operands.source_1; src2 = instruction->operands.triple_operands.source_2; break;
-                    case IR_INSTRUCTIONS_OPERANDS_TYPE_ALLOCA: dest = instruction->operands.alloca.destination;          src1 = NULL; src2 = NULL;
-                    case IR_INSTRUCTIONS_OPERANDS_TYPE_CALL:   dest = instruction->operands.call.return_val;             src1 = NULL; src2 = NULL;
-                    default: break;
-                }
 
                 if (dest && dest->type == IR_OPERAND_TYPE_VREG && dest->use_list->element_count == 0) {
                     
@@ -524,6 +625,25 @@ bool opt_dead_code_elimination(struct opt_context_t *context, struct IR_Function
                     if(dest && 0 >= dest->use_list->element_count) {
                         dest->type = IR_OPERAND_TYPE_UNDEFINED;
                     }
+                    changed = true;
+                }
+            }
+            if(!changed) {
+                if((dest && dest->type == IR_OPERAND_TYPE_UNDEFINED) || (src1 && src1->type == IR_OPERAND_TYPE_UNDEFINED) || (src2 && src2->type == IR_OPERAND_TYPE_UNDEFINED)) {
+                    if(src1)remove_instruction_from_use_list(src1, instruction);
+                    if(src2)remove_instruction_from_use_list(src2, instruction);
+
+                    if(src1 && 0 >= src1->use_list->element_count) {
+                        src1->type = IR_OPERAND_TYPE_UNDEFINED;
+                    }
+                    if(src2 && 0 >= src2->use_list->element_count) {
+                        src2->type = IR_OPERAND_TYPE_UNDEFINED;
+                    }
+
+                    if(dest) {
+                        dest->type = IR_OPERAND_TYPE_UNDEFINED;
+                    }
+                    IR_Block_remove_instruction(block, instruction);
                     changed = true;
                 }
             }
@@ -745,25 +865,39 @@ bool opt_copy_propagation(struct opt_context_t *context, struct IR_Function *fun
                 struct IR_Operand *src  = inst->operands.double_operands.source_1;
 
                 if (dest && src && dest->type == IR_OPERAND_TYPE_VREG && src->type == IR_OPERAND_TYPE_VREG && dest != src) {
-                    while (dest->use_list && dest->use_list->element_count > 0) {
-                        int last_idx = dest->use_list->element_count - 1;
-                        struct IR_Instruction *user_inst = *(struct IR_Instruction **) vector_get(dest->use_list, last_idx);
 
-                        if (replace_operand_in_instruction(user_inst, dest, src)) {
-                            vector_add(src->use_list, &user_inst);
-                            changed = true;
+                    bool is_used_in_branch = false;
+                    if (dest->use_list) {
+                        for (int i = 0; i < dest->use_list->element_count; ++i) {
+                            struct IR_Instruction *user_inst = *(struct IR_Instruction **) vector_get(dest->use_list, i);
+                            if (user_inst->type == IR_INSTRUCTION_TYPE_JMP || user_inst->type == IR_INSTRUCTION_TYPE_BR) {
+                                is_used_in_branch = true;
+                                break;
+                            }
                         }
-
-                        vector_remove_at(dest->use_list, last_idx);
                     }
-                    remove_instruction_from_use_list(src, inst);
 
-                    inst->type = IR_INSTRUCTION_TYPE_NOP;
-                    changed = true;
+                    if (!is_used_in_branch) {
+                        while (dest->use_list && dest->use_list->element_count > 0) {
+                            int last_idx = dest->use_list->element_count - 1;
+                            struct IR_Instruction *user_inst = *(struct IR_Instruction **) vector_get(dest->use_list, last_idx);
+
+                            if (replace_operand_in_instruction(user_inst, dest, src)) {
+                                vector_add(src->use_list, &user_inst);
+                                changed = true;
+                            }
+
+                            vector_remove_at(dest->use_list, last_idx);
+                        }
+                        remove_instruction_from_use_list(src, inst);
+
+                        inst->type = IR_INSTRUCTION_TYPE_NOP;
+                        changed = true;
+                    }
                 }
             }
 
-            inst = inst->next;
+            inst = inst->next; 
         }
 
         block = block->next;

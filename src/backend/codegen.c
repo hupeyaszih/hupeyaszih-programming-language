@@ -1,6 +1,7 @@
 #include "backend/codegen.h"
 #include "core/globals.h"
 #include "core/ir_gen.h"
+#include "h_arena.h"
 #include "h_vector.h"
 #include <stdarg.h>
 #include <stddef.h>
@@ -45,8 +46,8 @@ struct register_t *codegen_init_register(struct arena *arena, struct register_t 
 
     reg->names = vector_create_vector(arena, 4, sizeof(char *));
 
-    reg->is_busy = false;
     reg->is_reserved = is_reserved;
+    reg->is_reserved_reg_busy = false;
     return reg;
 }
 
@@ -145,6 +146,7 @@ void codegen_build_function(struct codegen_context_t *context, struct IR_Functio
         block = block->next;
     }
     target->emit_function_epilogue(context, function);
+    arena_reset(context->codegen->temp_arena);
 }
 
 enum register_size codegen_get_register_size_from_operand(struct IR_Operand *operand) {
@@ -160,11 +162,6 @@ enum register_size codegen_get_register_size_from_operand(struct IR_Operand *ope
     }
     return REGISTER_SIZE_UNDEFINED;
 }
-int codegen_compare_register_sizes(enum register_size size_1, enum register_size size_2) {
-    if(size_1 == size_2) return 0;
-    if(size_1 < size_2) return 1;
-    return -1;
-}
 
 void codegen_emit(FILE *file, const char *format, ...) {
     va_list args;
@@ -175,6 +172,7 @@ void codegen_emit(FILE *file, const char *format, ...) {
 
 bool codegen_is_register_clobbered_for_vreg(struct register_t *reg, struct IR_Operand *vreg, struct vector_t *clobber_list) {
     if (!reg || !vreg || !clobber_list) return false;
+    if(reg->is_reserved || REGISTER_TYPE_RESERVED == reg->type) return true;
 
     if(IR_OPERAND_TYPE_VREG != vreg->type) return false;
 

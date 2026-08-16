@@ -35,7 +35,6 @@ enum register_type {
 
 struct register_t {
     struct vector_t *names;
-    struct IR_Operand *current_vreg;
 
     enum register_type type;
     enum register_size size;
@@ -46,8 +45,8 @@ struct register_t {
     bool is_arg_reg;
     bool is_ret_reg;
 
-    bool is_busy;
     bool is_reserved; // is reserved by compiler
+    bool is_reserved_reg_busy;
 };
 
 struct register_list_t {
@@ -77,6 +76,7 @@ struct codegen_build_target_t{
     int argument_register_count;      // for examle argument_register_count=6 in x86_64_linux
 
     const char *(*get_register_name) (struct register_list_t *list, struct register_t *reg, enum register_size size);
+    int (*get_reg_in_reg_preference_order) (int index);
     struct register_t *(*get_best_available_register) (struct register_list_t *list, struct register_t *preferred_register, struct vector_t *clobber_list, struct IR_Operand *vreg);
     struct register_t *(*get_fixed_register_for_instruction) (struct register_list_t *list, struct IR_Instruction *instruction, struct IR_Operand *target_operand);
     void (*collect_instruction_clobbers) (struct register_list_t *list, struct IR_Instruction *instruction, struct vector_t *clobber_list, int time);
@@ -145,7 +145,6 @@ static inline enum register_size codegen_calc_register_size(size_t byte) {
 }
 
 enum register_size codegen_get_register_size_from_operand(struct IR_Operand *operand);
-int codegen_compare_register_sizes(enum register_size size_1, enum register_size size_2);
 
 bool codegen_is_register_clobbered_for_vreg(struct register_t *reg, struct IR_Operand *vreg, struct vector_t *clobber_list);
 

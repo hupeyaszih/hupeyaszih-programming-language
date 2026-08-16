@@ -13,6 +13,12 @@ struct bitset_t* bitset_create(struct arena *arena, size_t max_element_count) {
     return bitset;
 }
 
+struct bitset_t* bitset_copy_to_temp(struct arena *arena, struct bitset_t *src) {
+    struct bitset_t *dest = bitset_create(arena, src->max_element_count);
+    bitset_copy(dest, src);
+    return dest;
+}
+
 void bitset_set(struct bitset_t *restrict bitset, int id) {
     bitset->bits[id / 64] |= (1ULL << (id % 64));
 }
