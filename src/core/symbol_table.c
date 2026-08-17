@@ -90,12 +90,12 @@ struct type_table *type_table_create_type_table(struct arena *arena){
     return table;
 }
 
-struct type_info *type_table_create_type_info_cstr(struct arena *arena, char *name, enum type_category category, size_t size, struct symbol_table *members, struct type_info *promotable_type) {
+struct type_info *type_table_create_type_info_cstr(struct arena *arena, char *name, enum type_category category, size_t size, struct symbol_table *members, struct type_info *promotable_type, bool can_promote_to_memory_address) {
     size_t str_size = strlen(name);
-    return type_table_create_type_info(arena, str_view_make(name, str_size), category, size, members, promotable_type);
+    return type_table_create_type_info(arena, str_view_make(name, str_size), category, size, members, promotable_type, can_promote_to_memory_address);
 }
 
-struct type_info *type_table_create_type_info(struct arena *arena, struct str_view name, enum type_category category, size_t size, struct symbol_table *members, struct type_info *promotable_type) {
+struct type_info *type_table_create_type_info(struct arena *arena, struct str_view name, enum type_category category, size_t size, struct symbol_table *members, struct type_info *promotable_type, bool can_promote_to_memory_address) {
     static atomic_int id_counter = 0;
     struct type_info *info = arena_alloc(arena, sizeof(struct type_info));
     info->name = name;
@@ -106,6 +106,7 @@ struct type_info *type_table_create_type_info(struct arena *arena, struct str_vi
     info->promotable_type = promotable_type;
     info->points_to = NULL;
     info->pointer_level = 0;
+    info->can_promote_to_memory_address = can_promote_to_memory_address;
     ++id_counter;
     return info;
 }
@@ -137,7 +138,7 @@ struct type_info *type_table_get_or_create_pointer_type_info(struct type_table *
             info = curr;
             continue;
         } 
-        info = type_table_create_type_info(table->arena, name, TYPE_CATEGORY_POINTER, table->pointers_size, NULL, NULL);
+        info = type_table_create_type_info(table->arena, name, TYPE_CATEGORY_POINTER, table->pointers_size, NULL, NULL, false);
         info->pointer_level = p;
         info->points_to = type_table_get_type_info(table, name, p-1);
         info->points_to->pointer_type = info;
