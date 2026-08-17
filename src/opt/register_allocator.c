@@ -2,6 +2,7 @@
 #include "backend/codegen.h"
 #include "backend/x86_64/x86_64_linux.h"
 #include "core/ir_gen.h"
+#include "core/parser.h"
 #include "h_arena.h"
 #include "h_bitset.h"
 #include "h_vector.h"
@@ -10,6 +11,7 @@
 #include <stdlib.h>
 
 struct graph_node {
+    struct graph_node *alias;
     struct IR_Operand *vreg;
     struct bitset_t *edges;
     struct bitset_t *clobbers;
@@ -21,6 +23,10 @@ struct graph_node {
     bool is_simplified;
 };
 
+struct graph_node *get_node(struct graph_node *node) {
+    if(!node || !node->alias || node == node->alias) return node;
+    return node->alias = get_node(node->alias);
+}
 
 struct register_allocator_t *register_allocator_create_register_allocator(struct codegen_t *codegen) {
     struct register_allocator_t *allocator = arena_alloc(codegen->arena, sizeof(struct register_allocator_t));
@@ -163,10 +169,11 @@ static inline void decrease_neighbours_degree(struct graph_node *node, struct ve
 
 static inline bool is_register_using_by_neighbours(struct graph_node *node, struct vector_t *nodes, int register_id) {
     int node_count = nodes->element_count;
+    struct graph_node *root_node = get_node(node);
     bool result = false;
     for(int k = 0;k < node_count; ++k) {
-        struct graph_node *target_node = (struct graph_node *) vector_get(nodes, k);
-        if(node->vreg->data.vreg.vreg_id == target_node->vreg->data.vreg.vreg_id) continue;
+        struct graph_node *target_node = get_node((struct graph_node *) vector_get(nodes, k));
+        if(root_node->vreg->data.vreg.vreg_id == target_node->vreg->data.vreg.vreg_id) continue;
         if(!bitset_test(node->edges, target_node->vreg->data.vreg.vreg_id)) continue;
 
         if(target_node->vreg->data.vreg.reg && target_node->vreg->data.vreg.reg->id == register_id) {
@@ -175,6 +182,128 @@ static inline bool is_register_using_by_neighbours(struct graph_node *node, stru
         }
     }
     return result;
+}
+
+static inline struct graph_node *find_node_by_vreg(struct vector_t *nodes, int vreg_id) {
+    for(int i = 0;i < nodes->element_count; ++i) {
+        struct graph_node *node = (struct graph_node *) vector_get(nodes, i);
+        if(node->vreg_id == vreg_id) return node;
+    }
+    return NULL;
+}
+
+static inline void coalesce_two_nodes(struct register_allocator_t *allocator, struct IR_Function *function, struct vector_t *nodes ,struct graph_node *node, struct graph_node *target_node) {
+    struct graph_node *root_node = get_node(node);
+    struct graph_node *root_target = get_node(target_node);
+
+    if (root_node == root_target) return; 
+
+    const struct codegen_t *codegen = allocator->codegen;
+    const struct codegen_build_target_t *target = codegen->current_build_target;
+    const struct arena *temp_arena = allocator->codegen->temp_arena;
+    const struct arena *arena = allocator->codegen->arena;
+
+    const int node_count = nodes->element_count;
+    const int phys_reg_count = codegen->current_build_target->registers->register_count;
+
+    int great_neighbour_count = 0;
+    for(int i = 0;i < nodes->element_count; ++i) {
+        if(!bitset_test(node->edges, i) && !bitset_test(target_node->edges, i)) continue;
+        struct graph_node *neighbour = (struct graph_node *) vector_get(nodes, i);
+        if(neighbour == node || neighbour == target_node) continue;
+        if(neighbour->degree > phys_reg_count) {
+            ++great_neighbour_count;
+        }
+    }
+    if(great_neighbour_count >= phys_reg_count) return;
+
+    // coalescing
+    root_node->alias = root_target;
+    root_node->is_simplified = true;
+    bitset_or(root_target->edges, root_node->edges);
+    root_target->degree = 0;
+    for(int i = 0; i < root_target->edges->max_element_count; ++i) {
+        if(bitset_test(root_target->edges, i)) ++root_target->degree;
+    }
+    bitset_or(root_target->clobbers, root_node->clobbers);
+    bitset_or(root_target->preferred_regs, root_node->preferred_regs);
+}
+
+static inline void try_coalesce_operands(struct register_allocator_t *allocator, struct IR_Function *function, struct vector_t *nodes, struct IR_Operand *dest, struct IR_Operand *src) {
+    if (!dest || dest->type != IR_OPERAND_TYPE_VREG) return;
+    if (!src || src->type != IR_OPERAND_TYPE_VREG) return;
+
+    struct graph_node *node_dest = find_node_by_vreg(nodes, dest->data.vreg.vreg_id);
+    struct graph_node *node_src  = find_node_by_vreg(nodes, src->data.vreg.vreg_id);
+
+    if (!node_dest || !node_src) return;
+
+    struct graph_node *root_dest = get_node(node_dest);
+    struct graph_node *root_src = get_node(node_src);
+
+    if (root_dest == root_src) return;
+    if (-1 != root_dest->pre_colored_reg || -1 != root_src->pre_colored_reg) return;
+
+    if (bitset_test(root_dest->edges, root_src->vreg->data.vreg.vreg_id)) {
+        bool is_head_to_tail = (root_src->vreg->data.vreg.live_interval.end == root_dest->vreg->data.vreg.live_interval.start) ||(root_dest->vreg->data.vreg.live_interval.end == root_src->vreg->data.vreg.live_interval.start);
+
+        if (!is_head_to_tail) {
+            return; 
+        }
+    }
+
+    coalesce_two_nodes(allocator, function, nodes, root_dest, root_src);
+}
+
+static inline void run_coalescing(struct register_allocator_t *allocator, struct IR_Function *function, struct vector_t *nodes) {
+    const int node_count = nodes->element_count;
+
+    struct IR_Block *block = function->head_block;
+    while(NULL != block) {
+        struct IR_Instruction *instruction = block->head_instruction;
+        while(NULL != instruction) {
+            if(IR_INSTRUCTION_TYPE_MOV == instruction->type) {
+                struct IR_Operand *dest = instruction->operands.double_operands.destination;
+                struct IR_Operand *src  = instruction->operands.double_operands.source_1;
+
+                try_coalesce_operands(allocator, function, nodes, dest, src);
+
+            }else if(IR_INSTRUCTION_TYPE_JMP == instruction->type && instruction->operands.jmp.args) {
+                struct vector_t *args = instruction->operands.jmp.args;
+                struct vector_t *params = instruction->operands.jmp.target_block->params;
+                for(int i = 0; i < params->element_count; ++i) {
+                    struct IR_Operand *src = *(struct IR_Operand **) vector_get(args, i);
+                    struct IR_Operand *dest = *(struct IR_Operand **) vector_get(params, i);
+
+                    try_coalesce_operands(allocator, function, nodes, dest, src);
+                }
+            }else if(IR_INSTRUCTION_TYPE_BR == instruction->type) {
+                if(instruction->operands.br.true_args) {
+                    struct vector_t *args = instruction->operands.br.true_args;
+                    struct vector_t *params = instruction->operands.br.true_block->params;
+                    for(int i = 0; i < params->element_count; ++i) {
+                        struct IR_Operand *src = *(struct IR_Operand **) vector_get(args, i);
+                        struct IR_Operand *dest = *(struct IR_Operand **) vector_get(params, i);
+
+                        try_coalesce_operands(allocator, function, nodes, dest, src);
+                    }
+                }
+                if(instruction->operands.br.false_args) {
+                    struct vector_t *args = instruction->operands.br.false_args;
+                    struct vector_t *params = instruction->operands.br.false_block->params;
+                    for(int i = 0; i < params->element_count; ++i) {
+                        struct IR_Operand *src = *(struct IR_Operand **) vector_get(args, i);
+                        struct IR_Operand *dest = *(struct IR_Operand **) vector_get(params, i);
+
+                        try_coalesce_operands(allocator, function, nodes, dest, src);
+                    }
+                }
+            }
+
+            instruction = instruction->next;
+        }
+        block = block->next;
+    }
 }
 
 void register_allocator_run_allocator(struct register_allocator_t *allocator, struct IR_Function *function) {
@@ -215,6 +344,7 @@ void register_allocator_run_allocator(struct register_allocator_t *allocator, st
         node.pre_colored_reg = -1;
         node.is_spilled = false;
         node.is_simplified = false;
+        node.alias = NULL;
 
 
         for(int k = 0;k < vreg_count; ++k) {
@@ -224,18 +354,6 @@ void register_allocator_run_allocator(struct register_allocator_t *allocator, st
             }
             if(target_vreg->data.vreg.vreg_id == vreg->data.vreg.vreg_id) continue;
             if(!intersects(vreg, target_vreg)) continue;
-            bool is_mov_source = false;
-            struct IR_Instruction *def_inst = vreg->definition_instruction;
-            if (def_inst && def_inst->type == IR_INSTRUCTION_TYPE_MOV) {
-                struct IR_Operand *src = def_inst->operands.double_operands.source_1;
-                if (src && src->type == IR_OPERAND_TYPE_VREG && src->data.vreg.vreg_id == target_vreg->data.vreg.vreg_id) {
-                    is_mov_source = true; 
-                }
-            }
-
-            if (is_mov_source) {
-                continue;
-            }
             bitset_set(node.edges, target_vreg->data.vreg.vreg_id);
             ++node.degree;
         }
@@ -250,6 +368,11 @@ void register_allocator_run_allocator(struct register_allocator_t *allocator, st
         }
 
         vector_add(nodes, &node);
+    }
+
+    for(int i = 0;i < nodes->element_count; ++i) {
+        struct graph_node *node = (struct graph_node *) vector_get(nodes, i);
+        node->alias = node;
     }
 
     for(int i = 0; i < function->parameters->element_count; ++i) {
@@ -284,20 +407,25 @@ void register_allocator_run_allocator(struct register_allocator_t *allocator, st
         }
     }
 
+    // coalescing
+    run_coalescing(allocator, function, nodes);
+
     struct vector_t *simplifying_nodes = vector_create_vector(temp_arena, vreg_count, sizeof(struct graph_node *));
     // simplifying
     for(;;) {
         bool made_progress = false;
         for(int i = 0;i < nodes->element_count; ++i) {
             struct graph_node *node = (struct graph_node *) vector_get(nodes, i);
-            if(node->is_simplified || node->is_spilled) continue;
-            if(node->degree < phys_reg_count) {
-                vector_push(simplifying_nodes, &node);
+            struct graph_node *root = get_node(node);
 
-                decrease_neighbours_degree(node, nodes);
+            if(node->is_simplified || node->is_spilled) continue;
+            if(root == node && node->degree < phys_reg_count) {
+                vector_push(simplifying_nodes, &root);
+
+                decrease_neighbours_degree(root, nodes);
 
                 made_progress = true;
-                node->is_simplified = true;
+                root->is_simplified = true;
             }
         }
 
@@ -375,6 +503,16 @@ void register_allocator_run_allocator(struct register_allocator_t *allocator, st
         if(!assigned) {
             register_allocator_spill(arena, node->vreg, slots, function, false, node,nodes);
             node->is_spilled = true;
+        }
+    }
+
+    for(int i = 0; i < nodes->element_count; ++i) {
+        struct graph_node *node = (struct graph_node *) vector_get(nodes, i);
+        struct graph_node *root = get_node(node);
+
+        if(root != node) {
+            node->vreg->data.vreg.reg = root->vreg->data.vreg.reg;
+            node->is_spilled = root->is_spilled;
         }
     }
 
