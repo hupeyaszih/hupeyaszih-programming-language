@@ -517,6 +517,24 @@ void opt_run_live_range_analysis(struct IR_Function *function, struct opt_contex
         block = block->prev;
     }
 
+    for(int i = 0;i < function->operands->element_count; ++i) {
+        struct IR_Operand *operand = *(struct IR_Operand **) vector_get(function->operands, i);
+        if(!operand || (IR_OPERAND_TYPE_STACK_SLOT != operand->type && IR_OPERAND_TYPE_VREG != operand->type)) continue;
+        if(IR_OPERAND_TYPE_VREG == operand->type) {
+            int start     = operand->data.vreg.live_interval.start;
+            int end       = operand->data.vreg.live_interval.end;
+            int use_score = operand->data.vreg.live_interval.use_score;
+            int live_len  = end - start;
+            operand->data.vreg.live_interval.weight = (use_score * 1000) / (live_len > 0 ? live_len : 1);
+        }else if(IR_OPERAND_TYPE_STACK_SLOT == operand->type) {
+            int start     = operand->data.slot.live_interval.start;
+            int end       = operand->data.slot.live_interval.end;
+            int use_score = operand->data.slot.live_interval.use_score;
+            int live_len  = end - start;
+            operand->data.slot.live_interval.weight = (use_score * 1000) / (live_len > 0 ? live_len : 1);
+        }
+    }
+
     arena_reset(temp_arena);
 }
 
