@@ -78,7 +78,8 @@ struct codegen_build_target_t{
     const char *(*get_register_name) (struct register_list_t *list, struct register_t *reg, enum register_size size);
     int (*get_reg_in_reg_preference_order) (int index);
     struct register_t *(*get_best_available_register) (struct register_list_t *list, struct register_t *preferred_register, struct vector_t *clobber_list, struct IR_Operand *vreg);
-    struct register_t *(*get_fixed_register_for_instruction) (struct register_list_t *list, struct IR_Instruction *instruction, struct IR_Operand *target_operand);
+    void (*get_preferred_registers)(struct register_list_t *list, struct IR_Operand *operand, struct bitset_t *preferred_regs);
+
     void (*collect_instruction_clobbers) (struct register_list_t *list, struct IR_Instruction *instruction, struct vector_t *clobber_list, int time);
 
     void (*emit_globals)           (struct codegen_context_t *context, bool jmp_to_main);

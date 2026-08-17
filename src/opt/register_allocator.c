@@ -9,33 +9,27 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+struct graph_node {
+    struct IR_Operand *vreg;
+    struct bitset_t *edges;
+    struct bitset_t *clobbers;
+    struct bitset_t *preferred_regs;
+    int pre_colored_reg;
+    int degree;
+    int vreg_id;
+    bool is_spilled;
+    bool is_simplified;
+};
+
+
 struct register_allocator_t *register_allocator_create_register_allocator(struct codegen_t *codegen) {
     struct register_allocator_t *allocator = arena_alloc(codegen->arena, sizeof(struct register_allocator_t));
     allocator->codegen = codegen;
     return allocator;
 }
 
-struct register_t *register_allocator_check_preferred_reg(struct IR_Operand *vreg, struct codegen_build_target_t *target) {
-    struct register_t *preferred_reg = NULL;
-
-    if(vreg->definition_instruction){
-        struct IR_Instruction *instruction = vreg->definition_instruction;
-        preferred_reg = target->get_fixed_register_for_instruction(target->registers, instruction, vreg);
-        if(preferred_reg){
-            return preferred_reg;
-        }
-
-    }
-
-    for(int i = 0;i < vreg->use_list->element_count; ++i) {
-        struct IR_Instruction *instruction = *(struct IR_Instruction **) vector_get(vreg->use_list, i);
-        preferred_reg = target->get_fixed_register_for_instruction(target->registers, instruction, vreg);
-        if(!preferred_reg) continue;
-
-        return preferred_reg;
-    }
-
-    return NULL;
+void register_allocator_check_preferred_reg(struct graph_node *node, struct codegen_build_target_t *target) {
+    target->get_preferred_registers(target->registers, node->vreg, node->preferred_regs);
 }
 
 bool register_allocator_vreg_crosses_call(struct IR_Function *function, struct IR_Operand *vreg) {
@@ -153,16 +147,6 @@ static inline bool intersects(struct IR_Operand *op1, struct IR_Operand *op2) {
     return (start_1 <= end_2) && (start_2 <= end_1);
 }
 
-struct graph_node {
-    struct IR_Operand *vreg;
-    struct bitset_t *edges;
-    struct bitset_t *clobbers;
-    int degree;
-    int pre_colored_reg;
-    int vreg_id;
-    bool is_spilled;
-    bool is_simplified;
-};
 
 static inline void decrease_neighbours_degree(struct graph_node *node, struct vector_t *nodes) {
     int node_count = nodes->element_count;
@@ -227,6 +211,7 @@ void register_allocator_run_allocator(struct register_allocator_t *allocator, st
         node.degree = 0;
         node.edges    = bitset_create(temp_arena, vreg_count);
         node.clobbers = bitset_create(temp_arena, phys_reg_count);
+        node.preferred_regs = bitset_create(temp_arena, phys_reg_count);
         node.pre_colored_reg = -1;
         node.is_spilled = false;
         node.is_simplified = false;
@@ -255,8 +240,7 @@ void register_allocator_run_allocator(struct register_allocator_t *allocator, st
             ++node.degree;
         }
 
-        struct register_t *preferred_reg = register_allocator_check_preferred_reg(vreg, target);
-        if(preferred_reg)node.pre_colored_reg = preferred_reg->id;
+        register_allocator_check_preferred_reg(&node, target);
 
         for(int k = 0;k < phys_reg_count;++k) {
             struct register_t *reg = target->registers->registers + k;
@@ -344,10 +328,23 @@ void register_allocator_run_allocator(struct register_allocator_t *allocator, st
     // coloring
     for(int i = 0;i < simplifying_nodes->element_count; ++i) {
         struct graph_node *node = *(struct graph_node **) vector_get(simplifying_nodes, i);
-        if(!node || !node->vreg || -1 == node->pre_colored_reg) continue;
-        struct register_t *reg = target->registers->registers + node->pre_colored_reg;
-        if(!is_register_using_by_neighbours(node, nodes, reg->id) && !bitset_test(node->clobbers, reg->id)) {
-            node->vreg->data.vreg.reg = reg;
+        if(!node || !node->vreg || (-1 == node->pre_colored_reg && bitset_is_zero(node->preferred_regs))) continue;
+
+        if(-1 != node->pre_colored_reg) {
+            struct register_t *reg = target->registers->registers + node->pre_colored_reg;
+            if(!is_register_using_by_neighbours(node, nodes, reg->id) && !bitset_test(node->clobbers, reg->id)) {
+                node->vreg->data.vreg.reg = reg;
+            }
+        }else if(!bitset_is_zero(node->preferred_regs)){
+            for(int k = 0;k < node->preferred_regs->max_element_count; ++k) {
+                if(!bitset_test(node->preferred_regs, k)) continue;
+                
+                struct register_t *reg = target->registers->registers + k;
+                if(!is_register_using_by_neighbours(node, nodes, reg->id) && !bitset_test(node->clobbers, reg->id)) {
+                    node->vreg->data.vreg.reg = reg;
+                    break;
+                }
+            }
         }
     }
 

@@ -3,6 +3,7 @@
 
 
 #include "h_arena.h"
+#include "h_bitset.h"
 #include "h_string_view.h"
 #include "h_vector.h"
 #include <stdio.h>
@@ -49,7 +50,7 @@ const char *x86_64_linux_get_register_name(struct register_list_t *list, struct 
 int x86_64_linux_get_reg_in_reg_preference_order(int index);
 struct register_t *x86_64_linux_get_best_available_register(struct register_list_t *list, struct register_t *preferred_register, struct vector_t *clobber_list, struct IR_Operand *vreg);
 
-struct register_t *x86_64_linux_get_fixed_register_for_instruction(struct register_list_t *list, struct IR_Instruction *instruction, struct IR_Operand *target_operand);
+void x86_64_linux_get_preferred_registers(struct register_list_t *list, struct IR_Operand *operand, struct bitset_t *preferred_regs);
 void x86_64_collect_instruction_clobbers(struct register_list_t *list, struct IR_Instruction *instruction, struct vector_t *clobber_list, int time);
 
 

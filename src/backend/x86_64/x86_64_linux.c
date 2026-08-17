@@ -18,7 +18,7 @@ struct codegen_build_target_t *x86_64_linux_create_build_target(struct arena *ar
     target->get_register_name = &x86_64_linux_get_register_name;
     target->get_reg_in_reg_preference_order = &x86_64_linux_get_reg_in_reg_preference_order;
     target->get_best_available_register = &x86_64_linux_get_best_available_register;
-    target->get_fixed_register_for_instruction = &x86_64_linux_get_fixed_register_for_instruction;
+    target->get_preferred_registers = &x86_64_linux_get_preferred_registers;
     target->collect_instruction_clobbers = &x86_64_collect_instruction_clobbers;
 
 
@@ -197,41 +197,53 @@ void x86_64_collect_instruction_clobbers(struct register_list_t *list, struct IR
     }
 }
 
-struct register_t *x86_64_linux_get_fixed_register_for_instruction(struct register_list_t *list, struct IR_Instruction *instruction, struct IR_Operand *target_operand) {
-    if (!list) return NULL;
-
-
+static inline void calc_preferred_regs(struct register_list_t *list, struct IR_Operand *operand, struct IR_Instruction *instruction, struct bitset_t *preferred_regs) {
     switch (instruction->type) {
         case IR_INSTRUCTION_TYPE_DIVIDE: {
-            if (target_operand == instruction->operands.triple_operands.source_1) {
-                return list->registers + X86_64_RAX;
-            }else if (target_operand == instruction->operands.triple_operands.destination) {
-                return list->registers + X86_64_RAX;
-            }else if (target_operand == instruction->operands.triple_operands.source_2) {
-                return NULL;
+            int rax_id = (list->registers+X86_64_RAX)->id;
+            if (operand == instruction->operands.triple_operands.source_1) {
+                bitset_set(preferred_regs, rax_id);
+            }else if (operand == instruction->operands.triple_operands.destination) {
+                bitset_set(preferred_regs, rax_id);
             }
-            return NULL;
+            break;
         }case IR_INSTRUCTION_TYPE_MUL: {
+            int rax_id = (list->registers+X86_64_RAX)->id;
             enum register_size size = codegen_calc_register_size(instruction->operands.triple_operands.destination->type_info->size);
             if (REGISTER_SIZE_8 == size) {
-                if (target_operand == instruction->operands.triple_operands.source_1) return list->registers + X86_64_RAX;
-                if (target_operand == instruction->operands.triple_operands.destination) return list->registers + X86_64_RAX;
+                if (operand == instruction->operands.triple_operands.source_1)    bitset_set(preferred_regs, rax_id);
+                if (operand == instruction->operands.triple_operands.destination) bitset_set(preferred_regs, rax_id);
             }
-            return NULL;
+            break;
         }case IR_INSTRUCTION_TYPE_CALL: {
-            if(target_operand == instruction->operands.call.return_val) {
-                return NULL;
+            if(operand == instruction->operands.call.return_val) {
+                break;
             }
-            int arg_index = IR_call_get_arg_index(instruction, target_operand);
+            int arg_index = IR_call_get_arg_index(instruction, operand);
 
-            if (arg_index < 0 || arg_index >= 6) return NULL; 
-            return x86_64_linux_get_reg_with_arg_index(list, arg_index);
+            if (arg_index < 0 || arg_index >= 6) break; 
+            bitset_set(preferred_regs, x86_64_linux_get_reg_with_arg_index(list, arg_index)->id);
+            break;
+        }case IR_INSTRUCTION_TYPE_RET: {
+            int rax_id = (list->registers+X86_64_RAX)->id;
+            bitset_set(preferred_regs, rax_id);
+            break;
         }
-        case IR_INSTRUCTION_TYPE_RET: return list->registers+X86_64_RAX;
-
-        default: return NULL;
+        default: break;
     }
-    return NULL;
+}
+
+void x86_64_linux_get_preferred_registers(struct register_list_t *list, struct IR_Operand *operand, struct bitset_t *preferred_regs) {
+    if (!list) return;
+
+
+
+    struct IR_Instruction *def_instruction = operand->definition_instruction;
+    if(def_instruction)calc_preferred_regs(list, operand, def_instruction, preferred_regs);
+    for(int i = 0;i < operand->use_list->element_count; ++i) {
+        struct IR_Instruction *instruction = *(struct IR_Instruction **) vector_get(operand->use_list, i);
+        calc_preferred_regs(list, operand, instruction, preferred_regs);
+    }
 }
 
 
