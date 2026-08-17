@@ -655,6 +655,22 @@ bool opt_dead_code_elimination(struct opt_context_t *context, struct IR_Function
 }
 
 
+static inline bool is_block_argument(struct IR_Function *function, struct IR_Operand *op) {
+    if (op->type != IR_OPERAND_TYPE_VREG) return false;
+
+    struct IR_Block *block = function->head_block;
+    while(NULL != block) {
+        for (int j = 0; j < block->params->element_count; ++j) {
+            struct IR_Operand *arg_op = *(struct IR_Operand **) vector_get(block->params, j);
+
+            if (arg_op == op) {
+                return true;
+            }
+        }
+        block = block->next;
+    }
+    return false;
+}
 
 void opt_calculate_constants(struct IR_Function *function, struct opt_context_t *context) {
     for(int i = 0; i < function->operands->element_count; ++i) {
@@ -663,8 +679,8 @@ void opt_calculate_constants(struct IR_Function *function, struct opt_context_t 
         if(IR_OPERAND_TYPE_IMM == op->type) {
             op->constant = true;
         }else if(IR_OPERAND_TYPE_VREG == op->type && op->definition_instruction) {
+            if (is_block_argument(function, op))continue;
             struct IR_Instruction *def_inst = op->definition_instruction;
-
             if (def_inst->type == IR_INSTRUCTION_TYPE_MOV) {
                 struct IR_Operand *src = def_inst->operands.double_operands.source_1;
                 if(src->type == IR_OPERAND_TYPE_IMM) op->constant = true;
