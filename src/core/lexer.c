@@ -250,6 +250,19 @@ int lexer_tokenize(struct arena *arena, char *restrict str, struct lexer_token *
             while (i < str_len && isdigit((unsigned char)str[i])) {
                 i++;
             }
+            curr = str[i];
+
+            if(curr == 'x') {
+                ++i;
+                while (i < str_len && isxdigit((unsigned char)str[i])) {
+                    i++;
+                }
+            }else if(curr == 'b') {
+                ++i;
+                while (i < str_len && isdigit((unsigned char)str[i])) {
+                    i++;
+                }
+            }
 
             (*tokens)[token_id].type = LEXER_TOKEN_TYPE_INT_LITERAL;
             (*tokens)[token_id].str_view = str_view_make(&str[start], i - start); 

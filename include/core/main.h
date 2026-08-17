@@ -48,7 +48,7 @@ static inline struct lexer_file *lexer_test(struct parser_t *restrict parser, ch
     LOG_M("line count: %d, statement count: %d", file->line_count, file->statement_count);
     
     // for(int i = 0;i < file->token_count; ++i){
-    //     printf("%s | token type: %s\n", (*(file->tokens+i)).token, lexer_token_type_to_string((*(file->tokens+i)).type));
+    //     printf(SV_FMT " | token type: %s\n", SV_ARG(file->tokens[i].str_view), lexer_token_type_to_string((*(file->tokens+i)).type));
     // }
     
     LOG_M("total token count: %d", file->token_count);

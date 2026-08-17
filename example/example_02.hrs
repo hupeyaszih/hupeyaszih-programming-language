@@ -13,13 +13,12 @@ fn sys_write(buffer_ptr: *int32, length: int32) : int32 {
 }
 
 fn main() : int32 {
-    // 'H'  (72  / 0x48)
-    // 'i'  (105 / 0x69)
-    // '!'  (33  / 0x21)
-    // '\n' (10  / 0x0A)
-    // Combined Decimal: 169961800
-    var msg: int32 = 169961800;
+    var msg1: int32 = 0x6C6C6548;
+    var msg2: int32 = 0x6F57206F;
+    var msg3: int32 = 0x0A646C72;
 
-    sys_write(&msg, 4);
+    sys_write(&msg1, 4);
+    sys_write(&msg2, 4);
+    sys_write(&msg3, 4);
     0;
 }
