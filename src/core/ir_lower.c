@@ -3,6 +3,7 @@
 #include "core/parser.h"
 #include "core/symbol_table.h"
 #include "h_arena.h"
+#include "h_string_view.h"
 #include "h_vector.h"
 #include <stdbool.h>
 #include <stdio.h>
@@ -54,6 +55,8 @@ static inline struct vector_t *IRL_block_filter(struct arena *arena, struct vect
 }
 
 static inline void variable_declaration(struct ir_context *context, struct symbol_t *sym, struct parser_node *node) {
+    if(!sym) return;
+
     if(LOCATION_STACK == sym->location_kind) {
         struct IR_Instruction *alloca = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_ALLOCA);
         IR_Block_add_instruction(context->current_block, alloca);
@@ -64,12 +67,57 @@ static inline void variable_declaration(struct ir_context *context, struct symbo
         alloca->operands.alloca.type_info = sym->type;
 
         alloca->operands.alloca.destination = stack_slot;
-    }else {
-        struct IR_Operand *vreg = IR_create_new_vreg(context->arena, context->current_function, NULL, sym, context->current_block->in_loop);
+    }else if(LOCATION_VREG == sym->location_kind){
+        bool has_value = node->right_node != NULL;
+        if(has_value) return;
+
+        int in_loop = 0;
+        if(context->current_block) in_loop = context->current_block->in_loop;
+        struct IR_Operand *vreg = IR_create_new_vreg(context->arena, context->current_function, NULL, sym, in_loop);
         vreg->type_info = sym->type;
         sym->current_vreg = vreg;
+    }else {
+        bool has_value = node->right_node != NULL;
+        if(has_value) return;
+
+        struct IR_Operand *global = IR_create_new_global(context->arena, context->current_module, str_view_from_cstr(NULL, 0), sym, true, context->type_table);
+        IR_Module_add_global(context->current_module, global);
     }
 }
+
+static inline struct IR_Operand *ensure_operand_is_register_or_imm(struct ir_context *context, struct IR_Operand *operand) {
+    enum IR_Operand_type op_type = operand->type;
+    switch (op_type) {
+        case IR_OPERAND_TYPE_VREG: {
+            return operand;
+        }case IR_OPERAND_TYPE_STACK_SLOT: {
+            struct IR_Instruction *load = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_LOAD);
+            IR_Block_add_instruction(context->current_block, load);
+
+            struct IR_Operand *vreg = IR_create_new_vreg(context->arena, context->current_function, load, NULL, context->current_block->in_loop);
+            vreg->type_info = operand->type_info;
+
+            load->operands.double_operands.source_1 = operand;
+            load->operands.double_operands.destination = vreg;
+
+            return vreg;
+        }case IR_OPERAND_TYPE_GLOBAL: {
+            struct IR_Instruction *load = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_LOAD);
+            IR_Block_add_instruction(context->current_block, load);
+
+            struct IR_Operand *vreg = IR_create_new_vreg(context->arena, context->current_function, load, NULL, context->current_block->in_loop);
+            vreg->type_info = operand->type_info;
+
+            load->operands.double_operands.source_1 = operand;
+            load->operands.double_operands.destination = vreg;
+            return vreg;
+        }case IR_OPERAND_TYPE_IMM: {
+            return operand;
+        }
+    }
+    return NULL;
+}
+
 
 static inline struct IR_Operand *load_variable(struct ir_context *context, struct symbol_t *sym) {
     enum location_kind location_kind = sym->location_kind;
@@ -87,6 +135,16 @@ static inline struct IR_Operand *load_variable(struct ir_context *context, struc
             load->operands.double_operands.destination = vreg;
 
 
+            return vreg;
+        }case LOCATION_GLOBAL: {
+            struct IR_Instruction *load = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_LOAD);
+            IR_Block_add_instruction(context->current_block, load);
+
+            struct IR_Operand *vreg = IR_create_new_vreg(context->arena, context->current_function, load, sym, context->current_block->in_loop);
+            vreg->type_info = sym->type;
+
+            load->operands.double_operands.source_1 = sym->global;
+            load->operands.double_operands.destination = vreg;
             return vreg;
         }
     }
@@ -152,12 +210,21 @@ static inline void store_variable(struct ir_context *context, struct symbol_t *s
             store->operands.double_operands.source_1 = val;
             store->operands.double_operands.destination = sym->stack_slot;
             break;
+        }case LOCATION_GLOBAL: {
+            struct IR_Instruction *store = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_STORE);
+            IR_Block_add_instruction(context->current_block, store);
+
+            store->operands.double_operands.source_1 = val;
+            store->operands.double_operands.destination = sym->global;
+            break;
         }
     }
 }
 
 struct IR_Operand *IRL_run_module_lower(struct parser_node *node, struct ir_context *context) {
     struct IR_Module *module = IR_create_IR_Module(context->arena, node->data.module.name);
+    context->current_module = module;
+
     vector_add(context->project->modules, &module);
     module->parent_project = context->project;
 
@@ -167,21 +234,24 @@ struct IR_Operand *IRL_run_module_lower(struct parser_node *node, struct ir_cont
     struct symbol_table *old_scope = context->current_scope;
     for(int i = 0;i < function_count; ++i) {
         struct parser_node *function_node = *(struct parser_node **) vector_get(node->data.module.functions, i);
-        struct IR_Function *function = IR_create_IR_Function(context->arena, function_node->data.function.flags, function_node->data.function.name, function_node->data.function.mangled_name, function_node->data.function.param_count);
-        IR_Module_add_function(module, function);
-
+        last_operand = IRL_run_statement_lower(function_node, context, LOWER_UNDEFINED);
         context->current_scope = old_scope;
         context->current_block = NULL;
-        context->current_function = function;
-        last_operand = IRL_run_function_lower(function_node, context);
+        context->current_function = NULL;
     }
     arena_reset(context->temp_arena);
     return last_operand;
 }
 
 struct IR_Operand *IRL_run_function_lower(struct parser_node *node, struct ir_context *context) {
+    struct IR_Function *function = IR_create_IR_Function(context->arena, node->data.function.flags, node->data.function.name, node->data.function.mangled_name, node->data.function.param_count);
+    IR_Module_add_function(context->current_module, function);
+    context->current_function = function;
+
     struct symbol_t *sym = symbol_table_look_up(context->current_scope, node->data.function.name);
     sym->function.ir_function = context->current_function;
+
+
 
     struct IR_Block *params_b = IR_create_IR_Block(context->arena, context->current_function, node->data.function.params->data.block.mangled_name);
     context->current_block = params_b;
@@ -437,15 +507,19 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
             return return_res;
         }case PARSER_NODE_NUMBER: {
             struct type_info *info = node->type_info;
-            struct IR_Operand *operand = IR_create_IR_Operand(context->arena, IR_OPERAND_TYPE_IMM, NULL, context->current_function, context->current_block->in_loop);
+            int in_loop = 0;
+            if(context->current_block)in_loop = context->current_block->in_loop;
+            struct IR_Operand *operand = IR_create_IR_Operand(context->arena, IR_OPERAND_TYPE_IMM, NULL, context->current_function, in_loop);
             operand->type_info = info;
             operand->data.imm_value = node->data.literal_data;
             return operand;
         }case PARSER_NODE_STRING: {
             struct type_info *info = node->type_info;
-            struct IR_Operand *operand = IR_create_IR_Operand(context->arena, IR_OPERAND_TYPE_IMM, NULL, context->current_function, context->current_block->in_loop);
+            struct IR_Operand *operand = IR_create_new_global(context->arena, context->current_module, node->data.literal_data, NULL, false, context->type_table);
+            operand->data.global.kind = IR_GLOBAL_KIND_STRING;
+            operand->constant = true;
             operand->type_info = info;
-            operand->data.imm_value = node->data.literal_data;
+            IR_Module_add_global(context->current_module, operand);
             return operand;
         }case PARSER_NODE_CALL: {
             struct IR_Instruction *call = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_CALL);
@@ -458,9 +532,10 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
             for(int i = 0;i < arg_count; ++i) {
                 struct parser_node *arg = *(struct parser_node **) vector_get(node->data.call.args, i);
                 struct IR_Operand *op = IRL_run_statement_lower(arg, context, LOWER_R);
-                vector_add(call->operands.call.arguments, &op);
+                struct IR_Operand *loaded_op = ensure_operand_is_register_or_imm(context, op);
+                vector_add(call->operands.call.arguments, &loaded_op);
 
-                emit_cast(context, arg->type_info, &op);
+                emit_cast(context, arg->type_info, &loaded_op);
             }
 
             struct IR_Operand *return_val = IR_create_new_vreg(context->arena, context->current_function, call, NULL, context->current_block->in_loop);
@@ -566,8 +641,23 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
             variable_declaration(context, sym, node);
 
 
+
             if(right_operand) {
-                store_variable(context, sym, right_operand);
+                if(sym->location_kind == LOCATION_GLOBAL) {
+                    if(right_operand->type == IR_OPERAND_TYPE_GLOBAL) {
+                        right_operand->data.global.variable = sym;
+                        sym->global = right_operand;
+                        return right_operand;
+                    }else {
+                        right_operand->type = IR_OPERAND_TYPE_GLOBAL;
+                        struct str_view value = right_operand->data.imm_value;
+                        struct IR_Operand *global = IR_create_new_global(context->arena, context->current_module,value, sym, false, context->type_table);
+                        IR_Module_add_global(context->current_module, global);
+                        return global;
+                    }
+                }else {
+                    store_variable(context, sym, right_operand);
+                }
             }
             return node->data.variable.symbol->current_vreg;
         }case PARSER_NODE_VARIABLE_ASSIGMENT: {
@@ -586,7 +676,17 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
                 return right_operand;
             } else if (node->left_node->type == PARSER_NODE_IDENTIFIER) {
                 struct symbol_t *sym = node->left_node->data.variable.symbol;
-                store_variable(context, sym, right_operand);
+                if(sym->location_kind == LOCATION_GLOBAL) {
+                    if(right_operand->type == IR_OPERAND_TYPE_GLOBAL) {
+                        right_operand->data.global.variable = sym;
+                        sym->global = right_operand;
+                        return right_operand;
+                    }else {
+                        store_variable(context, sym, right_operand);
+                    }
+                }else {
+                    store_variable(context, sym, right_operand);
+                }
                 return right_operand;
             }
 

@@ -50,7 +50,8 @@ struct type_table{
 
 enum location_kind {
     LOCATION_VREG,
-    LOCATION_STACK
+    LOCATION_STACK,
+    LOCATION_GLOBAL
 };
 
 
@@ -63,6 +64,8 @@ struct symbol_t{
         struct IR_Operand *stack_slot;
 
         struct IR_Operand *current_vreg;
+
+        struct IR_Operand *global;
     };
 
     union {
@@ -78,6 +81,7 @@ struct symbol_t{
     int pointer_level;
     struct bitset_t *flags;
     bool is_address_taken; // If it is true, this operand must be in the memory
+    bool is_global;
 };
 
 struct symbol_table{  
@@ -90,11 +94,13 @@ struct symbol_table{
 
     struct symbol_table *parent;
     struct vector_t *types;
+
+    bool is_global_table;
 };
 
 struct symbol_table *symbol_table_create_symbol_table(struct arena *arena, struct symbol_table *restrict parent, int *global_scope_counter);
 
-struct symbol_t *symbol_table_define(struct symbol_table *restrict table, struct str_view name, struct type_info *restrict type, enum symbol_kind kind, int pointer_level);
+struct symbol_t *symbol_table_define(struct symbol_table *restrict table, struct str_view name, struct type_info *restrict type, enum symbol_kind kind, int pointer_level, bool is_global);
 
 void symbol_table_assign(struct symbol_t *restrict symbol, int *current_stack_offset);
 struct symbol_t* symbol_table_look_up(const struct symbol_table *table, struct str_view name);
@@ -112,8 +118,6 @@ struct type_info *get_literals_type_info(struct type_table *type_table, struct t
 
 void type_table_insert(struct type_table *table, struct type_info *info);
 
-
-
 static inline void type_table_init_builtins(struct type_table *table) {
     struct type_info *int64 = type_table_create_type_info_cstr(table->arena, "int64", TYPE_CATEGORY_BASIC, 8, NULL, NULL , true);
     struct type_info *int32 = type_table_create_type_info_cstr(table->arena, "int32", TYPE_CATEGORY_BASIC, 4, NULL, int64, true);
@@ -128,13 +132,28 @@ static inline void type_table_init_builtins(struct type_table *table) {
 
     type_table_insert(table, type_table_create_type_info_cstr(table->arena, "float64", TYPE_CATEGORY_BASIC, 8, NULL, NULL, false));
     type_table_insert(table, type_table_create_type_info_cstr(table->arena, "fn", TYPE_CATEGORY_BASIC, 8, NULL, NULL, false));
-    type_table_insert(table, type_table_create_type_info_cstr(table->arena, "char", TYPE_CATEGORY_BASIC, 1, NULL, NULL, false));
 
     table->pointers_size = 8;
-    type_table_insert(table, type_table_create_type_info_cstr(table->arena, "string", TYPE_CATEGORY_POINTER, 8, NULL, NULL, false));
+
+    struct type_info *ch = type_table_create_type_info_cstr(table->arena, "char", TYPE_CATEGORY_BASIC, 1, NULL, int8, false);
+    type_table_insert(table, ch);
+
+    struct type_info *ch_p = type_table_get_or_create_pointer_type_info(table, str_view_from_cstr(table->arena, "char"), 1);
+
+    struct type_info *str = type_table_create_type_info_cstr(table->arena, "string", TYPE_CATEGORY_POINTER, 8, NULL, ch_p, false);
+    type_table_insert(table, str);
 
     table->pointer_to_int_type = int64;
 }
+
+static inline bool type_table_is_info_string(struct type_table *table, struct type_info *info) {
+    if (!table || !info) return false;
+    if(info->type_id == type_table_get_type_info_cstr(table, "string", 0)->type_id){
+        return true;
+    }
+    return false;
+}
+
 
 static inline size_t type_table_size_padding(size_t type_size){
     return (type_size + 7) & ~7;
@@ -147,7 +166,10 @@ static inline int type_table_can_that_promote_to(struct type_info *type, struct 
     if(type->can_promote_to_memory_address && target_type->points_to) return 1;
 
     for(struct type_info *curr = type; curr != NULL; curr = curr->promotable_type) {
-        if(curr->type_id == target_type->type_id) return 1;
+        if(curr->can_promote_to_memory_address && target_type->points_to) return 1;
+        if(curr->type_id == target_type->type_id) {
+            return 1;
+        }
     }
     return 0;
 }

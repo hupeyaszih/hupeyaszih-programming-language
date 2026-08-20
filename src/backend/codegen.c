@@ -95,6 +95,7 @@ void codegen_build_module(struct codegen_t *codegen, struct IR_Module *module) {
     context.codegen = codegen;
     context.build_target = codegen->current_build_target;
     context.current_function = NULL;
+    context.current_module = module;
     context.main_function = module->parent_project->main_function;
     context.stack_slot_names = vector_create_vector(codegen->arena, 4, sizeof(char *));
 
@@ -156,6 +157,8 @@ enum register_size codegen_get_register_size_from_operand(struct IR_Operand *ope
         }case IR_OPERAND_TYPE_STACK_SLOT: {
             return codegen_calc_register_size(operand->data.slot.stack_slot->type->size);
         } case IR_OPERAND_TYPE_IMM: {
+            return codegen_calc_register_size(operand->type_info->size);
+        } case IR_OPERAND_TYPE_GLOBAL: {
             return codegen_calc_register_size(operand->type_info->size);
         }
         default: return REGISTER_SIZE_UNDEFINED;

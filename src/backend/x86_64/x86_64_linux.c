@@ -343,6 +343,19 @@ void x86_64_linux_emit_mov_operand_to_reg(struct codegen_context_t *context, str
     }else if(IR_OPERAND_TYPE_VREG == src->type) {
         x86_64_linux_emit_mov_reg_to_reg(context, dest, src->data.vreg.reg, src_size);
         return;
+    }else if (IR_OPERAND_TYPE_GLOBAL == src->type) {
+        if(src->data.global.kind == IR_GLOBAL_KIND_STRING) {
+            codegen_emit(context->file, "    lea ");
+            x86_64_linux_emit_reg(context, dest, src_size, true);
+        }else {
+            codegen_emit(context->file, "    mov ");
+            x86_64_linux_emit_reg(context, dest, src_size, true);
+        }
+        codegen_emit(context->file, ", ");
+        x86_64_linux_emit_operand(context, src, src_size, true);
+        codegen_emit(context->file, " #global to reg\n");
+
+        return;
     }
 }
 
@@ -366,6 +379,14 @@ void x86_64_linux_emit_mov_reg_to_operand(struct codegen_context_t *context, str
         x86_64_linux_emit_reg(context, src, size, true);
         codegen_emit(context->file, "#reg to op (imm)\n");
         return;
+    }else if (IR_OPERAND_TYPE_GLOBAL == dest->type) {
+        codegen_emit(context->file, "    mov ");
+        x86_64_linux_emit_operand(context, dest, size, true);
+        codegen_emit(context->file, ", ");
+        x86_64_linux_emit_reg(context, src, size, true);
+        codegen_emit(context->file, " # reg to global\n");
+
+        return;
     }
 }
 void x86_64_linux_emit_mov_operand_to_operand(struct codegen_context_t *context, struct IR_Operand *dest, struct IR_Operand *src) {
@@ -376,13 +397,7 @@ void x86_64_linux_emit_mov_operand_to_operand(struct codegen_context_t *context,
     enum IR_Operand_type dest_type = dest->type;
     enum IR_Operand_type src_type = src->type;
 
-    if(IR_OPERAND_TYPE_STACK_SLOT == dest->type && IR_OPERAND_TYPE_STACK_SLOT == src->type) {
-        struct register_t *reserved_reg = x86_64_linux_get_available_reserved_register(context->build_target->registers);
-        x86_64_linux_emit_mov_operand_to_reg(context, reserved_reg, src);
-        x86_64_linux_emit_mov_reg_to_operand(context, dest, reserved_reg);
-        x86_64_linux_set_free_reserved_register(context->build_target->registers, reserved_reg);
-        return;
-    }else if(IR_OPERAND_TYPE_STACK_SLOT == dest_type && IR_OPERAND_TYPE_IMM == src_type) {
+    if(IR_OPERAND_TYPE_STACK_SLOT == dest_type && IR_OPERAND_TYPE_VREG != src_type) {
         struct register_t *reserved_reg = x86_64_linux_get_available_reserved_register(context->build_target->registers);
         x86_64_linux_emit_mov_operand_to_reg(context, reserved_reg, src);
         x86_64_linux_emit_mov_reg_to_operand(context, dest, reserved_reg);
@@ -394,11 +409,17 @@ void x86_64_linux_emit_mov_operand_to_operand(struct codegen_context_t *context,
     }else if(IR_OPERAND_TYPE_VREG == dest_type && IR_OPERAND_TYPE_VREG == src_type) {
         x86_64_linux_emit_mov_reg_to_reg(context, dest->data.vreg.reg, src->data.vreg.reg, src_size);
         return;
-    }else if(IR_OPERAND_TYPE_VREG == dest_type && IR_OPERAND_TYPE_IMM == src_type) {
+    }else if(IR_OPERAND_TYPE_VREG == dest_type && IR_OPERAND_TYPE_VREG != src_type) {
         x86_64_linux_emit_mov_operand_to_reg(context, dest->data.vreg.reg, src);
         return;
-    }else if(IR_OPERAND_TYPE_VREG == dest_type && IR_OPERAND_TYPE_STACK_SLOT == src_type) {
-        x86_64_linux_emit_mov_operand_to_reg(context, dest->data.vreg.reg, src);
+    }if(IR_OPERAND_TYPE_GLOBAL == dest_type && IR_OPERAND_TYPE_VREG != src_type) {
+        struct register_t *reserved_reg = x86_64_linux_get_available_reserved_register(context->build_target->registers);
+        x86_64_linux_emit_mov_operand_to_reg(context, reserved_reg, src);
+        x86_64_linux_emit_mov_reg_to_operand(context, dest, reserved_reg);
+        x86_64_linux_set_free_reserved_register(context->build_target->registers, reserved_reg);
+        return;
+    }else if(IR_OPERAND_TYPE_GLOBAL == dest_type && IR_OPERAND_TYPE_VREG == src_type) {
+        x86_64_linux_emit_mov_reg_to_operand(context, dest, src->data.vreg.reg);
         return;
     }
 }
@@ -445,8 +466,61 @@ struct register_t *x86_64_linux_ensure_operand_is_register(struct codegen_contex
     return reserved_reg;
 }
 
+static inline void emit_global_type(struct codegen_context_t *context, struct IR_Operand *global) {
+    if(global->data.global.kind == IR_GLOBAL_KIND_STRING) {
+        codegen_emit(context->file, ".asciz ");
+        return;
+    }
+    enum register_size size = codegen_get_register_size_from_operand(global);
+    switch (size) {
+        case REGISTER_SIZE_64: {
+            codegen_emit(context->file, ".quad ");
+            break;
+        }case REGISTER_SIZE_32: {
+            codegen_emit(context->file, ".int ");
+            break;
+        }case REGISTER_SIZE_16: {
+            codegen_emit(context->file, ".word ");
+            break;
+        }case REGISTER_SIZE_8: {
+            codegen_emit(context->file, ".byte ");
+            break;
+        }case REGISTER_SIZE_UNDEFINED: break;
+    }
+}
+
 void x86_64_linux_emit_globals(struct codegen_context_t *context, bool jmp_to_main) {
    codegen_emit(context->file, ".intel_syntax noprefix\n");
+
+
+   struct vector_t *globals = context->current_module->globals;
+   int current_section = -1;
+
+   for(int i = 0; i < globals->element_count; ++i) {
+       struct IR_Operand *global = *(struct IR_Operand **) vector_get(globals, i);
+       if(global->type == IR_OPERAND_TYPE_UNDEFINED) continue;
+
+       if (global->data.global.kind == IR_GLOBAL_KIND_STRING && current_section != 1) {
+           codegen_emit(context->file, ".section .rodata\n");
+           current_section = 1;
+       } else if (current_section != 0) {
+           codegen_emit(context->file, ".data\n");
+           current_section = 0;
+       }
+
+       codegen_emit(context->file, "    " SV_FMT ": ", SV_ARG(global->data.global.name));
+
+       emit_global_type(context, global);
+       if(global->data.global.kind == IR_GLOBAL_KIND_STRING) {
+           codegen_emit(context->file, " \"" SV_FMT "\"\n", SV_ARG(global->data.global.value));
+       }else if(global->data.global.kind == IR_GLOBAL_KIND_VARIABLE) {
+           codegen_emit(context->file, " " SV_FMT "\n", SV_ARG(global->data.global.value));
+       }else if(global->data.global.kind == IR_GLOBAL_KIND_CONSTANT) {
+           codegen_emit(context->file, " " SV_FMT "\n", SV_ARG(global->data.global.value));
+       }
+   }
+
+   codegen_emit(context->file, ".text\n");
    codegen_emit(context->file, ".global _start\n");
    x86_64_linux_emit_label(context, SV("_start"), true);
    if(jmp_to_main) x86_64_linux_emit_jmp_main(context);
@@ -739,7 +813,7 @@ void x86_64_linux_emit_instruction(struct codegen_context_t *context, struct IR_
         }case IR_INSTRUCTION_TYPE_STORE: {
             struct IR_Operand *src = instruction->operands.double_operands.source_1;
             struct IR_Operand *dest = instruction->operands.double_operands.destination;
-            if(IR_OPERAND_TYPE_STACK_SLOT == dest->type) {
+            if(IR_OPERAND_TYPE_GLOBAL == dest->type || IR_OPERAND_TYPE_STACK_SLOT == dest->type) {
                 x86_64_linux_emit_mov_operand_to_operand(context, dest, src);
                 codegen_emit(context->file, "\n");
                 break;
@@ -982,6 +1056,9 @@ void x86_64_linux_emit_operand(struct codegen_context_t *context, struct IR_Oper
                     codegen_emit(context->file, "[rbp - %d] ", slot->stack_offset);
                 }
             }
+            break;
+        }case IR_OPERAND_TYPE_GLOBAL: {
+            codegen_emit(context->file, "[rip + "SV_FMT "]", SV_ARG(op->data.global.name));
             break;
         }
         case IR_OPERAND_TYPE_UNDEFINED: break;

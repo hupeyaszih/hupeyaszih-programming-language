@@ -1,7 +1,9 @@
 // Hupeyaszih Programming Language (.hrs)
-// Example 3: Direct Linux Kernel I/O via Inline Assembly (sys_write)
+// Example 3: Direct Linux Kernel I/O via Inline Assembly (sys_write). And global variables
 
-fn sys_write(buffer_ptr: *int32, length: int32) : int32 {
+var x:int32 = 13;
+
+fn sys_write(buffer_ptr: *char, length: int32) : int32 {
     asm "
     mov rdx, rsi    # Arg 3: count (length of string)
     mov rsi, rdi    # Arg 2: *buf (pointer to memory)
@@ -13,12 +15,10 @@ fn sys_write(buffer_ptr: *int32, length: int32) : int32 {
 }
 
 fn main() : int32 {
-    var msg1: int32 = 0x6C6C6548;
-    var msg2: int32 = 0x6F57206F;
-    var msg3: int32 = 0x0A646C72;
+    var str: string = "Hello World!\n";
+    sys_write(str, x);
 
-    sys_write(&msg1, 4);
-    sys_write(&msg2, 4);
-    sys_write(&msg3, 4);
-    0;
+    var res:int32 = 20 + x;
+
+    res;
 }

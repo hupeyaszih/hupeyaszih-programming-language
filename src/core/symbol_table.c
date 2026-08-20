@@ -11,16 +11,20 @@
 struct symbol_table *symbol_table_create_symbol_table(struct arena *arena, struct symbol_table *restrict parent, int *global_scope_counter){
     struct symbol_table *table = arena_alloc(arena, sizeof(struct symbol_table));
     table->symbols = vector_create_vector(arena, 8, sizeof(struct symbol_t *));
+    table->is_global_table = false;
     table->arena = arena;
     table->parent = parent;
     table->scope_level = (parent == NULL) ? 0 : parent->scope_level + 1;
     table->total_stack_size = 0;
     table->current_total_offset = 0;
     table->scope_id = (*global_scope_counter)++;
+    if(0 == table->scope_level) {
+        table->is_global_table = true;
+    }
     return table;
 }
 
-struct symbol_t *symbol_table_define(struct symbol_table *restrict table, struct str_view name, struct type_info *restrict type, enum symbol_kind kind, int pointer_level){
+struct symbol_t *symbol_table_define(struct symbol_table *restrict table, struct str_view name, struct type_info *restrict type, enum symbol_kind kind, int pointer_level, bool is_global){
     if(NULL == table){
         LOG_M_ERR("symbol_table_define - \"struct symbol_table *restrict table\" is null");
         return NULL;
@@ -47,11 +51,16 @@ struct symbol_t *symbol_table_define(struct symbol_table *restrict table, struct
     
     struct symbol_t *s = arena_alloc(table->arena, sizeof(struct symbol_t));
     s->name = name;
+    s->is_global = is_global;
     s->mangled_name = NULL;
     s->type = type;
     s->kind = kind;
     s->pointer_level = pointer_level;
-    s->location_kind = LOCATION_VREG;
+    if(!is_global) {
+        s->location_kind = LOCATION_VREG;
+    }else {
+        s->location_kind = LOCATION_GLOBAL;
+    }
     s->current_vreg = NULL;
     s->flags = 0;
     s->is_address_taken = false;
@@ -152,7 +161,6 @@ void type_table_insert(struct type_table *table, struct type_info *info) {
     vector_add(table->types, &info);
 }
 
-
 struct type_info *get_literals_type_info(struct type_table *type_table, struct type_info *target_info, enum parser_node_type literal_type) {
     switch (literal_type) {
         case PARSER_NODE_NUMBER:{
@@ -163,7 +171,7 @@ struct type_info *get_literals_type_info(struct type_table *type_table, struct t
             }
             return type;
         } case PARSER_NODE_STRING: {
-            struct type_info *type = type_table_get_type_info_cstr(type_table, "string", 1);
+            struct type_info *type = type_table_get_type_info_cstr(type_table, "string", 0);
             return type;
         }
     }

@@ -4,8 +4,10 @@
 #include "backend/codegen.h"
 #include "core/symbol_table.h"
 #include "h_bitset.h"
+#include "h_string_view.h"
 #include "h_vector.h"
 #include <stdbool.h>
+#include <stddef.h>
 
 enum IR_Instruction_type {
     IR_INSTRUCTION_TYPE_NOP,
@@ -84,12 +86,20 @@ static inline enum IR_Instructions_Operands_type IR_get_Instructions_Operands_ty
     return IR_INSTRUCTIONS_OPERANDS_TYPE_UNDEFINED;
 }
 
+
+enum IR_Global_Kind {
+    IR_GLOBAL_KIND_STRING,
+    IR_GLOBAL_KIND_VARIABLE,
+    IR_GLOBAL_KIND_CONSTANT
+};
+
 enum IR_Operand_type {
     IR_OPERAND_TYPE_UNDEFINED,
     IR_OPERAND_TYPE_IMM,
     IR_OPERAND_TYPE_VREG,
     IR_OPERAND_TYPE_STACK_SLOT,
-    IR_OPERAND_TYPE_LABEL
+    IR_OPERAND_TYPE_LABEL,
+    IR_OPERAND_TYPE_GLOBAL
 };
 
 struct stack_slot_t {
@@ -126,6 +136,15 @@ struct IR_Operand {
             struct live_interval_t live_interval;
             struct stack_slot_t *stack_slot;
         } slot;
+        struct {
+            struct str_view value;
+            struct str_view name;
+            struct symbol_t *variable;
+            bool is_bss;
+
+            enum IR_Global_Kind kind;
+        } global;
+
     } data;
 
     struct IR_Instruction *definition_instruction;
@@ -263,10 +282,10 @@ struct IR_Function {
 
 };
 
-
 struct IR_Module {
     char *name;
     struct vector_t *functions; // struct IR_Function *
+    struct vector_t *globals;   // struct IR_Operand *
     struct IR_Project *parent_project;
 };
 
@@ -292,6 +311,7 @@ struct IR_Operand *IR_create_IR_Operand(struct arena *arena, enum IR_Operand_typ
 void IR_init_live_interval(struct live_interval_t *interval, struct IR_Operand *operand, int start, int end, int weight);
 
 // add/remove
+void IR_Module_add_global(struct IR_Module *module, struct IR_Operand *global);
 void IR_Module_add_function(struct IR_Module *module, struct IR_Function *function);
 void IR_Function_add_block(struct IR_Function *function, struct IR_Block *block);
 void IR_Block_add_instruction(struct IR_Block *block, struct IR_Instruction *instruction);
@@ -305,7 +325,11 @@ void IR_Block_remove_instruction(struct IR_Block *block, struct IR_Instruction *
 
 // Helpers
 
+struct str_view IR_Module_create_global_name(struct IR_Module *module, struct arena *arena);
+
+enum IR_Global_Kind IR_get_global_kind(struct type_table *table, struct IR_Operand *global);
 struct IR_Operand *IR_create_new_vreg(struct arena *arena, struct IR_Function *parent_function, struct IR_Instruction *definition_instruction, struct symbol_t *variable, int in_loop);
+struct IR_Operand *IR_create_new_global(struct arena *arena, struct IR_Module *module, struct str_view value, struct symbol_t *variable, bool is_bss, struct type_table *type_table);
 
 int IR_call_get_arg_index(struct IR_Instruction *call, struct IR_Operand *target_arg);
 #endif 

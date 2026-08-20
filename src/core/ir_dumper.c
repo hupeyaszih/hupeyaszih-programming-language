@@ -34,11 +34,24 @@ static inline void IR_dump_operand(const struct IR_Operand *restrict operand) {
             if(!operand->data.slot.stack_slot) break;
             printf("[%d, size: %ld]", operand->data.slot.stack_slot->stack_offset, operand->data.slot.stack_slot->type->size);
             break;
+        }case IR_OPERAND_TYPE_GLOBAL: {
+            IR_dump_type_info(operand->type_info);
+            printf(" @" SV_FMT, SV_ARG(operand->data.global.name));
+            break;
         }
     }
 }
 
 void IR_dump_module(const struct IR_Module *restrict module) {
+    printf("module %s globals[\n", module->name);
+    for(int i = 0;i < module->globals->element_count; ++i) {
+        struct IR_Operand *global = *(struct IR_Operand **) vector_get(module->globals, i);
+        IR_dump_type_info(global->type_info);
+        printf(" " SV_FMT " = " SV_FMT " ", SV_ARG(global->data.global.name), SV_ARG(global->data.global.value));
+        printf("\n");
+    }
+    printf("]\n");
+
     for(int i = 0;i < module->functions->element_count; ++i) {
         struct IR_Function *function = *(struct IR_Function **) vector_get(module->functions, i);
         IR_dump_function(function);

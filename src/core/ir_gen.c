@@ -1,6 +1,8 @@
 #include "core/ir_gen.h"
 #include "core/symbol_table.h"
+#include "h_arena.h"
 #include "h_bitset.h"
+#include "h_string_view.h"
 #include "h_vector.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,6 +41,7 @@ struct IR_Project *IR_create_IR_Project(struct arena *arena, struct arena *temp_
 struct IR_Module *IR_create_IR_Module(struct arena *arena, char *name) {
     struct IR_Module *module = arena_alloc(arena, sizeof(struct IR_Module));
     module->functions = vector_create_vector(arena, 4, sizeof(struct IR_Function *));
+    module->globals = vector_create_vector(arena, 4, sizeof(struct IR_Operand *));
     module->name = name;
 
     return module;
@@ -148,6 +151,10 @@ void IR_init_live_interval(struct live_interval_t *interval, struct IR_Operand *
 
 // add/remove
 
+void IR_Module_add_global(struct IR_Module *module, struct IR_Operand *global) {
+    vector_add(module->globals, &global);
+}
+
 void IR_Module_add_function(struct IR_Module *module, struct IR_Function *function) {
     if(module->parent_project->main_function == NULL && str_view_eq_cstr(function->name, "main")) {
         module->parent_project->main_function = function;
@@ -172,6 +179,7 @@ void IR_Function_add_block(struct IR_Function *function, struct IR_Block *block)
 }
 
 void IR_Block_add_instruction(struct IR_Block *block, struct IR_Instruction *instruction) {
+    if(!block) return;
     if(NULL == block->head_instruction) {
         block->head_instruction = instruction;
         block->tail_instruction = instruction;
@@ -229,6 +237,27 @@ struct IR_Operand *IR_create_new_vreg(struct arena *arena, struct IR_Function *p
     return operand;
 }
 
+struct IR_Operand *IR_create_new_global(struct arena *arena, struct IR_Module *module, struct str_view value, struct symbol_t *variable, bool is_bss, struct type_table *type_table) {
+    struct IR_Operand *global = IR_create_IR_Operand(arena, IR_OPERAND_TYPE_GLOBAL, NULL, NULL, 0);
+    global->data.global.value = value;
+    global->data.global.is_bss = is_bss;
+
+    global->data.global.name = IR_Module_create_global_name(module, arena);
+
+    if(variable){
+        global->data.global.variable = variable;
+        global->type_info = variable->type;
+        variable->global = global;
+    }else {
+        global->data.global.variable = NULL;
+        global->type_info = NULL;
+    }
+
+
+    global->data.global.kind = IR_get_global_kind(type_table, global);
+    return global;
+}
+
 int IR_call_get_arg_index(struct IR_Instruction *call, struct IR_Operand *target_arg) {
     for(int i = 0; i < call->operands.call.arguments->element_count; ++i) {
         struct IR_Operand *curr = *(struct IR_Operand **) vector_get(call->operands.call.arguments, i);
@@ -236,4 +265,26 @@ int IR_call_get_arg_index(struct IR_Instruction *call, struct IR_Operand *target
         if(curr == target_arg) return i;
     }
     return -1;
+}
+
+struct str_view IR_Module_create_global_name(struct IR_Module *module, struct arena *arena) {
+    char id[32];
+    snprintf(id, sizeof(id), "%ld", module->globals->element_count+1);
+    
+    size_t size = strlen(id) + 5;
+    
+    char *mangled_name = arena_alloc(arena, sizeof(char) * size);
+    if (!mangled_name) {
+        return (struct str_view){ NULL, 0 };
+    }
+
+    snprintf(mangled_name, size, "glb_%s", id);
+
+    return str_view_make(mangled_name, size);
+}
+
+enum IR_Global_Kind IR_get_global_kind(struct type_table *table, struct IR_Operand *global){
+    if(type_table_is_info_string(table, global->type_info)) return IR_GLOBAL_KIND_STRING;
+    if(global->constant) return IR_GLOBAL_KIND_CONSTANT;
+    return IR_GLOBAL_KIND_VARIABLE;
 }

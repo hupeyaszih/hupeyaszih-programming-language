@@ -546,6 +546,12 @@ bool get_operand_imm_value(struct IR_Operand *op, int64_t *out_val) {
         return true;
     }
 
+    if (op->type == IR_OPERAND_TYPE_GLOBAL) {
+        if(op->data.global.kind == IR_GLOBAL_KIND_STRING) return false;
+        *out_val = str_view_to_int(op->data.global.value);
+        return true;
+    }
+
     if (op->type == IR_OPERAND_TYPE_VREG && op->definition_instruction) {
         struct IR_Instruction *def_inst = op->definition_instruction;
 
@@ -564,7 +570,6 @@ static inline bool instruction_has_side_effects(struct IR_Instruction *inst) {
 
     switch (inst->type) {
         case IR_INSTRUCTION_TYPE_MOV:
-        case IR_INSTRUCTION_TYPE_LOAD:
         case IR_INSTRUCTION_TYPE_UNARY_ADDRESS_OF:
         case IR_INSTRUCTION_TYPE_UNARY_DEREFERENCE:
         case IR_INSTRUCTION_TYPE_UNARY_BANG:
@@ -585,6 +590,10 @@ static inline bool instruction_has_side_effects(struct IR_Instruction *inst) {
                 return false;
             }
             return true;
+        }case IR_INSTRUCTION_TYPE_LOAD: {
+            if(inst->operands.double_operands.source_1->type == IR_OPERAND_TYPE_GLOBAL) return true;
+            if(inst->operands.double_operands.destination->type == IR_OPERAND_TYPE_GLOBAL) return true;
+            return false;
         }
 
         default:
@@ -620,10 +629,13 @@ bool opt_dead_code_elimination(struct opt_context_t *context, struct IR_Function
             switch (ops_type) {
                 case IR_INSTRUCTIONS_OPERANDS_TYPE_DOUBLE: dest = instruction->operands.double_operands.destination; src1 = instruction->operands.double_operands.source_1; src2 = NULL; break;
                 case IR_INSTRUCTIONS_OPERANDS_TYPE_TRIPLE: dest = instruction->operands.triple_operands.destination; src1 = instruction->operands.triple_operands.source_1; src2 = instruction->operands.triple_operands.source_2; break;
-                case IR_INSTRUCTIONS_OPERANDS_TYPE_ALLOCA: dest = instruction->operands.alloca.destination;          src1 = NULL; src2 = NULL;
-                case IR_INSTRUCTIONS_OPERANDS_TYPE_CALL:   dest = instruction->operands.call.return_val;             src1 = NULL; src2 = NULL;
+                case IR_INSTRUCTIONS_OPERANDS_TYPE_ALLOCA: dest = instruction->operands.alloca.destination;          src1 = NULL; src2 = NULL; break;
+                case IR_INSTRUCTIONS_OPERANDS_TYPE_CALL:   dest = instruction->operands.call.return_val;             src1 = NULL; src2 = NULL; break;
+                case IR_INSTRUCTIONS_OPERANDS_TYPE_RET:    dest = NULL;                                              src1 = instruction->operands.ret.return_value; src2 = NULL; break;
                 default: break;
             }
+
+            bool instruction_removed = false;
 
             if (!instruction_has_side_effects(instruction)) {
 
@@ -644,9 +656,10 @@ bool opt_dead_code_elimination(struct opt_context_t *context, struct IR_Function
                         dest->type = IR_OPERAND_TYPE_UNDEFINED;
                     }
                     changed = true;
+                    instruction_removed = true;
                 }
             }
-            if(!changed) {
+            if(!instruction_removed) {
                 if((dest && dest->type == IR_OPERAND_TYPE_UNDEFINED) || (src1 && src1->type == IR_OPERAND_TYPE_UNDEFINED) || (src2 && src2->type == IR_OPERAND_TYPE_UNDEFINED)) {
                     if(src1)remove_instruction_from_use_list(src1, instruction);
                     if(src2)remove_instruction_from_use_list(src2, instruction);

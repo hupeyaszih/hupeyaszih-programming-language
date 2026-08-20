@@ -59,6 +59,7 @@ struct register_list_t {
 struct codegen_context_t {
     struct codegen_t *codegen;
     FILE *file;
+    struct IR_Module *current_module;
     struct IR_Function *current_function;
     struct IR_Function *main_function;
     struct codegen_build_target_t *build_target;

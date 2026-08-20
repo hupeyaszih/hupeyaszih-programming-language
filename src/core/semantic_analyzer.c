@@ -359,8 +359,10 @@ struct type_info *semantic_analyzer_calculate_type_infos(struct parser_node *nod
             struct type_info *target = type_table_get_or_create_pointer_type_info(context->type_table, node->right_node->type_info->name, pointer_level+1);
             node->type_info = target;
 
-            node->right_node->data.variable.symbol->is_address_taken = true;
-            node->right_node->data.variable.symbol->location_kind = LOCATION_STACK;
+            if(node->right_node->data.variable.symbol->location_kind != LOCATION_GLOBAL) {
+                node->right_node->data.variable.symbol->is_address_taken = true;
+                node->right_node->data.variable.symbol->location_kind = LOCATION_STACK;
+            }
             break;
         }case PARSER_NODE_VARIABLE_DECLARATION: {
             struct symbol_t *sym = symbol_table_look_up(context->current_scope, node->data.variable.variable_name);

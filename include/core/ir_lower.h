@@ -11,6 +11,7 @@ struct ir_context {
     struct arena *temp_arena;
     struct IR_Project *project;
     struct IR_Function *current_function;
+    struct IR_Module *current_module;
     struct IR_Block *current_block;
 
     struct symbol_table *current_scope;

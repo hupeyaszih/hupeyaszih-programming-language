@@ -213,7 +213,11 @@ struct parser_node *parser_parse_variable_declaration(struct parser_t *restrict 
     }
     
     decl_node->right_node = value_node; 
-    if(NULL == symbol_table_define(parser->current_scope, var_name, type_info, SYMBOL_KIND_VARIABLE, pointer_level)) {
+
+    bool is_global = parser->current_scope->is_global_table;
+    if(str_view_eq_cstr(type_info->name, "string")) is_global = true;
+
+    if(NULL == symbol_table_define(parser->current_scope, var_name, type_info, SYMBOL_KIND_VARIABLE, pointer_level, is_global)) {
         parser->successful = 0;
         return NULL;
     }
@@ -504,7 +508,7 @@ struct parser_node *parser_parse_function(struct parser_t *restrict parser, stru
     
     for(int i = 0; i < parameters->data.block.count; i++) {
         struct parser_node *p = *(struct parser_node **) vector_get(parameters->data.block.statements, i);
-        struct symbol_t *sym = symbol_table_define(body_scope, p->data.variable.variable_name, p->type_info, SYMBOL_KIND_VARIABLE, p->type_info->pointer_level);
+        struct symbol_t *sym = symbol_table_define(body_scope, p->data.variable.variable_name, p->type_info, SYMBOL_KIND_VARIABLE, p->type_info->pointer_level, body_scope->is_global_table);
         if(NULL == sym) {parser->successful = 0;return NULL;}
         p->data.variable.symbol = sym;
     }
@@ -528,7 +532,7 @@ struct parser_node *parser_parse_function(struct parser_t *restrict parser, stru
     function_node->data.function.name = name;
     function_node->data.function.mangled_name = parser_function_generate_mangled_name(parser, function_node);
 
-    struct symbol_t *sym = symbol_table_define(parser->current_scope, function_node->data.function.name, type_table_get_type_info_cstr(parser->type_table, "fn", 0), SYMBOL_KIND_FUNCTION, 0);
+    struct symbol_t *sym = symbol_table_define(parser->current_scope, function_node->data.function.name, type_table_get_type_info_cstr(parser->type_table, "fn", 0), SYMBOL_KIND_FUNCTION, 0, parser->current_scope->is_global_table);
     if(NULL == sym) {
         parser->successful = 0;
         return NULL;
