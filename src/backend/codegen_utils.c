@@ -41,7 +41,7 @@ void codegen_utils_emit_call_args(struct arena *temp_arena, struct codegen_conte
     if(!context || !arguments || arg_count <= 0) return;
     struct codegen_build_target_t *build_target = context->build_target;
 
-    int args_via_registers = arg_count;
+    int args_via_registers = out_regs->element_count;
     struct node_t nodes[args_via_registers];
 
     for(int i = 0; i < args_via_registers; ++i) {

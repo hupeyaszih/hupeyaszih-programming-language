@@ -1026,6 +1026,11 @@ void x86_64_linux_emit_instruction(struct codegen_context_t *context, struct IR_
                 struct vector_t *out_regs = vector_create_vector(context->codegen->temp_arena, arg_count, sizeof(struct register_t *));
                 for(int i = 0;i < arg_count; ++i) {
                     struct IR_Operand *op = *(struct IR_Operand **)vector_get(target_block->params, i);
+                    if(op->type != IR_OPERAND_TYPE_VREG) {
+                        struct IR_Operand *arg = *(struct IR_Operand **)vector_get(args, i);
+                        x86_64_linux_emit_mov_operand_to_operand(context, op, arg);
+                        continue;
+                    }
                     vector_add(out_regs, &(op->data.vreg.reg));
                 }
                 codegen_utils_emit_call_args(context->codegen->temp_arena, context, args, out_regs, arg_count);
@@ -1049,6 +1054,11 @@ void x86_64_linux_emit_instruction(struct codegen_context_t *context, struct IR_
                     struct vector_t *out_regs = vector_create_vector(context->codegen->temp_arena, arg_count, sizeof(struct register_t *));
                     for(int i = 0;i < arg_count; ++i) {
                         struct IR_Operand *op = *(struct IR_Operand **)vector_get(target_block->params, i);
+                        if(op->type != IR_OPERAND_TYPE_VREG) {
+                            struct IR_Operand *arg = *(struct IR_Operand **)vector_get(args, i);
+                            x86_64_linux_emit_mov_operand_to_operand(context, op, arg);
+                            continue;
+                        }
                         vector_add(out_regs, &(op->data.vreg.reg));
                     }
                     codegen_utils_emit_call_args(context->codegen->temp_arena, context, args, out_regs, arg_count);
