@@ -172,11 +172,12 @@ static inline bool is_register_using_by_neighbours(struct graph_node *node, stru
     struct graph_node *root_node = get_node(node);
     bool result = false;
     for(int k = 0;k < node_count; ++k) {
-        struct graph_node *target_node = get_node((struct graph_node *) vector_get(nodes, k));
-        if(root_node->vreg->data.vreg.vreg_id == target_node->vreg->data.vreg.vreg_id) continue;
-        if(!bitset_test(node->edges, target_node->vreg->data.vreg.vreg_id)) continue;
+        struct graph_node *target_node = (struct graph_node *) vector_get(nodes, k);
+        struct graph_node *target_root_node = get_node(target_node);
+        if(root_node->vreg->data.vreg.vreg_id == target_root_node->vreg->data.vreg.vreg_id) continue;
+        if(!bitset_test(root_node->edges, target_node->vreg->data.vreg.vreg_id)) continue;
 
-        if(target_node->vreg->data.vreg.reg && target_node->vreg->data.vreg.reg->id == register_id) {
+        if(target_root_node->vreg->data.vreg.reg && target_root_node->vreg->data.vreg.reg->id == register_id) {
             result = true;
             break;
         }

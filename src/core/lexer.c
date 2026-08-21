@@ -43,38 +43,28 @@ static inline enum token_type get_keyword_type(const struct str_view view){
     }
 }
 
-int lexer_is_double_operator_token(const char *chr){
-    if((chr+1) && '=' == (*(chr+1))) {
+enum token_type lexer_is_double_operator_token(const char *chr){
+    if((chr) && (chr+1) && '=' == (*(chr+1))) {
         switch (*chr) {
-            case '=':
-                return 0;
-            case '!':
-                return 0;
-            case '<':
-                return 0;
-            case '>':
-                return 0;
+            case '=': return LEXER_TOKEN_TYPE_EQUAL_EQUAL;
+            case '!': return LEXER_TOKEN_TYPE_BANG_EQUAL;
+            case '<': return LEXER_TOKEN_TYPE_LESS_EQUAL;
+            case '>': return LEXER_TOKEN_TYPE_GREATER_EQUAL;
             default:
                 break;
         }
+    }
+    if((chr) && (chr+1)) {
+        if('<' == (*(chr+1)) && '<' == (*(chr))) return LEXER_TOKEN_TYPE_SHL;
+        if('>' == (*(chr+1)) && '>' == (*(chr))) return LEXER_TOKEN_TYPE_SHR;
     }
     return -1;
 }
 
 static inline enum token_type lexer_get_symbol_type(const char *chr) {
-    if(0 == lexer_is_double_operator_token(chr)){
-        switch (*chr) {
-            case '=':
-                return LEXER_TOKEN_TYPE_EQUAL_EQUAL;
-            case '!':
-                return LEXER_TOKEN_TYPE_BANG_EQUAL;
-            case '<':
-                return LEXER_TOKEN_TYPE_LESS_EQUAL;
-            case '>':
-                return LEXER_TOKEN_TYPE_GREATER_EQUAL;
-            default:
-                break;
-        }
+    int is_double_op_token = lexer_is_double_operator_token(chr);
+    if(-1 != is_double_op_token){
+        return is_double_op_token;
     }
 
     switch (*chr) {
@@ -116,6 +106,12 @@ static inline enum token_type lexer_get_symbol_type(const char *chr) {
             return LEXER_TOKEN_TYPE_STAR;
         case '&':
             return LEXER_TOKEN_TYPE_AMPERSAND;
+        case '~':
+            return LEXER_TOKEN_TYPE_NOT;
+        case '|':
+            return LEXER_TOKEN_TYPE_OR;
+        case '^':
+            return LEXER_TOKEN_TYPE_XOR;
         case '/':
             return LEXER_TOKEN_TYPE_SLASH;
         case '!':
@@ -272,9 +268,9 @@ int lexer_tokenize(struct arena *arena, char *restrict str, struct lexer_token *
         }
 
         int symbol_type = lexer_get_symbol_type(&str[i]);
-        int is_double_operator_token = (0 == lexer_is_double_operator_token(&str[i]));
+        int is_double_operator_token = (-1 != lexer_is_double_operator_token(&str[i]));
 
-        if (symbol_type != -1) {
+        if (symbol_type != LEXER_TOKEN_TYPE_UNKNOWN) {
             if (LEXER_TOKEN_TYPE_DOUBLE_QUOTES == symbol_type) {
                 int start = i;
                 i++; 

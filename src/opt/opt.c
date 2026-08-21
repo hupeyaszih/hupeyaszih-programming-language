@@ -23,6 +23,11 @@ static inline struct vector_t *get_used_operands(struct arena *arena, struct IR_
             vector_add(list, &instruction->operands.double_operands.destination);
             break;
         }
+        case IR_INSTRUCTION_TYPE_BITWISE_AND:
+        case IR_INSTRUCTION_TYPE_BITWISE_OR:
+        case IR_INSTRUCTION_TYPE_BITWISE_XOR:
+        case IR_INSTRUCTION_TYPE_SHR:
+        case IR_INSTRUCTION_TYPE_SHL:
         case IR_INSTRUCTION_TYPE_EQUAL_EQUAL:
         case IR_INSTRUCTION_TYPE_BANG_EQUAL:
         case IR_INSTRUCTION_TYPE_LESS_EQUAL:
@@ -66,6 +71,7 @@ static inline struct vector_t *get_used_operands(struct arena *arena, struct IR_
             vector_add(list, &instruction->operands.ret.return_value);
             break;
         }case IR_INSTRUCTION_TYPE_CAST:
+        case IR_INSTRUCTION_TYPE_UNARY_NOT:
         case IR_INSTRUCTION_TYPE_UNARY_BANG:
         case IR_INSTRUCTION_TYPE_UNARY_MINUS: 
         case IR_INSTRUCTION_TYPE_UNARY_ADDRESS_OF:
@@ -107,6 +113,11 @@ static inline struct vector_t *get_defined_operands(struct arena *arena, struct 
         case IR_INSTRUCTION_TYPE_GREATER_EQUAL:
         case IR_INSTRUCTION_TYPE_LESS:
         case IR_INSTRUCTION_TYPE_GREATER:
+        case IR_INSTRUCTION_TYPE_BITWISE_AND:
+        case IR_INSTRUCTION_TYPE_BITWISE_OR:
+        case IR_INSTRUCTION_TYPE_BITWISE_XOR:
+        case IR_INSTRUCTION_TYPE_SHR:
+        case IR_INSTRUCTION_TYPE_SHL:
         case IR_INSTRUCTION_TYPE_PLUS:
         case IR_INSTRUCTION_TYPE_MINUS:
         case IR_INSTRUCTION_TYPE_DIVIDE:
@@ -114,6 +125,7 @@ static inline struct vector_t *get_defined_operands(struct arena *arena, struct 
             vector_add(list, &instruction->operands.triple_operands.destination);
             break;
         }case IR_INSTRUCTION_TYPE_CAST:
+        case IR_INSTRUCTION_TYPE_UNARY_NOT:
         case IR_INSTRUCTION_TYPE_UNARY_BANG:
         case IR_INSTRUCTION_TYPE_UNARY_MINUS: 
         case IR_INSTRUCTION_TYPE_UNARY_ADDRESS_OF:
@@ -286,6 +298,11 @@ void opt_compute_use_def(struct arena *arena, struct IR_Function *function) {
                     process_use(instruction->operands.double_operands.destination, block->uses, instruction);
                     break;
                 }
+                case IR_INSTRUCTION_TYPE_BITWISE_AND:
+                case IR_INSTRUCTION_TYPE_BITWISE_OR:
+                case IR_INSTRUCTION_TYPE_BITWISE_XOR:
+                case IR_INSTRUCTION_TYPE_SHL:
+                case IR_INSTRUCTION_TYPE_SHR:
                 case IR_INSTRUCTION_TYPE_EQUAL_EQUAL:
                 case IR_INSTRUCTION_TYPE_BANG_EQUAL:
                 case IR_INSTRUCTION_TYPE_LESS_EQUAL:
@@ -334,6 +351,7 @@ void opt_compute_use_def(struct arena *arena, struct IR_Function *function) {
                     break;
                 }
                 case IR_INSTRUCTION_TYPE_CAST:
+                case IR_INSTRUCTION_TYPE_UNARY_NOT:
                 case IR_INSTRUCTION_TYPE_UNARY_BANG:
                 case IR_INSTRUCTION_TYPE_UNARY_MINUS: 
                 case IR_INSTRUCTION_TYPE_UNARY_ADDRESS_OF:
@@ -572,6 +590,7 @@ static inline bool instruction_has_side_effects(struct IR_Instruction *inst) {
         case IR_INSTRUCTION_TYPE_MOV:
         case IR_INSTRUCTION_TYPE_UNARY_ADDRESS_OF:
         case IR_INSTRUCTION_TYPE_UNARY_DEREFERENCE:
+        case IR_INSTRUCTION_TYPE_UNARY_NOT:
         case IR_INSTRUCTION_TYPE_UNARY_BANG:
         case IR_INSTRUCTION_TYPE_UNARY_MINUS:
         case IR_INSTRUCTION_TYPE_CAST:
@@ -579,6 +598,11 @@ static inline bool instruction_has_side_effects(struct IR_Instruction *inst) {
         case IR_INSTRUCTION_TYPE_MINUS:
         case IR_INSTRUCTION_TYPE_MUL:
         case IR_INSTRUCTION_TYPE_DIVIDE:
+        case IR_INSTRUCTION_TYPE_BITWISE_AND:
+        case IR_INSTRUCTION_TYPE_BITWISE_OR:
+        case IR_INSTRUCTION_TYPE_BITWISE_XOR:
+        case IR_INSTRUCTION_TYPE_SHR:
+        case IR_INSTRUCTION_TYPE_SHL:
         case IR_INSTRUCTION_TYPE_EQUAL_EQUAL:
         case IR_INSTRUCTION_TYPE_GREATER_EQUAL:
         case IR_INSTRUCTION_TYPE_LESS_EQUAL:
@@ -751,6 +775,11 @@ bool opt_constant_folding(struct opt_context_t *context, struct IR_Function *fun
                                                                 else fold_success = false;
                                                                 break;
                         case IR_INSTRUCTION_TYPE_MUL:           res = src1_val * src2_val; break;
+                        case IR_INSTRUCTION_TYPE_SHL:           res = src1_val << src2_val; break;
+                        case IR_INSTRUCTION_TYPE_SHR:           res = src1_val >> src2_val; break;
+                        case IR_INSTRUCTION_TYPE_BITWISE_AND:   res = src1_val & src2_val; break;
+                        case IR_INSTRUCTION_TYPE_BITWISE_OR:    res = src1_val | src2_val; break;
+                        case IR_INSTRUCTION_TYPE_BITWISE_XOR:   res = src1_val ^ src2_val; break;
                         case IR_INSTRUCTION_TYPE_EQUAL_EQUAL:   res = src1_val == src2_val; break;
                         case IR_INSTRUCTION_TYPE_GREATER_EQUAL: res = src1_val >= src2_val; break;
                         case IR_INSTRUCTION_TYPE_LESS_EQUAL:    res = src1_val <= src2_val; break;
@@ -797,6 +826,7 @@ static bool replace_operand_in_instruction(struct IR_Instruction *inst, struct I
     switch (inst->type) {
         case IR_INSTRUCTION_TYPE_UNARY_ADDRESS_OF:
         case IR_INSTRUCTION_TYPE_UNARY_DEREFERENCE:
+        case IR_INSTRUCTION_TYPE_UNARY_NOT:
         case IR_INSTRUCTION_TYPE_UNARY_BANG:
         case IR_INSTRUCTION_TYPE_UNARY_MINUS:
         case IR_INSTRUCTION_TYPE_LOAD:
@@ -812,6 +842,11 @@ static bool replace_operand_in_instruction(struct IR_Instruction *inst, struct I
         case IR_INSTRUCTION_TYPE_MINUS:
         case IR_INSTRUCTION_TYPE_MUL:
         case IR_INSTRUCTION_TYPE_DIVIDE:
+        case IR_INSTRUCTION_TYPE_BITWISE_AND:
+        case IR_INSTRUCTION_TYPE_BITWISE_OR:
+        case IR_INSTRUCTION_TYPE_BITWISE_XOR:
+        case IR_INSTRUCTION_TYPE_SHR:
+        case IR_INSTRUCTION_TYPE_SHL:
         case IR_INSTRUCTION_TYPE_EQUAL_EQUAL:
         case IR_INSTRUCTION_TYPE_BANG_EQUAL:
         case IR_INSTRUCTION_TYPE_GREATER_EQUAL:

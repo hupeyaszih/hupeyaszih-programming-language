@@ -48,6 +48,14 @@ enum token_type{
     LEXER_TOKEN_TYPE_GREATER,      // >
     LEXER_TOKEN_TYPE_GREATER_EQUAL,// >=
 
+
+    LEXER_TOKEN_TYPE_OR,       // |
+    LEXER_TOKEN_TYPE_XOR,      // ^
+    LEXER_TOKEN_TYPE_NOT,      // ~
+
+    LEXER_TOKEN_TYPE_SHL,      // <<
+    LEXER_TOKEN_TYPE_SHR,      // >>
+
     LEXER_TOKEN_TYPE_AND_AND,      // &&
     LEXER_TOKEN_TYPE_OR_OR,        // ||
 
@@ -144,6 +152,13 @@ static const char* lexer_token_type_to_string(enum token_type type) {
         case LEXER_TOKEN_TYPE_GREATER:         return "GREATER";
         case LEXER_TOKEN_TYPE_GREATER_EQUAL:   return "GREATER_EQUAL";
 
+
+        case LEXER_TOKEN_TYPE_OR:          return "OR";
+        case LEXER_TOKEN_TYPE_XOR:         return "XOR";
+        case LEXER_TOKEN_TYPE_NOT:         return "NOT";
+        case LEXER_TOKEN_TYPE_SHL:         return "SHL";
+        case LEXER_TOKEN_TYPE_SHR:         return "SHR";
+
         case LEXER_TOKEN_TYPE_AND_AND:         return "AND_AND";
         case LEXER_TOKEN_TYPE_OR_OR:           return "OR_OR";
 
@@ -164,7 +179,7 @@ static const char* lexer_token_type_to_string(enum token_type type) {
     }
 }
 
-int lexer_is_double_operator_token(const char *chr);
+enum token_type lexer_is_double_operator_token(const char *chr);
 
 char *lexer_extract_module_name(struct arena *arena, const char *filepath);
 #endif

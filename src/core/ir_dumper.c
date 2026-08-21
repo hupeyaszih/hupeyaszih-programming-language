@@ -112,6 +112,12 @@ static inline void IR_dump_alu(const struct IR_Instruction *instruction, char *n
 
 static void IR_dump_instruction(const struct IR_Instruction *instruction) {
     switch (instruction->type) {
+        case IR_INSTRUCTION_TYPE_BITWISE_AND:   {IR_dump_alu(instruction, "and");   break;}
+        case IR_INSTRUCTION_TYPE_BITWISE_OR:   {IR_dump_alu(instruction, "or");   break;}
+        case IR_INSTRUCTION_TYPE_BITWISE_XOR:   {IR_dump_alu(instruction, "xor");   break;}
+        case IR_INSTRUCTION_TYPE_SHL:   {IR_dump_alu(instruction, "shl");   break;}
+        case IR_INSTRUCTION_TYPE_SHR:   {IR_dump_alu(instruction, "shr");   break;}
+
         case IR_INSTRUCTION_TYPE_PLUS:   {IR_dump_alu(instruction, "add");   break;}
         case IR_INSTRUCTION_TYPE_MINUS:  {IR_dump_alu(instruction, "minus"); break;}
         case IR_INSTRUCTION_TYPE_DIVIDE: {IR_dump_alu(instruction, "div");   break;}
@@ -209,6 +215,12 @@ static void IR_dump_instruction(const struct IR_Instruction *instruction) {
         }case IR_INSTRUCTION_TYPE_UNARY_MINUS: {
             IR_dump_operand(instruction->operands.double_operands.destination);
             printf(" = unary_minus ");
+            IR_dump_operand(instruction->operands.double_operands.source_1);
+            printf("\n");
+            break;
+        }case IR_INSTRUCTION_TYPE_UNARY_NOT: {
+            IR_dump_operand(instruction->operands.double_operands.destination);
+            printf(" = unary_not ");
             IR_dump_operand(instruction->operands.double_operands.source_1);
             printf("\n");
             break;

@@ -1,0 +1,28 @@
+fn calculate_bonus(base: int32, factor: int32) : int32 {
+    var temp: int32 = base ^ factor;
+    temp << 1;
+}
+
+fn main() : int32 {
+    var a: int32       = 0b11001100;
+    var b: int32       = 0b10101010;
+    var shift_amt: int8 = 3;
+
+    var bit_and: int32 = a & b;
+    var bit_or: int32  = a | b;
+    var bit_xor: int32 = a ^ b;
+
+    var shifted_l: int32 = bit_and << 2;
+    var shifted_r: int32 = bit_or >> shift_amt;
+
+    var u_minus: int32 = -bit_xor;
+    var u_not: int32   = ~shifted_r;
+
+    var func_result: int32 = calculate_bonus(shifted_l, u_not);
+
+    var accum: int32 = bit_and + bit_or + bit_xor + u_minus + u_not;
+    
+    var final_val: int32 = ~accum;
+
+    final_val;
+}

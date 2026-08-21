@@ -193,6 +193,14 @@ void x86_64_collect_instruction_clobbers(struct register_list_t *list, struct IR
             rax_clobber.time = time;
             vector_add(clobber_list, &rax_clobber);
             break;
+        }case IR_INSTRUCTION_TYPE_SHL: 
+        case IR_INSTRUCTION_TYPE_SHR: {
+            if(instruction->operands.triple_operands.source_2 && instruction->operands.triple_operands.source_2->type == IR_OPERAND_TYPE_IMM) break;
+            struct clobber_t rcx_clobber;
+            rcx_clobber.reg = list->registers + X86_64_RCX;
+            rcx_clobber.time = time;
+            vector_add(clobber_list, &rcx_clobber);
+            break;
         }default: break;
     }
 }
@@ -227,6 +235,14 @@ static inline void calc_preferred_regs(struct register_list_t *list, struct IR_O
         }case IR_INSTRUCTION_TYPE_RET: {
             int rax_id = (list->registers+X86_64_RAX)->id;
             bitset_set(preferred_regs, rax_id);
+            break;
+        } case IR_INSTRUCTION_TYPE_SHL:
+        case IR_INSTRUCTION_TYPE_SHR: {
+            if(instruction->operands.triple_operands.source_2 && instruction->operands.triple_operands.source_2->type == IR_OPERAND_TYPE_IMM) break;
+            if (operand == instruction->operands.triple_operands.source_2) {
+                int rcx_id = (list->registers + X86_64_RCX)->id;
+                bitset_set(preferred_regs, rcx_id);
+            }
             break;
         }
         default: break;
@@ -644,7 +660,19 @@ void emit_arithmetic_instructions(struct codegen_context_t *context, struct IR_I
         case IR_INSTRUCTION_TYPE_MINUS:  instruction_str = "sub";  break;
         case IR_INSTRUCTION_TYPE_MUL:    instruction_str = "imul"; break;
         case IR_INSTRUCTION_TYPE_DIVIDE: instruction_str = "idiv"; break;
+        case IR_INSTRUCTION_TYPE_BITWISE_AND: instruction_str = "and"; break;
+        case IR_INSTRUCTION_TYPE_BITWISE_OR:  instruction_str = "or"; break;
+        case IR_INSTRUCTION_TYPE_BITWISE_XOR: instruction_str = "xor"; break;
+        case IR_INSTRUCTION_TYPE_SHL: instruction_str = "sal"; break;
+        case IR_INSTRUCTION_TYPE_SHR: instruction_str = "sar"; break;
     }
+
+    // if unsigned shr/shl, if signed sar/sal
+    // if(instruction->type == IR_INSTRUCTION_TYPE_SHL) {
+    //
+    // }else if(instruction->type == IR_INSTRUCTION_TYPE_SHR) {
+    //
+    // }
 
     struct IR_Operand *dest = instruction->operands.triple_operands.destination;
     struct IR_Operand *src1 = instruction->operands.triple_operands.source_1;
@@ -757,6 +785,28 @@ void emit_arithmetic_instructions(struct codegen_context_t *context, struct IR_I
         goto exit;
     }
 
+    if(instruction->type == IR_INSTRUCTION_TYPE_SHL || instruction->type == IR_INSTRUCTION_TYPE_SHR) {
+        if(src2 && src2_type != IR_OPERAND_TYPE_IMM) {
+            struct register_t *cl_reg = context->build_target->registers->registers + X86_64_RCX;
+            const char *cl_str = x86_64_linux_get_register_name(context->build_target->registers, cl_reg, REGISTER_SIZE_8);
+            x86_64_linux_emit_mov_operand_to_operand(context, dest, src1);
+            x86_64_linux_emit_mov_operand_to_reg(context, cl_reg, src2);
+
+            codegen_emit(context->file, "    %s ", instruction_str);
+            x86_64_linux_emit_operand(context, dest, size, false);
+            codegen_emit(context->file, ", %s\n", cl_str);
+            goto exit;
+        }
+
+        x86_64_linux_emit_mov_operand_to_operand(context, dest, src1);
+        codegen_emit(context->file, "    %s ", instruction_str);
+        x86_64_linux_emit_operand(context, dest, size, false);
+        codegen_emit(context->file, ", ");
+        x86_64_linux_emit_operand(context, src2, size, false);
+        codegen_emit(context->file, "\n");
+        goto exit;
+    }
+
     // add/sub
 
     if(dest == src1) {
@@ -830,36 +880,47 @@ void x86_64_linux_emit_instruction(struct codegen_context_t *context, struct IR_
             x86_64_linux_set_free_reserved_register(context->build_target->registers, src_reg);
             break; 
         }
-        case IR_INSTRUCTION_TYPE_PLUS: emit_arithmetic_instructions(context, instruction); break;
-        case IR_INSTRUCTION_TYPE_MINUS: emit_arithmetic_instructions(context, instruction); break;
-        case IR_INSTRUCTION_TYPE_MUL: emit_arithmetic_instructions(context, instruction); break;
-        case IR_INSTRUCTION_TYPE_DIVIDE: emit_arithmetic_instructions(context, instruction); break;
+        case IR_INSTRUCTION_TYPE_BITWISE_AND:   emit_arithmetic_instructions(context, instruction); break;
+        case IR_INSTRUCTION_TYPE_BITWISE_OR:    emit_arithmetic_instructions(context, instruction); break;
+        case IR_INSTRUCTION_TYPE_BITWISE_XOR:   emit_arithmetic_instructions(context, instruction); break;
+        case IR_INSTRUCTION_TYPE_SHR:           emit_arithmetic_instructions(context, instruction); break;
+        case IR_INSTRUCTION_TYPE_SHL:           emit_arithmetic_instructions(context, instruction); break;
+        case IR_INSTRUCTION_TYPE_PLUS:          emit_arithmetic_instructions(context, instruction); break;
+        case IR_INSTRUCTION_TYPE_MINUS:         emit_arithmetic_instructions(context, instruction); break;
+        case IR_INSTRUCTION_TYPE_MUL:           emit_arithmetic_instructions(context, instruction); break;
+        case IR_INSTRUCTION_TYPE_DIVIDE:        emit_arithmetic_instructions(context, instruction); break;
         case IR_INSTRUCTION_TYPE_RET: {
             struct register_t *rax = context->build_target->registers->registers + X86_64_RAX;
             x86_64_linux_emit_mov_operand_to_reg(context, rax, instruction->operands.ret.return_value);
             break;
-        }case IR_INSTRUCTION_TYPE_UNARY_MINUS: {
+        }case IR_INSTRUCTION_TYPE_UNARY_MINUS: 
+        case IR_INSTRUCTION_TYPE_UNARY_NOT: {
             struct IR_Operand *dest = instruction->operands.double_operands.destination;
             struct IR_Operand *src = instruction->operands.double_operands.source_1;
 
             enum register_size size = codegen_get_register_size_from_operand(dest);
+
+            char *instr_name = "neg";
+            if(instruction->type == IR_INSTRUCTION_TYPE_UNARY_NOT) {
+                instr_name = "not";
+            }
 
             if(IR_OPERAND_TYPE_IMM == src->type) {
                 struct register_t *reserved_reg = x86_64_linux_get_available_reserved_register(context->build_target->registers);
 
                 x86_64_linux_emit_mov_operand_to_reg(context, reserved_reg, src);
 
-                codegen_emit(context->file, "    neg ");
+                codegen_emit(context->file, "    %s ", instr_name);
                 x86_64_linux_emit_reg(context, reserved_reg, size, true);
                 codegen_emit(context->file, "\n");
                 x86_64_linux_emit_mov_reg_to_operand(context, dest, reserved_reg);
 
                 x86_64_linux_set_free_reserved_register(context->build_target->registers, reserved_reg);
             }else {
-                codegen_emit(context->file, "    neg ");
-                x86_64_linux_emit_operand(context, src, size, true);
-                codegen_emit(context->file, "\n");
                 x86_64_linux_emit_mov_operand_to_operand(context, dest, src);
+                codegen_emit(context->file, "    %s ", instr_name);
+                x86_64_linux_emit_operand(context, dest, size, true);
+                codegen_emit(context->file, "\n");
             }
 
             break;

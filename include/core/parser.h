@@ -14,6 +14,14 @@ enum parser_node_type {
     PARSER_NODE_GREATER_EQUAL = 4,
     PARSER_NODE_LESS = 5,
     PARSER_NODE_GREATER = 6,
+
+    PARSER_NODE_BITWISE_AND,
+    PARSER_NODE_BITWISE_OR,
+    PARSER_NODE_BITWISE_XOR,
+    PARSER_NODE_SHL,
+    PARSER_NODE_SHR,
+
+    PARSER_NODE_UNARY_NOT, // ~
     PARSER_NODE_UNARY_BANG,
     PARSER_NODE_UNARY_MINUS,
     PARSER_NODE_UNARY_ADDRESS_OF,
@@ -137,6 +145,12 @@ struct parser_node *parser_parse_block(struct parser_t *restrict parser, struct 
 struct parser_node *parser_parse_resilient_block(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor, int create_new_scope);
 struct parser_node *parser_parse_variable_declaration(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
 struct parser_node *parser_parse_assignment(struct parser_t *parser, struct lexer_token *tokens, int token_count, int *cursor);
+
+struct parser_node *parser_parse_shift_operators(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
+struct parser_node *parser_parse_bitwise_and(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
+struct parser_node *parser_parse_bitwise_or(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
+struct parser_node *parser_parse_bitwise_xor(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
+
 struct parser_node *parser_parse_boolean_logic(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
 struct parser_node *parser_parse_expression(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
 struct parser_node *parser_parse_term(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);

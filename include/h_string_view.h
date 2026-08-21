@@ -67,6 +67,37 @@ static inline struct str_view str_view_trim_left(struct str_view sv) {
     return sv;
 }
 
+static inline int str_view_to_binary_int(struct str_view sv, size_t start_idx, int sign) {
+    int result = 0;
+    for (size_t i = start_idx; i < sv.len; i++) {
+        if (sv.data[i] == '0' || sv.data[i] == '1') {
+            result = (result << 1) + (sv.data[i] - '0');
+        } else {
+            break;
+        }
+    }
+    return result * sign;
+}
+
+static inline int str_view_to_hex_int(struct str_view sv, size_t start_idx, int sign) {
+    int result = 0;
+    for (size_t i = start_idx; i < sv.len; i++) {
+        char c = sv.data[i];
+        int val = 0;
+        if (c >= '0' && c <= '9') {
+            val = c - '0';
+        } else if (c >= 'a' && c <= 'f') {
+            val = c - 'a' + 10;
+        } else if (c >= 'A' && c <= 'F') {
+            val = c - 'A' + 10;
+        } else {
+            break;
+        }
+        result = (result << 4) + val;
+    }
+    return result * sign;
+}
+
 static inline int str_view_to_int(struct str_view sv) {
     int result = 0;
     int sign = 1;
@@ -79,6 +110,14 @@ static inline int str_view_to_int(struct str_view sv) {
         i++;
     } else if (sv.data[0] == '+') {
         i++;
+    }
+
+    if (i + 1 < sv.len && sv.data[i] == '0' && (sv.data[i+1] == 'x' || sv.data[i+1] == 'X')) {
+        return str_view_to_hex_int(sv, i + 2, sign);
+    }
+
+    if (i + 1 < sv.len && sv.data[i] == '0' && (sv.data[i+1] == 'b' || sv.data[i+1] == 'B')) {
+        return str_view_to_binary_int(sv, i + 2, sign);
     }
 
     for (; i < sv.len; i++) {

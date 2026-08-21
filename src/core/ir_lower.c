@@ -354,6 +354,12 @@ static inline struct IR_Operand *IRL_run_alu_lower(struct ir_context *context, s
         case PARSER_NODE_DIVIDE: {alu_type = IR_INSTRUCTION_TYPE_DIVIDE; break; }
         case PARSER_NODE_MUL:    {alu_type = IR_INSTRUCTION_TYPE_MUL; break; }
 
+        case PARSER_NODE_BITWISE_AND: {alu_type = IR_INSTRUCTION_TYPE_BITWISE_AND; break; }
+        case PARSER_NODE_BITWISE_OR:  {alu_type = IR_INSTRUCTION_TYPE_BITWISE_OR; break; }
+        case PARSER_NODE_BITWISE_XOR: {alu_type = IR_INSTRUCTION_TYPE_BITWISE_XOR; break; }
+        case PARSER_NODE_SHL:         {alu_type = IR_INSTRUCTION_TYPE_SHL; break; }
+        case PARSER_NODE_SHR:         {alu_type = IR_INSTRUCTION_TYPE_SHR; break; }
+
         case PARSER_NODE_BANG_EQUAL:    {alu_type = IR_INSTRUCTION_TYPE_BANG_EQUAL; break; }
         case PARSER_NODE_EQUAL_EQUAL:   {alu_type = IR_INSTRUCTION_TYPE_EQUAL_EQUAL; break; }
         case PARSER_NODE_LESS_EQUAL:    {alu_type = IR_INSTRUCTION_TYPE_LESS_EQUAL; break; }
@@ -366,11 +372,13 @@ static inline struct IR_Operand *IRL_run_alu_lower(struct ir_context *context, s
     struct type_info *dest_type_info = node->type_info;
 
 
-    if(dest_type_info->type_id != left_operand->type_info->type_id) emit_cast(context, dest_type_info, &left_operand);
-    if(dest_type_info->type_id != right_operand->type_info->type_id) emit_cast(context, dest_type_info, &right_operand);
+    if(alu_type != IR_INSTRUCTION_TYPE_SHL && alu_type != IR_INSTRUCTION_TYPE_SHR) {
+        if(dest_type_info->type_id != left_operand->type_info->type_id) emit_cast(context, dest_type_info, &left_operand);
+        if(dest_type_info->type_id != right_operand->type_info->type_id) emit_cast(context, dest_type_info, &right_operand);
 
-    if(left_operand->type_info->type_id != right_operand->type_info->type_id) emit_cast(context, left_operand->type_info, &right_operand);
-    if(left_operand->type_info->type_id != right_operand->type_info->type_id) emit_cast(context, right_operand->type_info, &left_operand);
+        if(left_operand->type_info->type_id != right_operand->type_info->type_id) emit_cast(context, left_operand->type_info, &right_operand);
+        if(left_operand->type_info->type_id != right_operand->type_info->type_id) emit_cast(context, right_operand->type_info, &left_operand);
+    }
     
 
     struct IR_Instruction *instruction = IR_create_IR_Instruction(context->arena, context->current_block, alu_type);
@@ -599,7 +607,20 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
 
             struct IR_Operand *src = IRL_run_statement_lower(node->right_node, context, LOWER_R);
 
-            struct IR_Operand *destination = IR_create_new_vreg(context->arena, context->current_function, instruction, src->data.vreg.variable, context->current_block->in_loop);
+            struct IR_Operand *destination = IR_create_new_vreg(context->arena, context->current_function, instruction, NULL, context->current_block->in_loop);
+            destination->type_info = node->type_info;
+
+            instruction->operands.double_operands.source_1 = src;
+            instruction->operands.double_operands.destination = destination;
+
+            IR_Block_add_instruction(context->current_block, instruction);
+            return destination;
+        }case PARSER_NODE_UNARY_NOT: {
+            struct IR_Instruction *instruction = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_UNARY_NOT);
+
+            struct IR_Operand *src = IRL_run_statement_lower(node->right_node, context, LOWER_R);
+
+            struct IR_Operand *destination = IR_create_new_vreg(context->arena, context->current_function, instruction, NULL, context->current_block->in_loop);
             destination->type_info = node->type_info;
 
             instruction->operands.double_operands.source_1 = src;
@@ -620,6 +641,11 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
         case PARSER_NODE_MINUS:
         case PARSER_NODE_DIVIDE:
         case PARSER_NODE_MUL: 
+        case PARSER_NODE_BITWISE_OR:
+        case PARSER_NODE_BITWISE_XOR:
+        case PARSER_NODE_BITWISE_AND:
+        case PARSER_NODE_SHR:
+        case PARSER_NODE_SHL:
         return IRL_run_alu_lower(context, node);
 
         case PARSER_NODE_IDENTIFIER: {
@@ -764,6 +790,11 @@ void IRL_find_mutations(struct parser_node *node, struct vector_t *vars, struct 
             }
             break;
         }
+        case PARSER_NODE_BITWISE_AND:
+        case PARSER_NODE_BITWISE_XOR:
+        case PARSER_NODE_BITWISE_OR:
+        case PARSER_NODE_SHL:
+        case PARSER_NODE_SHR:
         case PARSER_NODE_PLUS:
         case PARSER_NODE_MINUS:
         case PARSER_NODE_MUL:
@@ -779,6 +810,7 @@ void IRL_find_mutations(struct parser_node *node, struct vector_t *vars, struct 
             break;
         }
 
+        case PARSER_NODE_UNARY_NOT:
         case PARSER_NODE_UNARY_BANG:
         case PARSER_NODE_UNARY_MINUS:
         case PARSER_NODE_UNARY_ADDRESS_OF:

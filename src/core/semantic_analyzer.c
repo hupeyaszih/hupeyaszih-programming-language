@@ -334,6 +334,15 @@ struct type_info *semantic_analyzer_calculate_type_infos(struct parser_node *nod
             }
             node->type_info = type_table_get_type_info_cstr(context->type_table, "bool", 0);
             break;
+        }case PARSER_NODE_UNARY_NOT: {
+            if(TYPE_CATEGORY_BASIC != right_type->category) {
+                print_semantic_error_type_infos(node);
+                node->type_info = NULL;
+                context->error = 1;
+                break;
+            }
+            node->type_info = right_type;
+            break;
         }case PARSER_NODE_UNARY_MINUS: {
             if(TYPE_CATEGORY_BASIC != right_type->category) {
                 print_semantic_error_type_infos(node);
@@ -419,6 +428,35 @@ struct type_info *semantic_analyzer_calculate_type_infos(struct parser_node *nod
             }
 
             break;
+        case PARSER_NODE_BITWISE_AND:
+        case PARSER_NODE_BITWISE_OR:
+        case PARSER_NODE_BITWISE_XOR:
+        case PARSER_NODE_SHL:
+        case PARSER_NODE_SHR: {
+            if (left_type && right_type) {
+                if (left_type->category != TYPE_CATEGORY_BASIC || right_type->category != TYPE_CATEGORY_BASIC) {
+                    print_semantic_error_type_infos(node);
+                    context->error = 1;
+                    node->type_info = NULL;
+                    break;
+                }
+
+                if (left_type->type_id == right_type->type_id) {
+                    node->type_info = left_type;
+                } else if (1 == type_table_can_that_promote_to(left_type, right_type)) {
+                    node->type_info = right_type; 
+                } else if (1 == type_table_can_that_promote_to(right_type, left_type)) {
+                    node->type_info = left_type;
+                } else {
+                    print_semantic_error_type_infos(node);
+                    context->error = 1;
+                    node->type_info = NULL;
+                }
+            } else {
+                node->type_info = NULL;
+            }
+            break;
+        }
         default: {
             if(left_type && right_type) {
                 if (node->type == PARSER_NODE_PLUS || node->type == PARSER_NODE_MINUS) {
