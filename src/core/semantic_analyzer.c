@@ -5,6 +5,7 @@
 #include "h_string_view.h"
 #include "h_vector.h"
 #include "core/flags/function_flags.h"
+#include <stdio.h>
 
 static void propagate_literal_types(struct parser_node *node, struct type_info *target_type) {
     if (!node || !target_type) return;
@@ -26,6 +27,10 @@ static void propagate_literal_types(struct parser_node *node, struct type_info *
 
     if (node->left_node) propagate_literal_types(node->left_node, target_type);
     if (node->right_node) propagate_literal_types(node->right_node, target_type);
+}
+
+static inline void print_semantic_error_cannot_do_in_global(struct parser_node *node) {
+    C_LOG_ERR("Semantic: cannot use this instruction in global scope, on line %d", node->line);
 }
 
 static inline void print_semantic_error_type_infos(struct parser_node *node) {
@@ -128,12 +133,29 @@ int semantic_analyzer_analyze_node(struct parser_node* node, struct semantic_con
         case PARSER_NODE_VARIABLE_ASSIGMENT: return semantic_analyzer_analyze_assigment(node, context);
         case PARSER_NODE_CALL: return semantic_analyzer_analyze_call(node, context);
 
+        case PARSER_NODE_ASM:
+        case PARSER_NODE_LOOP:
+        case PARSER_NODE_UNARY_ADDRESS_OF:
+        case PARSER_NODE_UNARY_DEREFERENCE:
+        case PARSER_NODE_UNARY_BANG:
+        case PARSER_NODE_UNARY_MINUS:
+        case PARSER_NODE_UNARY_NOT:
+        case PARSER_NODE_SHL:
+        case PARSER_NODE_SHR:
+        case PARSER_NODE_BITWISE_AND:
+        case PARSER_NODE_BITWISE_OR:
+        case PARSER_NODE_BITWISE_XOR:
+        case PARSER_NODE_PLUS:
+        case PARSER_NODE_MINUS:
+        case PARSER_NODE_MUL:
+        case PARSER_NODE_MOD:
+        case PARSER_NODE_DIVIDE:
         case PARSER_NODE_EQUAL_EQUAL:
         case PARSER_NODE_BANG_EQUAL:
         case PARSER_NODE_LESS_EQUAL:
         case PARSER_NODE_GREATER_EQUAL:
         case PARSER_NODE_LESS:
-        case PARSER_NODE_GREATER: return semantic_analyzer_analyze_binary_expr(node, context);
+        case PARSER_NODE_GREATER: return semantic_analyzer_is_in_global(node, context);
 
         default:
         return 0;
@@ -196,6 +218,9 @@ int semantic_analyzer_analyze_var_declaration(struct parser_node* node, struct s
     return 0;
 }
 int semantic_analyzer_analyze_assigment(struct parser_node* node, struct semantic_context* context) {
+    if(1 == semantic_analyzer_is_in_global(node, context)) {
+        return 1;
+    }
     if(1 != type_table_can_that_promote_to(node->right_node->type_info, node->left_node->type_info)) {
         print_semantic_error_type_infos(node);
         context->error = 1;
@@ -203,6 +228,9 @@ int semantic_analyzer_analyze_assigment(struct parser_node* node, struct semanti
     return 0;
 }
 int semantic_analyzer_analyze_call(struct parser_node* node, struct semantic_context* context) {
+    if(1 == semantic_analyzer_is_in_global(node, context)) {
+        return 1;
+    }
     struct str_view calling_function_name = node->data.call.name;
     struct symbol_t *sym = symbol_table_look_up(context->current_scope, calling_function_name);
     if(NULL == sym) {
@@ -251,7 +279,13 @@ int semantic_analyzer_analyze_call(struct parser_node* node, struct semantic_con
 
     return err;
 }
-int semantic_analyzer_analyze_binary_expr(struct parser_node* node, struct semantic_context* context) {
+int semantic_analyzer_is_in_global(struct parser_node* node, struct semantic_context* context) {
+    if(!node) return 0;
+    if(context->current_scope == NULL || context->current_scope->is_global_table) {
+        print_semantic_error_cannot_do_in_global(node);
+        context->error = 1;
+        return 1;
+    }
     return 0;
 }
 

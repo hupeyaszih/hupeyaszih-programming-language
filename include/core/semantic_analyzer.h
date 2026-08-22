@@ -17,16 +17,16 @@ struct semantic_context {
 };
 
 int semantic_analyzer_run_analyzer(struct parser_t *parser);
-static int semantic_analyzer_analyze_node(struct parser_node* node, struct semantic_context* context);
-static int semantic_analyzer_analyze_block(struct parser_node *node, struct semantic_context *context);
-static int semantic_analyzer_analyze_function_decl(struct parser_node* node, struct semantic_context* context);
-static int semantic_analyzer_analyze_var_declaration(struct parser_node* node, struct semantic_context* context);
-static int semantic_analyzer_analyze_assigment(struct parser_node* node, struct semantic_context* context);
-static int semantic_analyzer_analyze_call(struct parser_node* node, struct semantic_context* context);
-static int semantic_analyzer_analyze_binary_expr(struct parser_node* node, struct semantic_context* context);
+int semantic_analyzer_analyze_node(struct parser_node* node, struct semantic_context* context);
+int semantic_analyzer_analyze_block(struct parser_node *node, struct semantic_context *context);
+int semantic_analyzer_analyze_function_decl(struct parser_node* node, struct semantic_context* context);
+int semantic_analyzer_analyze_var_declaration(struct parser_node* node, struct semantic_context* context);
+int semantic_analyzer_analyze_assigment(struct parser_node* node, struct semantic_context* context);
+int semantic_analyzer_analyze_call(struct parser_node* node, struct semantic_context* context);
+int semantic_analyzer_is_in_global(struct parser_node* node, struct semantic_context* context);
 
 struct type_info *semantic_analyzer_calculate_type_infos(struct parser_node *node, struct semantic_context *context);
 
-static void semantic_analyzer_propagate_literal_types(struct parser_node *node, struct type_info *target_type);
+void semantic_analyzer_propagate_literal_types(struct parser_node *node, struct type_info *target_type);
 
 #endif
