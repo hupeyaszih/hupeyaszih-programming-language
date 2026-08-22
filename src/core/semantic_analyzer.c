@@ -405,6 +405,9 @@ struct type_info *semantic_analyzer_calculate_type_infos(struct parser_node *nod
         }case PARSER_NODE_STRING: {
             node->type_info = get_literals_type_info(context->type_table, NULL, node->type);
             break;
+        }case PARSER_NODE_CHAR: {
+            node->type_info = get_literals_type_info(context->type_table, NULL, node->type);
+            break;
         }
         case PARSER_NODE_EQUAL_EQUAL:
         case PARSER_NODE_GREATER_EQUAL:

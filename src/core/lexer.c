@@ -294,6 +294,21 @@ int lexer_tokenize(struct arena *arena, char *restrict str, struct lexer_token *
                 (*tokens)[token_id].line = line_index;
                 token_id++;
                 continue;
+            }else if(LEXER_TOKEN_TYPE_SINGLE_QUOTE == symbol_type) {
+                ++i;
+                int str_len = 1;
+                int start = i;
+                if ('\\' == str[i]) {
+                    ++i;
+                    ++str_len;
+                }
+
+                (*tokens)[token_id].type = LEXER_TOKEN_TYPE_CHAR;
+                (*tokens)[token_id].str_view = str_view_make(&str[start], str_len);
+                (*tokens)[token_id].line = line_index;
+                token_id++;
+                i+=2;
+                continue;
             }
 
             (*tokens)[token_id].type = symbol_type;

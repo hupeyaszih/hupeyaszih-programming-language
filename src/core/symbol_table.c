@@ -171,7 +171,10 @@ struct type_info *get_literals_type_info(struct type_table *type_table, struct t
             }
             return type;
         } case PARSER_NODE_STRING: {
-            struct type_info *type = type_table_get_type_info_cstr(type_table, "string", 0);
+            struct type_info *type = type_table_get_type_info_cstr(type_table, "char", 1);
+            return type;
+        }case PARSER_NODE_CHAR: {
+            struct type_info *type = type_table_get_type_info_cstr(type_table, "char", 0);
             return type;
         }
     }

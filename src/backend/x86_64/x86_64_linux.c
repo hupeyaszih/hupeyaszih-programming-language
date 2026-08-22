@@ -1135,7 +1135,10 @@ void x86_64_linux_emit_reg(struct codegen_context_t *context, struct register_t 
 
 void x86_64_linux_emit_operand(struct codegen_context_t *context, struct IR_Operand *op, enum register_size size, bool print_size) {
     switch (op->type) {
-        case IR_OPERAND_TYPE_IMM: codegen_emit(context->file, SV_FMT " ", SV_ARG(op->data.imm_value)); break;
+        case IR_OPERAND_TYPE_IMM: {
+            codegen_emit(context->file, SV_FMT " ", SV_ARG(op->data.imm_value)); 
+            break;
+        }
         case IR_OPERAND_TYPE_LABEL: codegen_emit(context->file, SV_FMT " ", SV_ARG(op->data.mangled_label_name)); break;
         case IR_OPERAND_TYPE_VREG: {
             if(REGISTER_SIZE_UNDEFINED == size) size = codegen_calc_register_size(op->type_info->size);

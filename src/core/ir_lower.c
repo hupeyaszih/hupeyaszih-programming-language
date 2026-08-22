@@ -522,6 +522,14 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
             operand->type_info = info;
             operand->data.imm_value = node->data.literal_data;
             return operand;
+        }case PARSER_NODE_CHAR: {
+            struct type_info *info = node->type_info;
+            int in_loop = 0;
+            if(context->current_block)in_loop = context->current_block->in_loop;
+            struct IR_Operand *operand = IR_create_IR_Operand(context->arena, IR_OPERAND_TYPE_IMM, NULL, context->current_function, in_loop);
+            operand->type_info = info;
+            operand->data.imm_value = str_view_from_char_literal(node->data.literal_data);
+            return operand;
         }case PARSER_NODE_STRING: {
             struct type_info *info = node->type_info;
             struct IR_Operand *operand = IR_create_new_global(context->arena, context->current_module, node->data.literal_data, NULL, false, context->type_table);

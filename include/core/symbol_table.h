@@ -138,17 +138,12 @@ static inline void type_table_init_builtins(struct type_table *table) {
     struct type_info *ch = type_table_create_type_info_cstr(table->arena, "char", TYPE_CATEGORY_BASIC, 1, NULL, int8, false);
     type_table_insert(table, ch);
 
-    struct type_info *ch_p = type_table_get_or_create_pointer_type_info(table, str_view_from_cstr(table->arena, "char"), 1);
-
-    struct type_info *str = type_table_create_type_info_cstr(table->arena, "string", TYPE_CATEGORY_POINTER, 8, NULL, ch_p, false);
-    type_table_insert(table, str);
-
     table->pointer_to_int_type = int64;
 }
 
 static inline bool type_table_is_info_string(struct type_table *table, struct type_info *info) {
     if (!table || !info) return false;
-    if(info->type_id == type_table_get_type_info_cstr(table, "string", 0)->type_id){
+    if(info->type_id == type_table_get_type_info_cstr(table, "char", 1)->type_id){
         return true;
     }
     return false;

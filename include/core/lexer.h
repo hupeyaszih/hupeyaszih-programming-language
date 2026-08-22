@@ -12,7 +12,7 @@ enum token_type{
     LEXER_TOKEN_TYPE_INT_LITERAL, 
     LEXER_TOKEN_TYPE_FLOAT_LITERAL,
     LEXER_TOKEN_TYPE_STRING_LITERAL,
-    LEXER_TOKEN_TYPE_CHAR_LITERAL,
+    LEXER_TOKEN_TYPE_CHAR,
 
     LEXER_TOKEN_TYPE_KEYWORD,
     LEXER_TOKEN_TYPE_VAR,
@@ -116,7 +116,7 @@ static const char* lexer_token_type_to_string(enum token_type type) {
         case LEXER_TOKEN_TYPE_INT_LITERAL:     return "INT_LITERAL";
         case LEXER_TOKEN_TYPE_FLOAT_LITERAL:   return "FLOAT_LITERAL";
         case LEXER_TOKEN_TYPE_STRING_LITERAL:  return "STRING_LITERAL";
-        case LEXER_TOKEN_TYPE_CHAR_LITERAL:    return "CHAR_LITERAL";
+        case LEXER_TOKEN_TYPE_CHAR:            return "CHAR";
 
         case LEXER_TOKEN_TYPE_KEYWORD:         return "KEYWORD";
         case LEXER_TOKEN_TYPE_VAR:             return "VAR";

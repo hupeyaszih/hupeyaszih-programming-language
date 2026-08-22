@@ -869,6 +869,16 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
         node->data.literal_data = t->str_view;
         node->type_info = NULL;
         return node;
+    }else if(LEXER_TOKEN_TYPE_CHAR == tokens[*cursor].type){
+        int line_number = tokens[*cursor].line;
+        struct lexer_token *t = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_CHAR);
+
+        if(NULL == t || str_view_is_empty(t->str_view)) {parser->successful = 0; return NULL;}
+        struct parser_node *node = parser_create_node(parser->arena, PARSER_NODE_CHAR, line_number);
+        if(NULL == node) {parser->successful = 0; return NULL;}
+        node->data.literal_data = t->str_view;
+        node->type_info = NULL;
+        return node;
     }else if(LEXER_TOKEN_TYPE_IDENTIFIER == tokens[*cursor].type){
         if((*cursor)+1 < token_count && tokens[(*cursor)+1].type == LEXER_TOKEN_TYPE_LPAREN) {
             struct str_view name_to_pass = tokens[*cursor].str_view;
