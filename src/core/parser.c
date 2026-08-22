@@ -816,9 +816,10 @@ struct parser_node *parser_parse_term(struct parser_t *restrict parser, struct l
         return NULL;
     }
 
-    while(*cursor < token_count && (LEXER_TOKEN_TYPE_STAR == tokens[*cursor].type || LEXER_TOKEN_TYPE_SLASH == tokens[*cursor].type)) {
+    while(*cursor < token_count && (LEXER_TOKEN_TYPE_STAR == tokens[*cursor].type || LEXER_TOKEN_TYPE_SLASH == tokens[*cursor].type) || LEXER_TOKEN_TYPE_PERCENT == tokens[*cursor].type) {
         enum parser_node_type op_type = PARSER_NODE_DIVIDE;
-        if(LEXER_TOKEN_TYPE_STAR == tokens[*cursor].type) op_type = PARSER_NODE_MUL;
+        if(LEXER_TOKEN_TYPE_STAR == tokens[*cursor].type)         op_type = PARSER_NODE_MUL;
+        else if(LEXER_TOKEN_TYPE_PERCENT == tokens[*cursor].type) op_type = PARSER_NODE_MOD;
         EAT_OR_RETURN(parser, tokens, token_count, cursor, tokens[*cursor].type);
 
         struct parser_node *right = parser_parse_unary(parser, tokens, token_count, cursor);

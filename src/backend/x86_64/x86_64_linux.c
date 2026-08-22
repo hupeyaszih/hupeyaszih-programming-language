@@ -167,6 +167,7 @@ const char *x86_64_linux_get_register_name(struct register_list_t *list, struct 
 void x86_64_collect_instruction_clobbers(struct register_list_t *list, struct IR_Instruction *instruction, struct vector_t *clobber_list, int time) {
     if(!list || !clobber_list) return;
     switch (instruction->type) {
+        case IR_INSTRUCTION_TYPE_MOD:
         case IR_INSTRUCTION_TYPE_DIVIDE: {
             struct clobber_t rax_clobber;
             rax_clobber.reg = list->registers + X86_64_RAX;
@@ -207,6 +208,7 @@ void x86_64_collect_instruction_clobbers(struct register_list_t *list, struct IR
 
 static inline void calc_preferred_regs(struct register_list_t *list, struct IR_Operand *operand, struct IR_Instruction *instruction, struct bitset_t *preferred_regs) {
     switch (instruction->type) {
+        case IR_INSTRUCTION_TYPE_MOD:
         case IR_INSTRUCTION_TYPE_DIVIDE: {
             int rax_id = (list->registers+X86_64_RAX)->id;
             if (operand == instruction->operands.triple_operands.source_1) {
@@ -338,6 +340,20 @@ void x86_64_linux_emit_mov_arg_to_stack_offset(struct codegen_context_t *context
     x86_64_linux_set_free_reserved_register(context->build_target->registers, reg);
 }
 
+void x86_64_linux_emit_movsx_reg_to_reg(struct codegen_context_t *context, struct register_t *dest, struct register_t *src, enum register_size dest_size, enum register_size src_size) {
+    codegen_emit(context->file, "    movsx ");
+    x86_64_linux_emit_reg(context, dest, dest_size, true);
+    codegen_emit(context->file, ", ");
+    x86_64_linux_emit_reg(context, src, src_size, true);
+    codegen_emit(context->file, "\n");
+}
+void x86_64_linux_emit_movsx_operand_to_reg(struct codegen_context_t *context, struct register_t *dest, struct IR_Operand *src, enum register_size dest_size) {
+    codegen_emit(context->file, "    movsx ");
+    x86_64_linux_emit_reg(context, dest, dest_size, true);
+    codegen_emit(context->file, ", ");
+    x86_64_linux_emit_operand(context, src, codegen_get_register_size_from_operand(src), true);
+    codegen_emit(context->file, "\n");
+}
 void x86_64_linux_emit_mov_operand_to_reg(struct codegen_context_t *context, struct register_t *dest, struct IR_Operand *src) {
     enum register_size src_size = codegen_get_register_size_from_operand(src);
     enum register_size dest_size = dest->size;
@@ -659,6 +675,7 @@ void emit_arithmetic_instructions(struct codegen_context_t *context, struct IR_I
         case IR_INSTRUCTION_TYPE_PLUS:   instruction_str = "add";  break;
         case IR_INSTRUCTION_TYPE_MINUS:  instruction_str = "sub";  break;
         case IR_INSTRUCTION_TYPE_MUL:    instruction_str = "imul"; break;
+        case IR_INSTRUCTION_TYPE_MOD:    instruction_str = "idiv"; break;
         case IR_INSTRUCTION_TYPE_DIVIDE: instruction_str = "idiv"; break;
         case IR_INSTRUCTION_TYPE_BITWISE_AND: instruction_str = "and"; break;
         case IR_INSTRUCTION_TYPE_BITWISE_OR:  instruction_str = "or"; break;
@@ -756,13 +773,21 @@ void emit_arithmetic_instructions(struct codegen_context_t *context, struct IR_I
         x86_64_linux_set_free_reserved_register(context->build_target->registers, dest_reg);
         x86_64_linux_set_free_reserved_register(context->build_target->registers, src2_reg);
         goto exit;
-    }else if(IR_INSTRUCTION_TYPE_DIVIDE == instruction->type) {
+    }else if(IR_INSTRUCTION_TYPE_DIVIDE == instruction->type || IR_INSTRUCTION_TYPE_MOD == instruction->type) {
+        enum register_size original_size = size;
+        if(size == REGISTER_SIZE_8)size = IR_INSTRUCTION_TYPE_DIVIDE == instruction->type ? size : REGISTER_SIZE_16; 
 
         struct register_t *rax = context->build_target->registers->registers + X86_64_RAX;
+        struct register_t *rdx = context->build_target->registers->registers + X86_64_RDX;
         if(dest != src1) {
             x86_64_linux_emit_mov_operand_to_operand(context, dest, src1);
         }
-        x86_64_linux_emit_mov_operand_to_reg(context, rax, dest);
+        if (original_size == REGISTER_SIZE_8 && size == REGISTER_SIZE_16) {
+            x86_64_linux_emit_movsx_operand_to_reg(context, rax, dest, REGISTER_SIZE_16);
+        } else {
+            x86_64_linux_emit_mov_operand_to_reg(context, rax, dest);
+        }
+        // x86_64_linux_emit_mov_operand_to_reg(context, rax, dest);
 
         char *cb = NULL;
         switch (size) {
@@ -775,12 +800,18 @@ void emit_arithmetic_instructions(struct codegen_context_t *context, struct IR_I
 
         struct register_t *src2_reg = x86_64_linux_ensure_operand_is_register(context, src2);
 
-
+        if (original_size == REGISTER_SIZE_8 && size == REGISTER_SIZE_16) {
+            x86_64_linux_emit_movsx_reg_to_reg(context, src2_reg, src2_reg, REGISTER_SIZE_16, original_size);
+        }
         codegen_emit(context->file, "    idiv ");
         x86_64_linux_emit_reg(context, src2_reg, size, false);
         codegen_emit(context->file, "\n");
 
-        x86_64_linux_emit_mov_reg_to_operand(context, dest, rax);
+        struct register_t *res_reg = rax;
+        if(size != REGISTER_SIZE_8) {
+            res_reg = IR_INSTRUCTION_TYPE_DIVIDE == instruction->type ? rax : rdx;
+        }
+        x86_64_linux_emit_mov_reg_to_operand(context, dest, res_reg);
         x86_64_linux_set_free_reserved_register(context->build_target->registers, src2_reg);
         goto exit;
     }
@@ -888,6 +919,7 @@ void x86_64_linux_emit_instruction(struct codegen_context_t *context, struct IR_
         case IR_INSTRUCTION_TYPE_PLUS:          emit_arithmetic_instructions(context, instruction); break;
         case IR_INSTRUCTION_TYPE_MINUS:         emit_arithmetic_instructions(context, instruction); break;
         case IR_INSTRUCTION_TYPE_MUL:           emit_arithmetic_instructions(context, instruction); break;
+        case IR_INSTRUCTION_TYPE_MOD:           emit_arithmetic_instructions(context, instruction); break;
         case IR_INSTRUCTION_TYPE_DIVIDE:        emit_arithmetic_instructions(context, instruction); break;
         case IR_INSTRUCTION_TYPE_RET: {
             struct register_t *rax = context->build_target->registers->registers + X86_64_RAX;

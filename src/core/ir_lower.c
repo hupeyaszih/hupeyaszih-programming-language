@@ -352,6 +352,7 @@ static inline struct IR_Operand *IRL_run_alu_lower(struct ir_context *context, s
         case PARSER_NODE_PLUS:   {alu_type = IR_INSTRUCTION_TYPE_PLUS; break; }
         case PARSER_NODE_MINUS:  {alu_type = IR_INSTRUCTION_TYPE_MINUS; break; }
         case PARSER_NODE_DIVIDE: {alu_type = IR_INSTRUCTION_TYPE_DIVIDE; break; }
+        case PARSER_NODE_MOD:    {alu_type = IR_INSTRUCTION_TYPE_MOD; break; }
         case PARSER_NODE_MUL:    {alu_type = IR_INSTRUCTION_TYPE_MUL; break; }
 
         case PARSER_NODE_BITWISE_AND: {alu_type = IR_INSTRUCTION_TYPE_BITWISE_AND; break; }
@@ -640,6 +641,7 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
         case PARSER_NODE_PLUS:
         case PARSER_NODE_MINUS:
         case PARSER_NODE_DIVIDE:
+        case PARSER_NODE_MOD: 
         case PARSER_NODE_MUL: 
         case PARSER_NODE_BITWISE_OR:
         case PARSER_NODE_BITWISE_XOR:
@@ -797,6 +799,7 @@ void IRL_find_mutations(struct parser_node *node, struct vector_t *vars, struct 
         case PARSER_NODE_SHR:
         case PARSER_NODE_PLUS:
         case PARSER_NODE_MINUS:
+        case PARSER_NODE_MOD:
         case PARSER_NODE_MUL:
         case PARSER_NODE_DIVIDE:
         case PARSER_NODE_LESS:

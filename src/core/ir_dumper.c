@@ -122,6 +122,7 @@ static void IR_dump_instruction(const struct IR_Instruction *instruction) {
         case IR_INSTRUCTION_TYPE_MINUS:  {IR_dump_alu(instruction, "minus"); break;}
         case IR_INSTRUCTION_TYPE_DIVIDE: {IR_dump_alu(instruction, "div");   break;}
         case IR_INSTRUCTION_TYPE_MUL:    {IR_dump_alu(instruction, "mul");   break;}
+        case IR_INSTRUCTION_TYPE_MOD:    {IR_dump_alu(instruction, "mod");   break;}
 
         case IR_INSTRUCTION_TYPE_EQUAL_EQUAL:   {IR_dump_alu(instruction, "equal_equal");   break;}
         case IR_INSTRUCTION_TYPE_BANG_EQUAL:    {IR_dump_alu(instruction, "bang_equal"); break;}

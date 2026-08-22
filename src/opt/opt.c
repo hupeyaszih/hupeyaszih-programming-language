@@ -37,6 +37,7 @@ static inline struct vector_t *get_used_operands(struct arena *arena, struct IR_
         case IR_INSTRUCTION_TYPE_PLUS:
         case IR_INSTRUCTION_TYPE_MINUS:
         case IR_INSTRUCTION_TYPE_DIVIDE:
+        case IR_INSTRUCTION_TYPE_MOD:
         case IR_INSTRUCTION_TYPE_MUL: {
             vector_add(list, &instruction->operands.triple_operands.source_1);
             vector_add(list, &instruction->operands.triple_operands.source_2);
@@ -121,6 +122,7 @@ static inline struct vector_t *get_defined_operands(struct arena *arena, struct 
         case IR_INSTRUCTION_TYPE_PLUS:
         case IR_INSTRUCTION_TYPE_MINUS:
         case IR_INSTRUCTION_TYPE_DIVIDE:
+        case IR_INSTRUCTION_TYPE_MOD:
         case IR_INSTRUCTION_TYPE_MUL: {
             vector_add(list, &instruction->operands.triple_operands.destination);
             break;
@@ -312,6 +314,7 @@ void opt_compute_use_def(struct arena *arena, struct IR_Function *function) {
                 case IR_INSTRUCTION_TYPE_PLUS:
                 case IR_INSTRUCTION_TYPE_MINUS:
                 case IR_INSTRUCTION_TYPE_DIVIDE:
+                case IR_INSTRUCTION_TYPE_MOD:
                 case IR_INSTRUCTION_TYPE_MUL: {
                     process_use(instruction->operands.triple_operands.source_1, block->uses, instruction);
                     process_use(instruction->operands.triple_operands.source_2, block->uses, instruction);
@@ -596,6 +599,7 @@ static inline bool instruction_has_side_effects(struct IR_Instruction *inst) {
         case IR_INSTRUCTION_TYPE_CAST:
         case IR_INSTRUCTION_TYPE_PLUS:
         case IR_INSTRUCTION_TYPE_MINUS:
+        case IR_INSTRUCTION_TYPE_MOD:
         case IR_INSTRUCTION_TYPE_MUL:
         case IR_INSTRUCTION_TYPE_DIVIDE:
         case IR_INSTRUCTION_TYPE_BITWISE_AND:
@@ -774,6 +778,7 @@ bool opt_constant_folding(struct opt_context_t *context, struct IR_Function *fun
                                                                 if (src2_val != 0) res = src1_val / src2_val; 
                                                                 else fold_success = false;
                                                                 break;
+                        case IR_INSTRUCTION_TYPE_MOD:           res = src1_val % src2_val; break;
                         case IR_INSTRUCTION_TYPE_MUL:           res = src1_val * src2_val; break;
                         case IR_INSTRUCTION_TYPE_SHL:           res = src1_val << src2_val; break;
                         case IR_INSTRUCTION_TYPE_SHR:           res = src1_val >> src2_val; break;
@@ -840,6 +845,7 @@ static bool replace_operand_in_instruction(struct IR_Instruction *inst, struct I
             break;
         }case IR_INSTRUCTION_TYPE_PLUS:
         case IR_INSTRUCTION_TYPE_MINUS:
+        case IR_INSTRUCTION_TYPE_MOD:
         case IR_INSTRUCTION_TYPE_MUL:
         case IR_INSTRUCTION_TYPE_DIVIDE:
         case IR_INSTRUCTION_TYPE_BITWISE_AND:
