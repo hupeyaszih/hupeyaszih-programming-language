@@ -96,7 +96,7 @@ void register_allocator_compute_caller_saved_registers(struct arena *arena, stru
         while (instruction != NULL) {
 
             if (instruction->type == IR_INSTRUCTION_TYPE_CALL) {
-                struct IR_Function *callee = instruction->operands.call.target_function;
+                struct IR_Function *callee = instruction->operands.call.target_function->function.ir_function;
 
                 if (callee) {
                     register_allocator_compute_caller_saved_registers(arena, target, callee);

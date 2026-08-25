@@ -559,7 +559,7 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
             return_val->type_info = calling_function->function.return_type;
 
             call->operands.call.return_val = return_val;
-            call->operands.call.target_function = calling_function->function.ir_function;
+            call->operands.call.target_function = calling_function;
 
             IR_Block_add_instruction(context->current_block, call);
             return return_val;

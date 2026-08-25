@@ -995,7 +995,7 @@ void x86_64_linux_emit_instruction(struct codegen_context_t *context, struct IR_
             x86_64_linux_set_free_reserved_register(context->build_target->registers, src_reg);
             break;
         }case IR_INSTRUCTION_TYPE_CALL: {
-            struct IR_Function *func = instruction->operands.call.target_function;
+            struct IR_Function *func = instruction->operands.call.target_function->function.ir_function;
             struct IR_Operand *return_val = instruction->operands.call.return_val;
             struct IR_Function *caller_func = instruction->parent_block->parent_function;
             int arg_count = instruction->operands.call.arguments->element_count;

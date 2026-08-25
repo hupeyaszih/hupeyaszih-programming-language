@@ -205,7 +205,7 @@ struct IR_Instruction {
 
         struct {
             struct vector_t *arguments; // struct IR_Operand *    (Argument list)
-            struct IR_Function *target_function;
+            struct symbol_t *target_function;
             struct IR_Operand *return_val;
             struct bitset_t *across_registers;
         }call;
