@@ -3,6 +3,7 @@
 #include "core/globals.h"
 #include "core/lexer.h"
 #include "core/symbol_table.h"
+#include "h_arena.h"
 #include "h_bitset.h"
 #include "h_string_view.h"
 #include "h_vector.h"
@@ -80,10 +81,11 @@ static inline int is_shift_operator_token(enum token_type type){
     return -1;
 }
 
-struct parser_t *parser_create_parser(struct arena *arena, struct arena *symbol_arena){
+struct parser_t *parser_create_parser(struct arena *arena, struct arena *temp_arena, struct arena *symbol_arena) {
     struct parser_t *parser = arena_alloc(arena, sizeof(struct parser_t));
     if(!parser) {C_LOG_ERR("parser_create_parser - couldn't create parser");return NULL;}
     parser->arena = arena;
+    parser->temp_arena = temp_arena;
     parser->symbol_arena = symbol_arena;
     parser->nodes = vector_create_vector(arena, 4, sizeof(struct parser_node *));
     parser->block_counter = 0;
@@ -918,14 +920,11 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
 
         int pointer_level = calculate_pointer_level(tokens, cursor);
         struct lexer_token *type_token = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER);
-        struct type_info *type_info = NULL;
         if(NULL == type_token) {
-            (*cursor)--;
-            struct parser_node *right = parser_parse_factor(parser, tokens, token_count, cursor);
-            type_info = type_table_get_type_info(parser->type_table, right->data.literal_data, pointer_level);
-        }else {
-            type_info = type_table_get_type_info(parser->type_table, type_token->str_view, pointer_level);
+            parser->successful = 0;
+            return NULL;
         }
+        struct type_info *type_info = type_table_get_or_create_pointer_type_info(parser->type_table, type_token->str_view, pointer_level);
 
         if(NULL == type_info) {
             C_LOG_ERR("expected a valid type after \"(\" for \"sizeof\" on line: %d", line_number);
@@ -938,9 +937,7 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
         struct parser_node *node = parser_create_node(parser->arena, PARSER_NODE_NUMBER, line_number);
         if(NULL == node) {parser->successful = 0; return NULL;}
         node->is_literal_data_created_by_parser = 1;
-        char buf[32];
-        snprintf(buf, sizeof(buf), "%zu", type_info->size);
-        node->data.literal_data = str_view_make(buf, sizeof(buf));
+        node->data.literal_data = str_view_fmt(parser->arena, "%zu", type_info->size);
         return node;
     }else if(LEXER_TOKEN_TYPE_ALIGNOF == tokens[*cursor].type){
         int line_number = tokens[*cursor].line;
@@ -949,17 +946,14 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
         int pointer_level = calculate_pointer_level(tokens, cursor);
 
         struct lexer_token *type_token = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER);
-        struct type_info *type_info = NULL;
         if(NULL == type_token) {
-            (*cursor)--;
-            struct parser_node *right = parser_parse_factor(parser, tokens, token_count, cursor);
-            type_info = type_table_get_type_info(parser->type_table, right->data.literal_data, pointer_level);
-        }else {
-            type_info = type_table_get_type_info(parser->type_table, type_token->str_view, pointer_level);
+            parser->successful = 0;
+            return NULL;
         }
+        struct type_info *type_info = type_table_get_or_create_pointer_type_info(parser->type_table, type_token->str_view, pointer_level);
 
         if(NULL == type_info) {
-            C_LOG_ERR("expected a valid type after \"(\" for \"sizeof\" on line: %d", line_number);
+            C_LOG_ERR("expected a valid type after \"(\" for \"alignof\" on line: %d", line_number);
             parser->successful = 0;
             return NULL;
         }
@@ -968,14 +962,13 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
         struct parser_node *node = parser_create_node(parser->arena, PARSER_NODE_NUMBER, line_number);
         if(NULL == node) {parser->successful = 0; return NULL;}
         node->is_literal_data_created_by_parser = 1;
-        char buf[32];
-        snprintf(buf, sizeof(buf), "%zu", type_table_size_padding(type_info->size));
-        node->data.literal_data = str_view_make(buf, sizeof(buf));
+        node->data.literal_data = str_view_fmt(parser->arena, "%zu", type_table_size_padding(type_info->size));
         return node;
     }else if(LEXER_TOKEN_TYPE_TYPEOF == tokens[*cursor].type){
         int line_number = tokens[*cursor].line;
         EAT_OR_RETURN(parser, tokens, token_count, cursor, LEXER_TOKEN_TYPE_TYPEOF);
         EAT_OR_RETURN(parser, tokens, token_count, cursor, LEXER_TOKEN_TYPE_LPAREN);
+        int dereference_count = calculate_pointer_level(tokens, cursor);
         struct lexer_token *type_token = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER);
         if(NULL == type_token) {
             C_LOG_ERR("expected an identifier for \"typeof\"on line: %d", line_number);
@@ -989,18 +982,28 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
             parser->successful = 0;
             return NULL;
         }
+        int pointer_level = type_info->pointer_level;
+        int star_count = pointer_level - dereference_count;
+
+        char *stars = NULL;
+        if(star_count > 0) {
+            stars = arena_alloc(parser->temp_arena, sizeof(char) * star_count);
+            memset(stars, '*', star_count);
+        }
 
         EAT_OR_RETURN(parser, tokens, token_count, cursor, LEXER_TOKEN_TYPE_RPAREN);
 
         struct parser_node *node = parser_create_node(parser->arena, PARSER_NODE_STRING, line_number);
         if(NULL == node) {parser->successful = 0; return NULL;}
         node->is_literal_data_created_by_parser = 1;
-        node->data.literal_data = type_info->name;
+        struct str_view str = stars == NULL ? str_view_fmt(parser->arena, SV_FMT, SV_ARG(type_info->name)) : str_view_fmt(parser->arena, "%s"SV_FMT, stars, SV_ARG(type_info->name));
+        node->data.literal_data = str;
         return node;
     }else if(LEXER_TOKEN_TYPE_STOF == tokens[*cursor].type){
         int line_number = tokens[*cursor].line;
         EAT_OR_RETURN(parser, tokens, token_count, cursor, LEXER_TOKEN_TYPE_STOF);
         EAT_OR_RETURN(parser, tokens, token_count, cursor, LEXER_TOKEN_TYPE_LPAREN);
+        int dereference_count = calculate_pointer_level(tokens, cursor);
         struct lexer_token *type_token = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER);
         if(NULL == type_token) {
             C_LOG_ERR("expected an identifier for \"stof\"on line: %d", line_number);
@@ -1008,7 +1011,12 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
             return NULL;
         }
         struct symbol_t *sym = symbol_table_look_up(parser->current_scope, type_token->str_view);
-        struct type_info *type_info = sym->type;
+        if(NULL == sym) {
+            C_LOG_ERR("expected a valid variable name after \"(\" for \"stof\" on line: %d", line_number);
+            parser->successful = 0;
+            return NULL;
+        }
+        struct type_info *type_info = type_table_get_or_create_pointer_type_info(parser->type_table, sym->type->name, sym->type->pointer_level-dereference_count);
         if(NULL == type_info) {
             C_LOG_ERR("expected a valid type after \"(\" for \"stof\" on line: %d", line_number);
             parser->successful = 0;
@@ -1020,9 +1028,7 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
         struct parser_node *node = parser_create_node(parser->arena, PARSER_NODE_NUMBER, line_number);
         if(NULL == node) {parser->successful = 0; return NULL;}
         node->is_literal_data_created_by_parser = 1;
-        char buf[32];
-        snprintf(buf, sizeof(buf), "%zu", type_info->size);
-        node->data.literal_data = str_view_make(buf, sizeof(buf));
+        node->data.literal_data = str_view_fmt(parser->arena, "%zu", type_info->size);
         return node;
     }else if(LEXER_TOKEN_TYPE_LOOP == tokens[*cursor].type){
         struct parser_node *node = parser_parse_loop(parser, tokens, token_count, cursor);

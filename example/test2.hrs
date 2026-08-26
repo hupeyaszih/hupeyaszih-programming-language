@@ -1,0 +1,22 @@
+fn main() : int32 {
+    var age:int32 = 16;
+    var name:*char = "Poyraz Bakırtaş";
+
+    print(typeof(name), 5);
+    print("\n", 1);
+    print(typeof(age), 5);
+    print("\n", 1);
+    stof(*name);
+}
+
+
+fn print(buffer_ptr: *char, length: int32) : int32 {
+    asm "
+    mov rdx, rsi
+    mov rsi, rdi
+    mov rdi, 1
+    mov rax, 1
+    syscall";
+
+    0;
+}

@@ -116,7 +116,7 @@ int main(int argc, char *argv[]) {
 
 
     struct IR_Project *project = NULL;
-    struct parser_t *parser = parser_create_parser(&context.parser_arena, &context.symbol_arena);
+    struct parser_t *parser = parser_create_parser(&context.parser_arena, &context.temp_arena, &context.symbol_arena);
 
     struct symbol_table *global_scope = symbol_table_create_symbol_table(&context.symbol_arena, NULL, &parser->scope_counter);
     struct type_table *type_table = type_table_create_type_table(&context.symbol_arena);

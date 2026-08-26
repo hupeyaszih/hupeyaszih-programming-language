@@ -4,8 +4,10 @@
 #include "h_arena.h"
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 
 struct str_view {
     const char *data;
@@ -40,6 +42,34 @@ static inline struct str_view str_view_from_cstr(struct arena *arena, const char
     memcpy(copy, cstr, len + 1);
     
     return str_view_make(copy, len);
+}
+
+static inline struct str_view str_view_fmt(struct arena *arena, const char *fmt, ...) {
+    if (!arena || !fmt) return (struct str_view){ NULL, 0 };
+
+    va_list args;
+    va_start(args, fmt);
+    
+    va_list args_copy;
+    va_copy(args_copy, args);
+    int len = vsnprintf(NULL, 0, fmt, args_copy);
+    va_end(args_copy);
+
+    if (len < 0) {
+        va_end(args);
+        return (struct str_view){ NULL, 0 };
+    }
+
+    char *buf = arena_alloc(arena, (size_t)len + 1);
+    if (!buf) {
+        va_end(args);
+        return (struct str_view){ NULL, 0 };
+    }
+
+    vsnprintf(buf, (size_t)len + 1, fmt, args);
+    va_end(args);
+
+    return str_view_make(buf, (size_t)len);
 }
 
 static inline struct str_view str_view_sub(struct str_view sv, size_t start, size_t len) {

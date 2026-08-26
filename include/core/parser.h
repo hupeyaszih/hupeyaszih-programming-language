@@ -117,6 +117,7 @@ struct parser_node{
 
 struct parser_t{
     struct arena *arena;
+    struct arena *temp_arena;
     struct arena *symbol_arena;
     struct vector_t *nodes; // struct parser_node *
     struct symbol_table *current_scope;
@@ -130,7 +131,7 @@ struct parser_t{
     int successful;
 };
 
-struct parser_t *parser_create_parser(struct arena *arena, struct arena *symbol_arena);
+struct parser_t *parser_create_parser(struct arena *arena, struct arena *temp_arena, struct arena *symbol_arena);
 
 struct parser_node *parser_create_node(struct arena *arena, enum parser_node_type type, int line);
 
