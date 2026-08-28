@@ -1,0 +1,20 @@
+fn main() : int32 {
+    var i : int32 = 0;
+    var b:int32 = 10;
+    var a:int32 = 10;
+    var ptr : *int32 = &a;
+    var ptr2 : *int32 = &b;
+    loop{i<2;}
+    return{i;}
+    continue{
+        var k : int32 = 0;
+        loop{k<3;}
+        return{k;}
+        continue{
+            *(ptr+8) = *(ptr+8) + k * 10;
+            k = k + 1;
+        }
+        i = i + 1;
+    }
+    *(ptr+8);
+}

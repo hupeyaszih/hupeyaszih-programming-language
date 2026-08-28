@@ -58,7 +58,7 @@ static int is_statement_pure(struct parser_node *node, struct semantic_context *
     switch (node->type) {
         case PARSER_NODE_ASM: return 0;
         case PARSER_NODE_VARIABLE_ASSIGMENT: 
-                              if(PARSER_NODE_UNARY_DEREFERENCE == node->left_node->type || TYPE_CATEGORY_POINTER == node->left_node->type_info->category) {
+                              if(PARSER_NODE_UNARY_DEREFERENCE == node->left_node->type) {
                                   print_semantic_error_pure_func(node);
                                   context->error = 1;
                                   return 0;
