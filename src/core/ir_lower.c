@@ -586,7 +586,7 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
 
             if (lower_type == LOWER_R) {
                 struct IR_Instruction *load_inst = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_UNARY_DEREFERENCE);
-                struct IR_Operand *dest = IR_create_new_vreg(context->arena, context->current_function, load_inst, node->right_node->data.variable.symbol, context->current_block->in_loop);
+                struct IR_Operand *dest = IR_create_new_vreg(context->arena, context->current_function, load_inst, NULL, context->current_block->in_loop);
                 dest->type_info = node->type_info;
 
                 load_inst->operands.double_operands.destination = dest;
@@ -594,7 +594,7 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
                 IR_Block_add_instruction(context->current_block, load_inst);
 
                 return dest;
-            } else if (lower_type == LOWER_L) {
+            } else {
                 return ptr_op;
             }
             break;
