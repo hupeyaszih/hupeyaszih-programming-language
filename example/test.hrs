@@ -18,7 +18,14 @@ fn main() : int32 {
     var a17: int32 = 17;
     var a18: int32 = 18;
 
-    var sum1: int32 = a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10 + a11 + a12 + a13 + a14 + a15 + a16 + a17 + a18;
+
+
+    var arr:[int32, 4];
+    var len:int32 = 4;
+
+    var i:int32 = 0;
+
+
 
     var b1: int32 = 101;
     var b2: int32 = 102;
@@ -39,7 +46,52 @@ fn main() : int32 {
     var b17: int32 = 117;
     var b18: int32 = 118;
 
+
+    var sum1: int32 = a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10 + a11 + a12 + a13 + a14 + a15 + a16 + a17 + a18;
     var sum2: int32 = b1 + b2 + b3 + b4 + b5 + b6 + b7 + b8 + b9 + b10 + b11 + b12 + b13 + b14 + b15 + b16 + b17 + b18;
 
+    loop {
+        i < len;
+    }return {
+        i;
+    }continue {
+        sum1 = a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10 + a11 + a12 + a13 + a14 + a15 + a16 + a17 + a18;
+        sum2 = b1 + b2 + b3 + b4 + b5 + b6 + b7 + b8 + b9 + b10 + b11 + b12 + b13 + b14 + b15 + b16 + b17 + b18;
+
+        *(*arr + stof(**arr) * i) = (i+1)*10;
+        i = i + 1;
+
+        sum1 = a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10 + a11 + a12 + a13 + a14 + a15 + a16 + a17 + a18;
+        sum2 = b1 + b2 + b3 + b4 + b5 + b6 + b7 + b8 + b9 + b10 + b11 + b12 + b13 + b14 + b15 + b16 + b17 + b18;
+    }
+
+    i = 0;
+    var total:int32 = 0;
+    loop {
+        i < len;
+    }return {
+        total;
+    }continue {
+        sum1 = a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10 + a11 + a12 + a13 + a14 + a15 + a16 + a17 + a18;
+        sum2 = b1 + b2 + b3 + b4 + b5 + b6 + b7 + b8 + b9 + b10 + b11 + b12 + b13 + b14 + b15 + b16 + b17 + b18;
+
+        asm "
+
+        ";
+        total = total + *(*arr + stof(**arr) * i);
+        //total = total + 1;
+        asm "
+
+        ";
+        sum1 = a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10 + a11 + a12 + a13 + a14 + a15 + a16 + a17 + a18;
+        sum2 = b1 + b2 + b3 + b4 + b5 + b6 + b7 + b8 + b9 + b10 + b11 + b12 + b13 + b14 + b15 + b16 + b17 + b18;
+
+        i = i + 1;
+    }
+
+    sum1 = a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10 + a11 + a12 + a13 + a14 + a15 + a16 + a17 + a18;
+    sum2 = b1 + b2 + b3 + b4 + b5 + b6 + b7 + b8 + b9 + b10 + b11 + b12 + b13 + b14 + b15 + b16 + b17 + b18;
+
     sum1 + sum2;
+    total;
 }

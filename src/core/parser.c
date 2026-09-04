@@ -8,6 +8,7 @@
 #include "h_string_view.h"
 #include "h_vector.h"
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -194,26 +195,6 @@ struct parser_node *parser_parse_variable_declaration(struct parser_t *restrict 
 
     EAT_OR_RETURN(parser, tokens, token_count, cursor, LEXER_TOKEN_TYPE_COLON);
     
-    int pointer_level = calculate_pointer_level(tokens, cursor);
-
-    struct lexer_token *type_name_token = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER); 
-    if(NULL == type_name_token) {parser->successful = 0; return NULL;}
-
-    struct str_view type_name = type_name_token->str_view;
-
-    struct type_info *type_info = type_table_get_or_create_pointer_type_info(parser->type_table, type_name, pointer_level);
-
-    if(NULL == type_info) {
-        C_LOG_ERR("unknown type (" SV_FMT "), on line %d", SV_ARG(type_name_token->str_view), tokens[*cursor].line);
-        LOG_M_ERR("parser_parse_variable_declaration - \"struct type_info *type_info\" is null");
-        parser->successful = 0;
-        return NULL;
-    }
-
-    EAT_OR_RETURN(parser, tokens, token_count, cursor, LEXER_TOKEN_TYPE_EQUAL);
-
-    struct parser_node *value_node = parser_parse_bitwise_or(parser, tokens, token_count, cursor);
-    if(NULL == value_node) {parser->successful = 0; return NULL;}
     struct parser_node *decl_node = parser_create_node(parser->arena, PARSER_NODE_VARIABLE_DECLARATION, name_token.line);
     if(NULL == decl_node) {parser->successful = 0; return NULL;}
 
@@ -222,8 +203,35 @@ struct parser_node *parser_parse_variable_declaration(struct parser_t *restrict 
         parser->successful = 0;
         return NULL;
     }
-    
-    decl_node->right_node = value_node; 
+
+    int pointer_level = calculate_pointer_level(tokens, cursor);
+    bool is_array_declaration = tokens[*cursor].type == LEXER_TOKEN_TYPE_LBRACKET;
+    struct type_info *type_info = NULL;
+    if(is_array_declaration) {
+        type_info = parser_parse_array_declaration(parser, tokens, token_count, cursor);
+        type_info = type_table_get_or_create_pointer_type_info(parser->type_table, type_info->name, pointer_level);
+    }else {
+        struct lexer_token *type_name_token = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER); 
+        if(NULL == type_name_token) {parser->successful = 0; return NULL;}
+        struct str_view type_name = type_name_token->str_view;
+        type_info = type_table_get_or_create_pointer_type_info(parser->type_table, type_name, pointer_level);
+    }
+
+    if(NULL == type_info) {
+        C_LOG_ERR("variable declaration - unknown type, on line %d", tokens[*cursor].line);
+        LOG_M_ERR("parser_parse_variable_declaration - \"struct type_info *type_info\" is null");
+        parser->successful = 0;
+        return NULL;
+    }
+
+    if(!is_array_declaration) {
+        EAT_OR_RETURN(parser, tokens, token_count, cursor, LEXER_TOKEN_TYPE_EQUAL);
+
+        struct parser_node *value_node = parser_parse_bitwise_or(parser, tokens, token_count, cursor);
+        if(NULL == value_node) {parser->successful = 0; return NULL;}
+
+        decl_node->right_node = value_node; 
+    }
 
     bool is_global = parser->current_scope->is_global_table;
     if(str_view_eq_cstr(type_info->name, "string")) is_global = true;
@@ -919,12 +927,19 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
         EAT_OR_RETURN(parser, tokens, token_count, cursor, LEXER_TOKEN_TYPE_LPAREN);
 
         int pointer_level = calculate_pointer_level(tokens, cursor);
-        struct lexer_token *type_token = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER);
-        if(NULL == type_token) {
-            parser->successful = 0;
-            return NULL;
+        struct type_info *type_info = NULL;
+
+        if(tokens[*cursor].type == LEXER_TOKEN_TYPE_LBRACKET) {
+            type_info = parser_parse_array_declaration(parser, tokens, token_count, cursor);
+        }else {
+            struct lexer_token *type_token = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER);
+            if(NULL == type_token) {
+                parser->successful = 0;
+                return NULL;
+            }
+            type_info = type_table_get_or_create_pointer_type_info(parser->type_table, type_token->str_view, pointer_level);
         }
-        struct type_info *type_info = type_table_get_or_create_pointer_type_info(parser->type_table, type_token->str_view, pointer_level);
+        type_info = type_table_get_or_create_pointer_type_info(parser->type_table, type_info->name, pointer_level);
 
         if(NULL == type_info) {
             C_LOG_ERR("expected a valid type after \"(\" for \"sizeof\" on line: %d", line_number);
@@ -944,13 +959,18 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
         EAT_OR_RETURN(parser, tokens, token_count, cursor, LEXER_TOKEN_TYPE_ALIGNOF);
         EAT_OR_RETURN(parser, tokens, token_count, cursor, LEXER_TOKEN_TYPE_LPAREN);
         int pointer_level = calculate_pointer_level(tokens, cursor);
-
-        struct lexer_token *type_token = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER);
-        if(NULL == type_token) {
-            parser->successful = 0;
-            return NULL;
+        struct type_info *type_info = NULL;
+        if(tokens[*cursor].type == LEXER_TOKEN_TYPE_LBRACKET) {
+            type_info = parser_parse_array_declaration(parser, tokens, token_count, cursor);
+        }else {
+            struct lexer_token *type_token = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER);
+            if(NULL == type_token) {
+                parser->successful = 0;
+                return NULL;
+            }
+            type_info = type_table_get_or_create_pointer_type_info(parser->type_table, type_token->str_view, pointer_level);
         }
-        struct type_info *type_info = type_table_get_or_create_pointer_type_info(parser->type_table, type_token->str_view, pointer_level);
+        type_info = type_table_get_or_create_pointer_type_info(parser->type_table, type_info->name, pointer_level);
 
         if(NULL == type_info) {
             C_LOG_ERR("expected a valid type after \"(\" for \"alignof\" on line: %d", line_number);
@@ -982,13 +1002,13 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
             parser->successful = 0;
             return NULL;
         }
+        type_info = type_table_dereference(parser->type_table, type_info, dereference_count);
         int pointer_level = type_info->pointer_level;
-        int star_count = pointer_level - dereference_count;
 
         char *stars = NULL;
-        if(star_count > 0) {
-            stars = arena_alloc(parser->temp_arena, sizeof(char) * star_count);
-            memset(stars, '*', star_count);
+        if(pointer_level > 0) {
+            stars = arena_alloc(parser->temp_arena, sizeof(char) * pointer_level);
+            memset(stars, '*', pointer_level);
         }
 
         EAT_OR_RETURN(parser, tokens, token_count, cursor, LEXER_TOKEN_TYPE_RPAREN);
@@ -1004,6 +1024,7 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
         EAT_OR_RETURN(parser, tokens, token_count, cursor, LEXER_TOKEN_TYPE_STOF);
         EAT_OR_RETURN(parser, tokens, token_count, cursor, LEXER_TOKEN_TYPE_LPAREN);
         int dereference_count = calculate_pointer_level(tokens, cursor);
+
         struct lexer_token *type_token = eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER);
         if(NULL == type_token) {
             C_LOG_ERR("expected an identifier for \"stof\"on line: %d", line_number);
@@ -1016,7 +1037,13 @@ struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct
             parser->successful = 0;
             return NULL;
         }
-        struct type_info *type_info = type_table_get_or_create_pointer_type_info(parser->type_table, sym->type->name, sym->type->pointer_level-dereference_count);
+        int pointer_level = sym->type->pointer_level;
+        struct type_info *type_info = sym->type;
+        struct str_view type_name = sym->type->name;
+        type_info = type_table_get_or_create_pointer_type_info(parser->type_table, type_name, pointer_level);
+        type_info = type_table_dereference(parser->type_table, type_info, dereference_count);
+
+
         if(NULL == type_info) {
             C_LOG_ERR("expected a valid type after \"(\" for \"stof\" on line: %d", line_number);
             parser->successful = 0;
@@ -1078,4 +1105,60 @@ struct parser_node *parser_parse_unary(struct parser_t *restrict parser, struct 
     }
 
     return parser_parse_factor(parser, tokens, token_count, cursor);
+}
+
+
+struct type_info *parser_parse_array_declaration(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor) {
+    EAT_OR_RETURN(parser, tokens, token_count, cursor, LEXER_TOKEN_TYPE_LBRACKET);
+
+    int pointer_level = calculate_pointer_level(tokens, cursor);
+    bool is_array_declaration = tokens[*cursor].type == LEXER_TOKEN_TYPE_LBRACKET;
+    struct type_info *element_info = NULL;
+    if(is_array_declaration) {
+        element_info = parser_parse_array_declaration(parser, tokens, token_count, cursor);
+        element_info = type_table_get_or_create_pointer_type_info(parser->type_table, element_info->name, pointer_level);
+    }else {
+        element_info = type_table_get_or_create_pointer_type_info(parser->type_table, tokens[*cursor].str_view, pointer_level);
+        EAT_OR_RETURN(parser, tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER);
+    }
+
+    EAT_OR_RETURN(parser, tokens, token_count, cursor, LEXER_TOKEN_TYPE_COMMA);
+    struct parser_node *element_count_node = parser_parse_bitwise_or(parser, tokens, token_count, cursor);
+    int64_t element_count = parser_evaluate_int(element_count_node);
+    EAT_OR_RETURN(parser, tokens, token_count, cursor, LEXER_TOKEN_TYPE_RBRACKET);
+
+    struct type_info *array_info = type_table_get_or_create_array_info(parser->type_table, element_info, element_count);
+    return array_info;
+}
+
+int64_t parser_evaluate_int(struct parser_node *node) {
+    if(!node) return 0;
+    int64_t res = 0;
+    int64_t src1_val = parser_evaluate_int(node->left_node);
+    int64_t src2_val = parser_evaluate_int(node->right_node);
+    switch (node->type) {
+        case PARSER_NODE_PLUS:          res = src1_val + src2_val; break;
+        case PARSER_NODE_MINUS:         res = src1_val - src2_val; break;
+        case PARSER_NODE_DIVIDE:        if (src2_val != 0) res = src1_val / src2_val; 
+                                        else res = 0;
+                                        break;
+        case PARSER_NODE_MOD:           if(src2_val != 0) res = src1_val % src2_val;
+                                        else res = 0;
+                                        break;
+        case PARSER_NODE_MUL:           res = src1_val * src2_val; break;
+        case PARSER_NODE_SHL:           res = src1_val << src2_val; break;
+        case PARSER_NODE_SHR:           res = src1_val >> src2_val; break;
+        case PARSER_NODE_BITWISE_AND:   res = src1_val & src2_val; break;
+        case PARSER_NODE_BITWISE_OR:    res = src1_val | src2_val; break;
+        case PARSER_NODE_BITWISE_XOR:   res = src1_val ^ src2_val; break;
+        case PARSER_NODE_EQUAL_EQUAL:   res = src1_val == src2_val; break;
+        case PARSER_NODE_GREATER_EQUAL: res = src1_val >= src2_val; break;
+        case PARSER_NODE_LESS_EQUAL:    res = src1_val <= src2_val; break;
+        case PARSER_NODE_GREATER:       res = src1_val > src2_val; break;
+        case PARSER_NODE_LESS:          res = src1_val < src2_val; break;
+        case PARSER_NODE_NUMBER:        res = str_view_to_int(node->data.literal_data); break;
+        default: break;
+    }
+
+    return res;
 }

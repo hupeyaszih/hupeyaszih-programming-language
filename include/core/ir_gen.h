@@ -16,6 +16,7 @@ enum IR_Instruction_type {
     IR_INSTRUCTION_TYPE_ALLOCA,
     IR_INSTRUCTION_TYPE_LOAD,
     IR_INSTRUCTION_TYPE_STORE,
+    IR_INSTRUCTION_TYPE_STORE_INDIRECT,
     IR_INSTRUCTION_TYPE_EQUAL_EQUAL,
     IR_INSTRUCTION_TYPE_BANG_EQUAL,
     IR_INSTRUCTION_TYPE_LESS_EQUAL,
@@ -34,6 +35,7 @@ enum IR_Instruction_type {
     IR_INSTRUCTION_TYPE_UNARY_MINUS,
     IR_INSTRUCTION_TYPE_UNARY_ADDRESS_OF,
     IR_INSTRUCTION_TYPE_UNARY_DEREFERENCE,
+    IR_INSTRUCTION_TYPE_GEP,
     IR_INSTRUCTION_TYPE_PLUS,
     IR_INSTRUCTION_TYPE_MINUS,
     IR_INSTRUCTION_TYPE_DIVIDE,
@@ -69,6 +71,7 @@ static inline enum IR_Instructions_Operands_type IR_get_Instructions_Operands_ty
         case IR_INSTRUCTION_TYPE_CAST:
         case IR_INSTRUCTION_TYPE_MOV:
         case IR_INSTRUCTION_TYPE_LOAD:
+        case IR_INSTRUCTION_TYPE_STORE_INDIRECT:
         case IR_INSTRUCTION_TYPE_STORE: return IR_INSTRUCTIONS_OPERANDS_TYPE_DOUBLE;
 
         case IR_INSTRUCTION_TYPE_BITWISE_AND:
@@ -82,6 +85,7 @@ static inline enum IR_Instructions_Operands_type IR_get_Instructions_Operands_ty
         case IR_INSTRUCTION_TYPE_GREATER_EQUAL:
         case IR_INSTRUCTION_TYPE_LESS:
         case IR_INSTRUCTION_TYPE_GREATER:
+        case IR_INSTRUCTION_TYPE_GEP:
         case IR_INSTRUCTION_TYPE_PLUS:
         case IR_INSTRUCTION_TYPE_MINUS:
         case IR_INSTRUCTION_TYPE_MOD:
@@ -151,6 +155,7 @@ struct IR_Operand {
         struct {
             struct live_interval_t live_interval;
             struct stack_slot_t *stack_slot;
+            int stack_slot_id;
         } slot;
         struct {
             struct str_view value;
@@ -290,6 +295,7 @@ struct IR_Function {
     int instruction_count; // Total instruction count in the function
     int parameter_count;
     int vreg_counter;
+    int stack_slot_counter;
     int stack_size;
     int stack_size_for_args;
 

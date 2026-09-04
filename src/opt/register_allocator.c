@@ -332,7 +332,7 @@ void register_allocator_run_allocator(struct register_allocator_t *allocator, st
 
     for(int i = 0;i < vreg_count; ++i) {
         struct IR_Operand *vreg = *(struct IR_Operand **) vector_get(vregs, i);
-        if(IR_OPERAND_TYPE_UNDEFINED == vreg->type) {
+        if(IR_OPERAND_TYPE_VREG != vreg->type) {
             continue;
         }
         struct graph_node node;
@@ -409,7 +409,7 @@ void register_allocator_run_allocator(struct register_allocator_t *allocator, st
     }
 
     // coalescing
-    run_coalescing(allocator, function, nodes);
+    // run_coalescing(allocator, function, nodes);
 
     struct vector_t *simplifying_nodes = vector_create_vector(temp_arena, vreg_count, sizeof(struct graph_node *));
     // simplifying

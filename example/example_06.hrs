@@ -1,0 +1,48 @@
+fn main() : int32 {
+    var arr:[[int32, 3], 2];
+    var rows:int32 = 2;
+    var cols:int32 = 3;
+
+    init_matrix(***arr, rows, cols);
+    var corner:int32 = get_element(***arr, cols, 1, 2);
+    var total:int32 = sum_matrix(***arr, rows, cols);
+    total;
+}
+
+fn get_element(arr:*int32, cols:int32, row:int32, col:int32) : int32 {
+    *(arr + stof(*arr) * (row * cols + col));
+}
+
+fn init_matrix(arr:*int32, rows:int32, cols:int32) : int32 {
+    var r:int32 = 0;
+    loop {
+        r < rows;
+    } return {
+        r;
+    } continue {
+        var c:int32 = 0;
+        loop {
+            c < cols;
+        } return {
+            c;
+        } continue {
+            *(arr + stof(*arr) * (r * cols + c)) = (r * cols + c + 1) * 10;
+            c = c + 1;
+        }
+        r = r + 1;
+    }
+}
+
+fn sum_matrix(arr:*int32, rows:int32, cols:int32) : int32 {
+    var i:int32 = 0;
+    var total:int32 = 0;
+    var n:int32 = rows * cols;
+    loop {
+        i < n;
+    } return {
+        total;
+    } continue {
+        total = total + *(arr + stof(*arr) * i);
+        i = i + 1;
+    }
+}

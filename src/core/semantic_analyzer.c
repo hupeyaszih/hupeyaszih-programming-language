@@ -33,8 +33,12 @@ static inline void print_semantic_error_cannot_do_in_global(struct parser_node *
     C_LOG_ERR("Semantic: cannot use this instruction in global scope, on line %d", node->line);
 }
 
-static inline void print_semantic_error_type_infos(struct parser_node *node) {
-    C_LOG_ERR("Semantic: cannot use those types in same instruction, on line %d", node->line);
+static inline void print_semantic_error_type_infos(struct parser_node *node, struct type_info *a, struct type_info *b) {
+    if(a && b) {
+        C_LOG_ERR("Semantic: cannot use those types (ptr_level: %d" SV_FMT ", ptr_level: %d" SV_FMT ") in same instruction, on line %d", a->pointer_level, SV_ARG(a->name), b->pointer_level,SV_ARG(b->name),node->line);
+    }else {
+        C_LOG_ERR("Semantic: cannot use those types in same instruction, on line %d", node->line);
+    }
 }
 
 static inline void print_semantic_error_call_calling_function_not_found(struct parser_node *node, struct str_view calling_function_name) {
@@ -211,8 +215,9 @@ int semantic_analyzer_analyze_var_declaration(struct parser_node* node, struct s
         return 1;
     }
 
+    if(!node->right_node || !node->right_node->type_info) return 0;
     if(1 != type_table_can_that_promote_to(node->right_node->type_info, sym->type)) {
-        print_semantic_error_type_infos(node);
+        print_semantic_error_type_infos(node, node->right_node->type_info, sym->type);
         context->error = 1;
     }
     return 0;
@@ -222,7 +227,7 @@ int semantic_analyzer_analyze_assigment(struct parser_node* node, struct semanti
         return 1;
     }
     if(1 != type_table_can_that_promote_to(node->right_node->type_info, node->left_node->type_info)) {
-        print_semantic_error_type_infos(node);
+        print_semantic_error_type_infos(node, node->right_node->type_info, node->left_node->type_info);
         context->error = 1;
     }
     return 0;
@@ -304,7 +309,7 @@ struct type_info *semantic_analyzer_calculate_type_infos(struct parser_node *nod
                 node->type_info = node->data.function.return_type;
                 break;
             }
-            print_semantic_error_type_infos(node);
+            print_semantic_error_type_infos(node, info, node->data.function.return_type);
             context->error = 1;
             break;
         }case PARSER_NODE_MODULE:{
@@ -361,7 +366,7 @@ struct type_info *semantic_analyzer_calculate_type_infos(struct parser_node *nod
             break;
         }case PARSER_NODE_UNARY_BANG: {
             if(TYPE_CATEGORY_POINTER != right_type->category && TYPE_CATEGORY_BASIC != right_type->category) {
-                print_semantic_error_type_infos(node);
+                print_semantic_error_type_infos(node, right_type, NULL);
                 node->type_info = NULL;
                 context->error = 1;
                 break;
@@ -370,7 +375,7 @@ struct type_info *semantic_analyzer_calculate_type_infos(struct parser_node *nod
             break;
         }case PARSER_NODE_UNARY_NOT: {
             if(TYPE_CATEGORY_BASIC != right_type->category) {
-                print_semantic_error_type_infos(node);
+                print_semantic_error_type_infos(node, right_type, NULL);
                 node->type_info = NULL;
                 context->error = 1;
                 break;
@@ -379,7 +384,7 @@ struct type_info *semantic_analyzer_calculate_type_infos(struct parser_node *nod
             break;
         }case PARSER_NODE_UNARY_MINUS: {
             if(TYPE_CATEGORY_BASIC != right_type->category) {
-                print_semantic_error_type_infos(node);
+                print_semantic_error_type_infos(node, right_type, NULL);
                 node->type_info = NULL;
                 context->error = 1;
                 break;
@@ -387,14 +392,20 @@ struct type_info *semantic_analyzer_calculate_type_infos(struct parser_node *nod
             node->type_info = right_type;
             break;
         }case PARSER_NODE_UNARY_DEREFERENCE: {
-            if (node->right_node && node->right_node->type_info && node->right_node->type_info->pointer_level > 0 && node->right_node->type_info->points_to) {
+            if (node->right_node && node->right_node->type_info) {
 
-                node->type_info = node->right_node->type_info->points_to;
-            } else {
-                print_semantic_error_type_infos(node);
-                context->error = 1;
-                node->type_info = NULL;
+                if(node->right_node->type_info->pointer_level > 0) {
+                    node->type_info = type_table_get_or_create_pointer_type_info(context->type_table, node->right_node->type_info->name, node->right_node->type_info->pointer_level-1);
+                    break;
+                }else if(node->right_node->type_info->category == TYPE_CATEGORY_ARRAY) {
+                    node->type_info = type_table_decay_array(context->type_table, node->right_node->type_info);
+                    break;
+                }
+
             }
+            print_semantic_error_type_infos(node, node->right_node->type_info, NULL);
+            context->error = 1;
+            node->type_info = NULL;
             break;
         }case PARSER_NODE_UNARY_ADDRESS_OF: {
             int pointer_level = node->right_node->type_info->pointer_level;
@@ -458,7 +469,7 @@ struct type_info *semantic_analyzer_calculate_type_infos(struct parser_node *nod
                 else if (1 == type_table_can_that_promote_to(right_type, left_type)) {
                     right_type = left_type;
                 }else {
-                    print_semantic_error_type_infos(node);
+                    print_semantic_error_type_infos(node, left_type, right_type);
                     context->error = 1;
                     node->type_info = get_literals_type_info(context->type_table, NULL, node->type);
                 }
@@ -472,7 +483,7 @@ struct type_info *semantic_analyzer_calculate_type_infos(struct parser_node *nod
         case PARSER_NODE_SHR: {
             if (left_type && right_type) {
                 if (left_type->category != TYPE_CATEGORY_BASIC || right_type->category != TYPE_CATEGORY_BASIC) {
-                    print_semantic_error_type_infos(node);
+                    print_semantic_error_type_infos(node, left_type, right_type);
                     context->error = 1;
                     node->type_info = NULL;
                     break;
@@ -485,7 +496,7 @@ struct type_info *semantic_analyzer_calculate_type_infos(struct parser_node *nod
                 } else if (1 == type_table_can_that_promote_to(right_type, left_type)) {
                     node->type_info = left_type;
                 } else {
-                    print_semantic_error_type_infos(node);
+                    print_semantic_error_type_infos(node, left_type, right_type);
                     context->error = 1;
                     node->type_info = NULL;
                 }
@@ -529,7 +540,7 @@ struct type_info *semantic_analyzer_calculate_type_infos(struct parser_node *nod
                 }else if (1 == type_table_can_that_promote_to(right_type, left_type)) {
                     node->type_info = left_type;
                 }else {
-                    print_semantic_error_type_infos(node);
+                    print_semantic_error_type_infos(node, left_type, right_type);
                     context->error = 1;
                     node->type_info = NULL;
                     break;

@@ -159,4 +159,7 @@ struct parser_node *parser_parse_expression(struct parser_t *restrict parser, st
 struct parser_node *parser_parse_term(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
 struct parser_node *parser_parse_unary(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
 struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
+
+struct type_info *parser_parse_array_declaration(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor);
+int64_t parser_evaluate_int(struct parser_node *node);
 #endif

@@ -62,7 +62,7 @@ void x86_64_linux_emit_function_epilogue(struct codegen_context_t *context, stru
 void x86_64_linux_emit_instruction(struct codegen_context_t *context, struct IR_Instruction *instruction);
 
 void x86_64_linux_emit_reg(struct codegen_context_t *context, struct register_t *reg, enum register_size size, bool print_size);
-void x86_64_linux_emit_operand(struct codegen_context_t *context, struct IR_Operand *op, enum register_size size, bool print_size);
+void x86_64_linux_emit_operand(struct codegen_context_t *context, struct IR_Operand *op, enum register_size size, bool print_size, bool print_brackets);
 void x86_64_linux_emit_reg_size(struct codegen_context_t *context, enum register_size size);
 
 struct register_t *x86_64_linux_get_reg_with_arg_index(struct register_list_t *list, int arg_index);

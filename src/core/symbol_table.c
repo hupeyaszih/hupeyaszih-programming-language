@@ -3,6 +3,8 @@
 #include "core/globals.h"
 #include "h_string_view.h"
 #include "h_vector.h"
+#include <assert.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,7 +58,9 @@ struct symbol_t *symbol_table_define(struct symbol_table *restrict table, struct
     s->type = type;
     s->kind = kind;
     s->pointer_level = pointer_level;
-    if(!is_global) {
+    if(type->category == TYPE_CATEGORY_ARRAY) {
+        s->location_kind = LOCATION_STACK;
+    }else if(!is_global) {
         s->location_kind = LOCATION_VREG;
     }else {
         s->location_kind = LOCATION_GLOBAL;
@@ -157,9 +161,66 @@ struct type_info *type_table_get_or_create_pointer_type_info(struct type_table *
     return info;
 }
 
+struct type_info *type_table_dereference(struct type_table *type_table, struct type_info *type, int dereference_count) {
+    while(dereference_count > 0) {
+        if(type->category == TYPE_CATEGORY_ARRAY) {
+            type = type_table_decay_array(type_table, type);
+        }else {
+            type = type_table_get_or_create_pointer_type_info(type_table, type->name, type->pointer_level-1);
+        }
+        --dereference_count;
+    }
+    return type;
+}
+
+struct type_info *type_table_create_array_info(struct type_table *table, struct type_info *element_info, size_t element_count) {
+    size_t size = element_count * element_info->size;
+
+    struct str_view name = str_view_fmt(table->arena, "[ptr:%d " SV_FMT ", %ld]", element_info->pointer_level, SV_ARG(element_info->name), element_count);
+
+    struct type_info *decayed_type = type_table_get_or_create_pointer_type_info(table, element_info->name, element_info->pointer_level + 1);
+    struct type_info *array_info = type_table_create_type_info(table->arena, name, TYPE_CATEGORY_ARRAY, size, NULL, decayed_type, false);
+
+    array_info->array.element_info = element_info;
+    array_info->array.element_count = element_count;
+
+    type_table_insert(table, array_info);
+    return array_info;
+}
+struct type_info *type_table_get_array_info(struct type_table *table, struct type_info *element_info, size_t element_count) {
+    for(int i = 0; i < table->types->element_count; ++i) {
+        struct type_info *info = *(struct type_info **) vector_get(table->types, i);
+        if(!info) continue;
+        if(info->category != TYPE_CATEGORY_ARRAY) continue;
+        if(info->array.element_count != element_count) continue;
+        if(info->array.element_info->type_id != element_info->type_id) continue;
+        return info;
+    }
+    return NULL;
+}
+struct type_info *type_table_get_or_create_array_info(struct type_table *table, struct type_info *element_info, size_t element_count) {
+    struct type_info *array_info = type_table_get_array_info(table, element_info, element_count);
+    if(array_info) return array_info;
+    return type_table_create_array_info(table, element_info, element_count);
+}
+struct type_info *type_table_decay_array(struct type_table *table, struct type_info *array_info) {
+    if(NULL == array_info->promotable_type) {
+        struct type_info *decayed_type = NULL;
+        if(array_info->pointer_level == 0) {
+            decayed_type = type_table_get_or_create_pointer_type_info(table, array_info->array.element_info->name, array_info->array.element_info->pointer_level + 1);
+            array_info->promotable_type = decayed_type;
+        }else {
+            decayed_type = type_table_get_or_create_pointer_type_info(table, array_info->name, array_info->pointer_level - 1);
+        }
+        return decayed_type;
+    }
+    return array_info->promotable_type;
+}
+
 void type_table_insert(struct type_table *table, struct type_info *info) {
     vector_add(table->types, &info);
 }
+
 
 struct type_info *get_literals_type_info(struct type_table *type_table, struct type_info *target_info, enum parser_node_type literal_type) {
     switch (literal_type) {

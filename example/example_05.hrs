@@ -1,0 +1,43 @@
+fn main() : int32 {
+    var arr:[int32, 4];
+    var len:int32 = 4;
+
+    init_array(*arr, len);
+    sum_of_array(*arr, len);
+}
+
+fn init_array(arr:*int32, len:int32) : int32{
+    var i:int32 = 0;
+    loop {
+        i < len;
+    }return {
+        i;
+    }continue {
+        *(arr + stof(*arr) * i) = (i+1)*10;
+        i = i + 1;
+    }
+}
+
+fn sum_of_array(arr:*int32, len:int32) : int32{
+    var i:int32 = 0;
+    var total:int32 = 0;
+    loop {
+        i < len;
+    }return {
+        total;
+    }continue {
+        total = total + *(arr + stof(*arr) * i);
+        i = i + 1;
+    }
+}
+
+fn print(buffer_ptr: *char, length: int32) : int32 {
+    asm "
+    mov rdx, rsi
+    mov rsi, rdi
+    mov rdi, 1
+    mov rax, 1
+    syscall";
+
+    0;
+}

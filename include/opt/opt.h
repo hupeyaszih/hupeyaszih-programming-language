@@ -22,7 +22,6 @@ struct opt_context_t {
 };
 
 
-
 void opt_optimize_project(struct IR_Project *restrict project, struct codegen_t *codegen, enum optimization_level opt_level);
 void opt_optimize_module(struct opt_context_t *context, struct IR_Module *restrict module);
 

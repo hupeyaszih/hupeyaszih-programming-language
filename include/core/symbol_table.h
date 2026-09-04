@@ -29,6 +29,13 @@ struct type_info {
     struct str_view name;                     // "int32", "float32" or "Point"
     struct symbol_table *members;   // For structs (not supported yet!)
 
+    union {
+        struct {
+            struct type_info *element_info;
+            size_t element_count;
+        }array;
+    };
+
     size_t size;                    // Byte
     enum type_category category;    // BASIC (int, float), STRUCT, ARRAY, POINTER
 
@@ -116,6 +123,13 @@ struct type_info *type_table_get_or_create_pointer_type_info(struct type_table *
 
 struct type_info *get_literals_type_info(struct type_table *type_table, struct type_info *target_info, enum parser_node_type literal_type);
 
+struct type_info *type_table_create_array_info(struct type_table *table, struct type_info *element_info, size_t element_count);
+struct type_info *type_table_get_array_info(struct type_table *table, struct type_info *element_info, size_t element_count);
+struct type_info *type_table_get_or_create_array_info(struct type_table *table, struct type_info *element_info, size_t element_count);
+struct type_info *type_table_decay_array(struct type_table *table, struct type_info *array_info);
+
+struct type_info *type_table_dereference(struct type_table *type_table, struct type_info *type, int dereference_count);
+
 void type_table_insert(struct type_table *table, struct type_info *info);
 
 static inline void type_table_init_builtins(struct type_table *table) {
@@ -158,7 +172,7 @@ static inline int type_table_can_that_promote_to(struct type_info *type, struct 
     if (NULL == type || NULL == target_type) return 0;
     if (type->type_id == target_type->type_id) return 1;
 
-    if(type->can_promote_to_memory_address && target_type->points_to) return 1;
+    if(type->can_promote_to_memory_address && target_type->pointer_level > 0) return 1;
 
     for(struct type_info *curr = type; curr != NULL; curr = curr->promotable_type) {
         if(curr->can_promote_to_memory_address && target_type->points_to) return 1;

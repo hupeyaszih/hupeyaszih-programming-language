@@ -8,6 +8,7 @@
 #include "h_string_view.h"
 #include "h_vector.h"
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdio.h>
 
 struct codegen_build_target_t *x86_64_linux_create_build_target(struct arena *arena) {
@@ -351,7 +352,7 @@ void x86_64_linux_emit_movsx_operand_to_reg(struct codegen_context_t *context, s
     codegen_emit(context->file, "    movsx ");
     x86_64_linux_emit_reg(context, dest, dest_size, true);
     codegen_emit(context->file, ", ");
-    x86_64_linux_emit_operand(context, src, codegen_get_register_size_from_operand(src), true);
+    x86_64_linux_emit_operand(context, src, codegen_get_register_size_from_operand(src), true, true);
     codegen_emit(context->file, "\n");
 }
 void x86_64_linux_emit_mov_operand_to_reg(struct codegen_context_t *context, struct register_t *dest, struct IR_Operand *src) {
@@ -362,14 +363,14 @@ void x86_64_linux_emit_mov_operand_to_reg(struct codegen_context_t *context, str
         codegen_emit(context->file, "    mov ");
         x86_64_linux_emit_reg(context, dest, src_size, true);
         codegen_emit(context->file, ", ");
-        x86_64_linux_emit_operand(context, src, src_size, true);
+        x86_64_linux_emit_operand(context, src, src_size, true, true);
         codegen_emit(context->file, "#op (stack) to reg\n");
         return;
     }else if(IR_OPERAND_TYPE_IMM == src->type) {
         codegen_emit(context->file, "    mov ");
         x86_64_linux_emit_reg(context, dest, dest_size, true);
         codegen_emit(context->file, ", ");
-        x86_64_linux_emit_operand(context, src, dest_size, true);
+        x86_64_linux_emit_operand(context, src, dest_size, true, true);
         codegen_emit(context->file, "#op (imm) to reg\n");
         return;
     }else if(IR_OPERAND_TYPE_VREG == src->type) {
@@ -384,7 +385,7 @@ void x86_64_linux_emit_mov_operand_to_reg(struct codegen_context_t *context, str
             x86_64_linux_emit_reg(context, dest, src_size, true);
         }
         codegen_emit(context->file, ", ");
-        x86_64_linux_emit_operand(context, src, src_size, true);
+        x86_64_linux_emit_operand(context, src, src_size, true, true);
         codegen_emit(context->file, " #global to reg\n");
 
         return;
@@ -399,21 +400,21 @@ void x86_64_linux_emit_mov_reg_to_operand(struct codegen_context_t *context, str
         return;
     }else if(IR_OPERAND_TYPE_STACK_SLOT == dest->type) {
         codegen_emit(context->file, "    mov ");
-        x86_64_linux_emit_operand(context, dest, size, true);
+        x86_64_linux_emit_operand(context, dest, size, true, true);
         codegen_emit(context->file, ", ");
         x86_64_linux_emit_reg(context, src, size, true);
         codegen_emit(context->file, "#reg to op (slot)\n");
         return;
     }else if(IR_OPERAND_TYPE_IMM == dest->type) {
         codegen_emit(context->file, "    mov ");
-        x86_64_linux_emit_operand(context, dest, size, true);
+        x86_64_linux_emit_operand(context, dest, size, true, true);
         codegen_emit(context->file, ", ");
         x86_64_linux_emit_reg(context, src, size, true);
         codegen_emit(context->file, "#reg to op (imm)\n");
         return;
     }else if (IR_OPERAND_TYPE_GLOBAL == dest->type) {
         codegen_emit(context->file, "    mov ");
-        x86_64_linux_emit_operand(context, dest, size, true);
+        x86_64_linux_emit_operand(context, dest, size, true, true);
         codegen_emit(context->file, ", ");
         x86_64_linux_emit_reg(context, src, size, true);
         codegen_emit(context->file, " # reg to global\n");
@@ -607,24 +608,28 @@ void x86_64_linux_emit_function_epilogue(struct codegen_context_t *context, stru
 void emit_cast_instruction(struct codegen_context_t *context, struct IR_Instruction *instruction) {
     struct IR_Operand *src = instruction->operands.double_operands.source_1;
     struct IR_Operand *dest = instruction->operands.double_operands.destination;
-    struct register_t *src_reg = x86_64_linux_ensure_operand_is_register(context, src);
 
     enum register_size src_size = codegen_get_register_size_from_operand(src);
     enum register_size dest_size = codegen_get_register_size_from_operand(dest);
 
     if(dest_size > src_size) {
+        struct register_t *dest_reg = x86_64_linux_ensure_operand_is_register(context, dest);
+        struct register_t *src_reg = x86_64_linux_ensure_operand_is_register(context, src);
+
         codegen_emit(context->file, "    movsx ");
-        x86_64_linux_emit_operand(context, dest, dest_size, false);
+        x86_64_linux_emit_reg(context, dest_reg, dest_size, false);
         codegen_emit(context->file, ", ");
         x86_64_linux_emit_reg(context, src_reg, src_size, false);
         codegen_emit(context->file, "\n");
+
+        x86_64_linux_emit_mov_reg_to_operand(context, dest, dest_reg);
+
         x86_64_linux_set_free_reserved_register(context->build_target->registers, src_reg);
-    }else if(dest_size < src_size) {
-        return;
-    } else {
+        x86_64_linux_set_free_reserved_register(context->build_target->registers, dest_reg);
         return;
     }
-    x86_64_linux_set_free_reserved_register(context->build_target->registers, src_reg);
+
+    x86_64_linux_emit_mov_operand_to_operand(context, dest, src);
 }
 
 
@@ -652,18 +657,20 @@ void emit_comparison_instructions(struct codegen_context_t *context, struct IR_I
     codegen_emit(context->file, "    cmp ");
     x86_64_linux_emit_reg(context, src1_reg, size, true);
     codegen_emit(context->file, ", ");
-    x86_64_linux_emit_operand(context, src2, size, true);
+    x86_64_linux_emit_operand(context, src2, size, true, true);
     codegen_emit(context->file, "\n");
 
     codegen_emit(context->file, "    %s ", instruction_str);
     x86_64_linux_emit_reg(context, dest_reg, REGISTER_SIZE_8, true);
     codegen_emit(context->file, "\n");
 
-    codegen_emit(context->file, "    movzx ");
-    x86_64_linux_emit_reg(context, dest_reg, REGISTER_SIZE_64, true);
-    codegen_emit(context->file, ", ");
-    x86_64_linux_emit_reg(context, dest_reg, REGISTER_SIZE_8, true);
-    codegen_emit(context->file, "\n");
+    // codegen_emit(context->file, "    movzx ");
+    // x86_64_linux_emit_reg(context, dest_reg, REGISTER_SIZE_64, true);
+    // codegen_emit(context->file, ", ");
+    // x86_64_linux_emit_reg(context, dest_reg, REGISTER_SIZE_8, true);
+    // codegen_emit(context->file, "\n");
+
+    x86_64_linux_emit_mov_reg_to_operand(context, dest, dest_reg);
 
     x86_64_linux_set_free_reserved_register(context->build_target->registers, src1_reg);
     x86_64_linux_set_free_reserved_register(context->build_target->registers, dest_reg);
@@ -706,15 +713,16 @@ void emit_arithmetic_instructions(struct codegen_context_t *context, struct IR_I
         if(REGISTER_SIZE_8 == size) {  // imul source_2
             struct register_t *rax = context->build_target->registers->registers + X86_64_RAX;
 
+            x86_64_linux_emit_mov_operand_to_reg(context, rax, src1);
+
             struct register_t *src2_reg = x86_64_linux_ensure_operand_is_register(context, src2);
             codegen_emit(context->file, "    %s ", instruction_str);
             x86_64_linux_emit_reg(context, src2_reg, size, false);
             codegen_emit(context->file, "    \n");
 
-            x86_64_linux_set_free_reserved_register(context->build_target->registers, src2_reg);
-
             x86_64_linux_emit_mov_reg_to_operand(context, dest, rax);
 
+            x86_64_linux_set_free_reserved_register(context->build_target->registers, src2_reg);
             goto exit;
         }
 
@@ -723,7 +731,7 @@ void emit_arithmetic_instructions(struct codegen_context_t *context, struct IR_I
                 struct register_t *src2_reg = x86_64_linux_ensure_operand_is_register(context, src2);
 
                 codegen_emit(context->file, "    %s ", instruction_str);
-                x86_64_linux_emit_operand(context, dest, size, false);
+                x86_64_linux_emit_operand(context, dest, size, false, true);
                 codegen_emit(context->file, ", ", instruction_str);
                 x86_64_linux_emit_reg(context, src2_reg, size, false);
                 codegen_emit(context->file, "\n", instruction_str);
@@ -733,9 +741,9 @@ void emit_arithmetic_instructions(struct codegen_context_t *context, struct IR_I
             }
 
             codegen_emit(context->file, "    %s ", instruction_str);
-            x86_64_linux_emit_operand(context, dest, size, false);
+            x86_64_linux_emit_operand(context, dest, size, false, true);
             codegen_emit(context->file, ", ", instruction_str);
-            x86_64_linux_emit_operand(context, src2, size, false);
+            x86_64_linux_emit_operand(context, src2, size, false, true);
             codegen_emit(context->file, "\n", instruction_str);
             goto exit;
         }
@@ -746,10 +754,12 @@ void emit_arithmetic_instructions(struct codegen_context_t *context, struct IR_I
             codegen_emit(context->file, "    %s ", instruction_str);
             x86_64_linux_emit_reg(context, dest_reg, size, false);
             codegen_emit(context->file, ", ", instruction_str);
-            x86_64_linux_emit_operand(context, src1, size, false);
+            x86_64_linux_emit_operand(context, src1, size, false, true);
             codegen_emit(context->file, ", ", instruction_str);
-            x86_64_linux_emit_operand(context, src2, size, false);
+            x86_64_linux_emit_operand(context, src2, size, false, true);
             codegen_emit(context->file, "\n", instruction_str);
+
+            x86_64_linux_emit_mov_reg_to_operand(context, dest, dest_reg);
 
             x86_64_linux_set_free_reserved_register(context->build_target->registers, dest_reg);
             goto exit;
@@ -761,11 +771,12 @@ void emit_arithmetic_instructions(struct codegen_context_t *context, struct IR_I
         struct register_t *src2_reg = x86_64_linux_ensure_operand_is_register(context, src2);
 
         x86_64_linux_emit_mov_operand_to_reg(context, dest_reg, src1);
+
         codegen_emit(context->file, "    %s ", instruction_str);
         x86_64_linux_emit_reg(context, dest_reg, size, false);
-        codegen_emit(context->file, ", ", instruction_str);
+        codegen_emit(context->file, ", ");
         x86_64_linux_emit_reg(context, src2_reg, size, false);
-        codegen_emit(context->file, "\n", instruction_str);
+        codegen_emit(context->file, "\n");
 
         x86_64_linux_emit_mov_reg_to_operand(context, dest, dest_reg);
         
@@ -806,13 +817,13 @@ void emit_arithmetic_instructions(struct codegen_context_t *context, struct IR_I
         codegen_emit(context->file, "    idiv ");
         x86_64_linux_emit_reg(context, src2_reg, size, false);
         codegen_emit(context->file, "\n");
+        x86_64_linux_set_free_reserved_register(context->build_target->registers, src2_reg);
 
         struct register_t *res_reg = rax;
         if(size != REGISTER_SIZE_8) {
             res_reg = IR_INSTRUCTION_TYPE_DIVIDE == instruction->type ? rax : rdx;
         }
         x86_64_linux_emit_mov_reg_to_operand(context, dest, res_reg);
-        x86_64_linux_set_free_reserved_register(context->build_target->registers, src2_reg);
         goto exit;
     }
 
@@ -824,16 +835,16 @@ void emit_arithmetic_instructions(struct codegen_context_t *context, struct IR_I
             x86_64_linux_emit_mov_operand_to_reg(context, cl_reg, src2);
 
             codegen_emit(context->file, "    %s ", instruction_str);
-            x86_64_linux_emit_operand(context, dest, size, false);
+            x86_64_linux_emit_operand(context, dest, size, false, true);
             codegen_emit(context->file, ", %s\n", cl_str);
             goto exit;
         }
 
         x86_64_linux_emit_mov_operand_to_operand(context, dest, src1);
         codegen_emit(context->file, "    %s ", instruction_str);
-        x86_64_linux_emit_operand(context, dest, size, false);
+        x86_64_linux_emit_operand(context, dest, size, false, true);
         codegen_emit(context->file, ", ");
-        x86_64_linux_emit_operand(context, src2, size, false);
+        x86_64_linux_emit_operand(context, src2, size, false, true);
         codegen_emit(context->file, "\n");
         goto exit;
     }
@@ -845,7 +856,7 @@ void emit_arithmetic_instructions(struct codegen_context_t *context, struct IR_I
             struct register_t *src2_reg = x86_64_linux_ensure_operand_is_register(context, src2);
 
             codegen_emit(context->file, "    %s ", instruction_str);
-            x86_64_linux_emit_operand(context, dest, size, false);
+            x86_64_linux_emit_operand(context, dest, size, false, true);
             codegen_emit(context->file, ", ", instruction_str);
             x86_64_linux_emit_reg(context, src2_reg, size, false);
             codegen_emit(context->file, "\n", instruction_str);
@@ -854,9 +865,9 @@ void emit_arithmetic_instructions(struct codegen_context_t *context, struct IR_I
             goto exit;
         }
         codegen_emit(context->file, "    %s ", instruction_str);
-        x86_64_linux_emit_operand(context, dest, size, false);
+        x86_64_linux_emit_operand(context, dest, size, false, true);
         codegen_emit(context->file, ", ", instruction_str);
-        x86_64_linux_emit_operand(context, src2, size, false);
+        x86_64_linux_emit_operand(context, src2, size, false, true);
         codegen_emit(context->file, "\n", instruction_str);
         goto exit;
     }
@@ -866,7 +877,7 @@ void emit_arithmetic_instructions(struct codegen_context_t *context, struct IR_I
         struct register_t *src2_reg = x86_64_linux_ensure_operand_is_register(context, src2);
 
         codegen_emit(context->file, "    %s ", instruction_str);
-        x86_64_linux_emit_operand(context, dest, size, false);
+        x86_64_linux_emit_operand(context, dest, size, false, true);
         codegen_emit(context->file, ", ", instruction_str);
         x86_64_linux_emit_reg(context, src2_reg, size, false);
         codegen_emit(context->file, "\n", instruction_str);
@@ -877,9 +888,9 @@ void emit_arithmetic_instructions(struct codegen_context_t *context, struct IR_I
 
     x86_64_linux_emit_mov_operand_to_operand(context, dest, src1);
     codegen_emit(context->file, "    %s ", instruction_str);
-    x86_64_linux_emit_operand(context, dest, size, false);
+    x86_64_linux_emit_operand(context, dest, size, false, true);
     codegen_emit(context->file, ", ", instruction_str);
-    x86_64_linux_emit_operand(context, src2, size, false);
+    x86_64_linux_emit_operand(context, src2, size, false, true);
     codegen_emit(context->file, "\n", instruction_str);
 exit:
     return;
@@ -894,22 +905,62 @@ void x86_64_linux_emit_instruction(struct codegen_context_t *context, struct IR_
         }case IR_INSTRUCTION_TYPE_STORE: {
             struct IR_Operand *src = instruction->operands.double_operands.source_1;
             struct IR_Operand *dest = instruction->operands.double_operands.destination;
-            if(IR_OPERAND_TYPE_GLOBAL == dest->type || IR_OPERAND_TYPE_STACK_SLOT == dest->type) {
-                x86_64_linux_emit_mov_operand_to_operand(context, dest, src);
-                codegen_emit(context->file, "\n");
-                break;
-            }
 
+            x86_64_linux_emit_mov_operand_to_operand(context, dest, src);
+            codegen_emit(context->file, "\n");
+            break;
+        }case IR_INSTRUCTION_TYPE_STORE_INDIRECT: {
+            struct IR_Operand *src = instruction->operands.double_operands.source_1;
+            struct IR_Operand *dest = instruction->operands.double_operands.destination;
+
+            struct register_t *dest_reg = x86_64_linux_ensure_operand_is_register(context, dest);
             struct register_t *src_reg = x86_64_linux_ensure_operand_is_register(context, src);
             enum register_size size = codegen_get_register_size_from_operand(src);
-            // mov [dest], src
+
             codegen_emit(context->file, "    mov [ ");
-            x86_64_linux_emit_operand(context, dest, REGISTER_SIZE_64, true);
+            x86_64_linux_emit_reg(context, dest_reg, REGISTER_SIZE_64, true);
             codegen_emit(context->file, "], ");
             x86_64_linux_emit_reg(context, src_reg, size, true);
             codegen_emit(context->file, "\n");
+
             x86_64_linux_set_free_reserved_register(context->build_target->registers, src_reg);
+            x86_64_linux_set_free_reserved_register(context->build_target->registers, dest_reg);
             break; 
+        }case IR_INSTRUCTION_TYPE_GEP: {
+            struct IR_Operand *dest       = instruction->operands.triple_operands.destination;
+            struct IR_Operand *array_addr = instruction->operands.triple_operands.source_1;
+            struct IR_Operand *index      = instruction->operands.triple_operands.source_2;
+
+            enum register_size dest_size = codegen_get_register_size_from_operand(dest);
+            struct register_t *dest_reg = x86_64_linux_ensure_operand_is_register(context, dest);
+
+            // TODO:
+            if(index->type == IR_OPERAND_TYPE_IMM) {
+                codegen_emit(context->file, "    lea ");
+                x86_64_linux_emit_reg(context, dest_reg, dest_size, true);
+                codegen_emit(context->file, ", [");
+                x86_64_linux_emit_operand(context, array_addr, dest_size, false, false);
+                codegen_emit(context->file, "-");
+                x86_64_linux_emit_operand(context, index, dest_size, false, false);
+                codegen_emit(context->file, "]\n");
+            }else {
+                struct register_t *index_reg = x86_64_linux_ensure_operand_is_register(context, index);
+
+                codegen_emit(context->file, "    lea ");
+                x86_64_linux_emit_reg(context, dest_reg, dest_size, true);
+                codegen_emit(context->file, ", [");
+                x86_64_linux_emit_operand(context, array_addr, dest_size, false, false);
+                codegen_emit(context->file, "-");
+                x86_64_linux_emit_reg(context, index_reg, dest_size, false);
+                codegen_emit(context->file, "]\n");
+
+                x86_64_linux_set_free_reserved_register(context->build_target->registers, index_reg);
+            }
+
+            x86_64_linux_emit_mov_reg_to_operand(context, dest, dest_reg);
+
+            x86_64_linux_set_free_reserved_register(context->build_target->registers, dest_reg);
+            break;
         }
         case IR_INSTRUCTION_TYPE_BITWISE_AND:   emit_arithmetic_instructions(context, instruction); break;
         case IR_INSTRUCTION_TYPE_BITWISE_OR:    emit_arithmetic_instructions(context, instruction); break;
@@ -951,7 +1002,7 @@ void x86_64_linux_emit_instruction(struct codegen_context_t *context, struct IR_
             }else {
                 x86_64_linux_emit_mov_operand_to_operand(context, dest, src);
                 codegen_emit(context->file, "    %s ", instr_name);
-                x86_64_linux_emit_operand(context, dest, size, true);
+                x86_64_linux_emit_operand(context, dest, size, true, true);
                 codegen_emit(context->file, "\n");
             }
 
@@ -967,8 +1018,10 @@ void x86_64_linux_emit_instruction(struct codegen_context_t *context, struct IR_
             codegen_emit(context->file, "    lea ");
             x86_64_linux_emit_reg(context, dest_reg, REGISTER_SIZE_64, false);
             codegen_emit(context->file, ", ");
-            x86_64_linux_emit_operand(context, src, src_size, false);
+            x86_64_linux_emit_operand(context, src, src_size, false, true);
             codegen_emit(context->file, "\n");
+
+            x86_64_linux_emit_mov_reg_to_operand(context, dest, dest_reg);
 
             x86_64_linux_set_free_reserved_register(context->build_target->registers, dest_reg);
             break;
@@ -1055,17 +1108,19 @@ void x86_64_linux_emit_instruction(struct codegen_context_t *context, struct IR_
                 int arg_count = args->element_count;
 
 
+                struct vector_t *args_to_graph = vector_create_vector(context->codegen->temp_arena, arg_count, sizeof(struct IR_Operand *));
                 struct vector_t *out_regs = vector_create_vector(context->codegen->temp_arena, arg_count, sizeof(struct register_t *));
                 for(int i = 0;i < arg_count; ++i) {
                     struct IR_Operand *op = *(struct IR_Operand **)vector_get(target_block->params, i);
+                    struct IR_Operand *arg = *(struct IR_Operand **)vector_get(args, i);
                     if(op->type != IR_OPERAND_TYPE_VREG) {
-                        struct IR_Operand *arg = *(struct IR_Operand **)vector_get(args, i);
                         x86_64_linux_emit_mov_operand_to_operand(context, op, arg);
                         continue;
                     }
+                    vector_add(args_to_graph, &arg);
                     vector_add(out_regs, &(op->data.vreg.reg));
                 }
-                codegen_utils_emit_call_args(context->codegen->temp_arena, context, args, out_regs, arg_count);
+                if(args_to_graph)codegen_utils_emit_call_args(context->codegen->temp_arena, context, args_to_graph, out_regs, args_to_graph->element_count);
             }
 
             codegen_emit(context->file, "    jmp ." SV_FMT "\n", SV_ARG(target_block->mangled_name));
@@ -1078,22 +1133,24 @@ void x86_64_linux_emit_instruction(struct codegen_context_t *context, struct IR_
 
 
                 codegen_emit(context->file, "    cmp ");
-                x86_64_linux_emit_operand(context, condition, codegen_get_register_size_from_operand(condition), true);
+                x86_64_linux_emit_operand(context, condition, codegen_get_register_size_from_operand(condition), true, true);
                 codegen_emit(context->file, ", 0\n");
 
                 if(args) {
                     int arg_count = args->element_count;
+                    struct vector_t *args_to_graph = vector_create_vector(context->codegen->temp_arena, arg_count, sizeof(struct IR_Operand *));
                     struct vector_t *out_regs = vector_create_vector(context->codegen->temp_arena, arg_count, sizeof(struct register_t *));
                     for(int i = 0;i < arg_count; ++i) {
                         struct IR_Operand *op = *(struct IR_Operand **)vector_get(target_block->params, i);
+                        struct IR_Operand *arg = *(struct IR_Operand **)vector_get(args, i);
                         if(op->type != IR_OPERAND_TYPE_VREG) {
-                            struct IR_Operand *arg = *(struct IR_Operand **)vector_get(args, i);
                             x86_64_linux_emit_mov_operand_to_operand(context, op, arg);
                             continue;
                         }
+                        vector_add(args_to_graph, &arg);
                         vector_add(out_regs, &(op->data.vreg.reg));
                     }
-                    codegen_utils_emit_call_args(context->codegen->temp_arena, context, args, out_regs, arg_count);
+                    if(args_to_graph)codegen_utils_emit_call_args(context->codegen->temp_arena, context, args_to_graph, out_regs, args_to_graph->element_count);
                 }
 
                 codegen_emit(context->file, "    je ." SV_FMT "\n", SV_ARG(target_block->mangled_name));
@@ -1133,7 +1190,9 @@ void x86_64_linux_emit_reg(struct codegen_context_t *context, struct register_t 
     codegen_emit(context->file, "%s ", reg_str);
 }
 
-void x86_64_linux_emit_operand(struct codegen_context_t *context, struct IR_Operand *op, enum register_size size, bool print_size) {
+void x86_64_linux_emit_operand(struct codegen_context_t *context, struct IR_Operand *op, enum register_size size, bool print_size, bool print_brackets) {
+    char *l_bracket = print_brackets ? "[" : "";
+    char *r_bracket = print_brackets ? "]" : "";
     switch (op->type) {
         case IR_OPERAND_TYPE_IMM: {
             codegen_emit(context->file, SV_FMT " ", SV_ARG(op->data.imm_value)); 
@@ -1151,20 +1210,20 @@ void x86_64_linux_emit_operand(struct codegen_context_t *context, struct IR_Oper
                 codegen_emit(context->file, "PTR ");
 
                 if(slot->is_argument) {
-                    codegen_emit(context->file, "[rbp + %d] ", slot->stack_offset+16);
+                    codegen_emit(context->file, "%srbp + %d%s ", l_bracket, slot->stack_offset+8, r_bracket);
                 }else {
-                    codegen_emit(context->file, "[rbp - %d] ", slot->stack_offset);
+                    codegen_emit(context->file, "%srbp - %d%s ", l_bracket, slot->stack_offset, r_bracket);
                 }
             }else {
                 if(slot->is_argument) {
-                    codegen_emit(context->file, "[rbp + %d] ", slot->stack_offset+16);
+                    codegen_emit(context->file, "%srbp + %d%s ", l_bracket, slot->stack_offset+8, r_bracket);
                 }else {
-                    codegen_emit(context->file, "[rbp - %d] ", slot->stack_offset);
+                    codegen_emit(context->file, "%srbp - %d%s ", l_bracket, slot->stack_offset, r_bracket);
                 }
             }
             break;
         }case IR_OPERAND_TYPE_GLOBAL: {
-            codegen_emit(context->file, "[rip + "SV_FMT "]", SV_ARG(op->data.global.name));
+            codegen_emit(context->file, "%srip + "SV_FMT "%s", l_bracket, SV_ARG(op->data.global.name), r_bracket);
             break;
         }
         case IR_OPERAND_TYPE_UNDEFINED: break;

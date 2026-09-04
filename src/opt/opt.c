@@ -18,7 +18,9 @@ static inline struct vector_t *get_used_operands(struct arena *arena, struct IR_
         case IR_INSTRUCTION_TYPE_LOAD:{
             vector_add(list, &instruction->operands.double_operands.source_1);
             break;
-        }case IR_INSTRUCTION_TYPE_STORE: {
+        }
+        case IR_INSTRUCTION_TYPE_STORE_INDIRECT:
+        case IR_INSTRUCTION_TYPE_STORE: {
             vector_add(list, &instruction->operands.double_operands.source_1);
             vector_add(list, &instruction->operands.double_operands.destination);
             break;
@@ -34,6 +36,7 @@ static inline struct vector_t *get_used_operands(struct arena *arena, struct IR_
         case IR_INSTRUCTION_TYPE_GREATER_EQUAL:
         case IR_INSTRUCTION_TYPE_LESS:
         case IR_INSTRUCTION_TYPE_GREATER:
+        case IR_INSTRUCTION_TYPE_GEP:
         case IR_INSTRUCTION_TYPE_PLUS:
         case IR_INSTRUCTION_TYPE_MINUS:
         case IR_INSTRUCTION_TYPE_DIVIDE:
@@ -119,6 +122,7 @@ static inline struct vector_t *get_defined_operands(struct arena *arena, struct 
         case IR_INSTRUCTION_TYPE_BITWISE_XOR:
         case IR_INSTRUCTION_TYPE_SHR:
         case IR_INSTRUCTION_TYPE_SHL:
+        case IR_INSTRUCTION_TYPE_GEP:
         case IR_INSTRUCTION_TYPE_PLUS:
         case IR_INSTRUCTION_TYPE_MINUS:
         case IR_INSTRUCTION_TYPE_DIVIDE:
@@ -262,18 +266,24 @@ void opt_run_cfg_analysis(struct IR_Function *function) {
     }
 }
 
-static inline void process_use(const struct IR_Operand *operand, struct bitset_t *use, struct IR_Instruction *instruction) {
-    if(!operand || IR_OPERAND_TYPE_VREG != operand->type) return;
+static inline int get_operand_id(const struct IR_Operand *operand) {
+    return operand->type == IR_OPERAND_TYPE_VREG ? operand->data.vreg.vreg_id : operand->data.slot.stack_slot_id;
+}
 
-    bitset_set(use, operand->data.vreg.vreg_id);
+static inline void process_use(const struct IR_Operand *operand, struct bitset_t *use, struct IR_Instruction *instruction) {
+    if(!operand && (operand->type != IR_OPERAND_TYPE_STACK_SLOT || operand->type != IR_OPERAND_TYPE_VREG)) return;
+
+    int id = get_operand_id(operand);
+    bitset_set(use, id);
 
     vector_add(operand->use_list, &instruction);
 }
 
 static inline void process_def(const struct IR_Operand *operand, struct bitset_t *def) {
-    if(!operand || IR_OPERAND_TYPE_VREG != operand->type) return;
+    if(!operand && (operand->type != IR_OPERAND_TYPE_STACK_SLOT || operand->type != IR_OPERAND_TYPE_VREG)) return;
 
-    bitset_set(def, operand->data.vreg.vreg_id);
+    int id = get_operand_id(operand);
+    bitset_set(def, id);
 }
 
 void opt_compute_use_def(struct arena *arena, struct IR_Function *function) {
@@ -295,7 +305,9 @@ void opt_compute_use_def(struct arena *arena, struct IR_Function *function) {
                 }case IR_INSTRUCTION_TYPE_ALLOCA: {
                     process_def(instruction->operands.alloca.destination, block->defs);
                     break;
-                }case IR_INSTRUCTION_TYPE_STORE: {
+                }
+                case IR_INSTRUCTION_TYPE_STORE_INDIRECT:
+                case IR_INSTRUCTION_TYPE_STORE: {
                     process_use(instruction->operands.double_operands.source_1, block->uses, instruction);
                     process_use(instruction->operands.double_operands.destination, block->uses, instruction);
                     break;
@@ -311,6 +323,7 @@ void opt_compute_use_def(struct arena *arena, struct IR_Function *function) {
                 case IR_INSTRUCTION_TYPE_GREATER_EQUAL:
                 case IR_INSTRUCTION_TYPE_LESS:
                 case IR_INSTRUCTION_TYPE_GREATER:
+                case IR_INSTRUCTION_TYPE_GEP:
                 case IR_INSTRUCTION_TYPE_PLUS:
                 case IR_INSTRUCTION_TYPE_MINUS:
                 case IR_INSTRUCTION_TYPE_DIVIDE:
@@ -398,8 +411,8 @@ void opt_compute_local_liveness(struct IR_Block *block, int vreg_count, struct a
 
         for (int i = 0; i < used_ops->element_count; ++i) {
             struct IR_Operand *op = *(struct IR_Operand **) vector_get(used_ops, i);
-            if (op && IR_OPERAND_TYPE_VREG == op->type) {
-                int id = op->data.vreg.vreg_id;
+            if (op && (IR_OPERAND_TYPE_VREG == op->type || IR_OPERAND_TYPE_STACK_SLOT == op->type)) {
+                int id = get_operand_id(op);
                 if (!bitset_test(block->defs, id)) {
                     bitset_set(block->uses, id);
                 }
@@ -408,8 +421,9 @@ void opt_compute_local_liveness(struct IR_Block *block, int vreg_count, struct a
 
         for (int i = 0; i < def_ops->element_count; ++i) {
             struct IR_Operand *op = *(struct IR_Operand **) vector_get(def_ops, i);
-            if (op && IR_OPERAND_TYPE_VREG == op->type) {
-                bitset_set(block->defs, op->data.vreg.vreg_id);
+            if (op && (IR_OPERAND_TYPE_VREG == op->type || IR_OPERAND_TYPE_STACK_SLOT == op->type)) {
+                int id = get_operand_id(op);
+                bitset_set(block->defs, id);
             }
         }
 
@@ -597,6 +611,7 @@ static inline bool instruction_has_side_effects(struct IR_Instruction *inst) {
         case IR_INSTRUCTION_TYPE_UNARY_BANG:
         case IR_INSTRUCTION_TYPE_UNARY_MINUS:
         case IR_INSTRUCTION_TYPE_CAST:
+        case IR_INSTRUCTION_TYPE_GEP:
         case IR_INSTRUCTION_TYPE_PLUS:
         case IR_INSTRUCTION_TYPE_MINUS:
         case IR_INSTRUCTION_TYPE_MOD:
@@ -629,8 +644,128 @@ static inline bool instruction_has_side_effects(struct IR_Instruction *inst) {
     }
 }
 
+static bool replace_operand_in_instruction(struct IR_Instruction *inst, struct IR_Operand *old_op, struct IR_Operand *new_op) {
+    if (!inst || !old_op || !new_op) return false;
+    bool replaced = false;
+
+    switch (inst->type) {
+        case IR_INSTRUCTION_TYPE_UNARY_ADDRESS_OF:
+        case IR_INSTRUCTION_TYPE_UNARY_DEREFERENCE:
+        case IR_INSTRUCTION_TYPE_UNARY_NOT:
+        case IR_INSTRUCTION_TYPE_UNARY_BANG:
+        case IR_INSTRUCTION_TYPE_UNARY_MINUS:
+        case IR_INSTRUCTION_TYPE_LOAD:
+        case IR_INSTRUCTION_TYPE_CAST:
+        case IR_INSTRUCTION_TYPE_MOV: {
+
+            if (inst->operands.double_operands.source_1 == old_op) {
+                inst->operands.double_operands.source_1 = new_op;
+                replaced = true;
+            }
+            break;
+        }
+        case IR_INSTRUCTION_TYPE_GEP:
+        case IR_INSTRUCTION_TYPE_PLUS:
+        case IR_INSTRUCTION_TYPE_MINUS:
+        case IR_INSTRUCTION_TYPE_MOD:
+        case IR_INSTRUCTION_TYPE_MUL:
+        case IR_INSTRUCTION_TYPE_DIVIDE:
+        case IR_INSTRUCTION_TYPE_BITWISE_AND:
+        case IR_INSTRUCTION_TYPE_BITWISE_OR:
+        case IR_INSTRUCTION_TYPE_BITWISE_XOR:
+        case IR_INSTRUCTION_TYPE_SHR:
+        case IR_INSTRUCTION_TYPE_SHL:
+        case IR_INSTRUCTION_TYPE_EQUAL_EQUAL:
+        case IR_INSTRUCTION_TYPE_BANG_EQUAL:
+        case IR_INSTRUCTION_TYPE_GREATER_EQUAL:
+        case IR_INSTRUCTION_TYPE_LESS_EQUAL:
+        case IR_INSTRUCTION_TYPE_GREATER:
+        case IR_INSTRUCTION_TYPE_LESS: {
+            if (inst->operands.triple_operands.source_1 == old_op) {
+                inst->operands.triple_operands.source_1 = new_op;
+                replaced = true;
+            }
+            if (inst->operands.triple_operands.source_2 == old_op) {
+                inst->operands.triple_operands.source_2 = new_op;
+                replaced = true;
+            }
+            break;
+        }
+        case IR_INSTRUCTION_TYPE_STORE_INDIRECT:
+        case IR_INSTRUCTION_TYPE_STORE:{
+            if (inst->operands.double_operands.destination == old_op) {
+                inst->operands.double_operands.destination = new_op;
+                replaced = true;
+            }
+            if (inst->operands.double_operands.source_1 == old_op) {
+                inst->operands.double_operands.source_1 = new_op;
+                replaced = true;
+            }
+            break;
+        }case IR_INSTRUCTION_TYPE_RET:{
+            if (inst->operands.ret.return_value == old_op) {
+                inst->operands.ret.return_value = new_op;
+                replaced = true;
+            }
+            break;
+        }case IR_INSTRUCTION_TYPE_CALL:{
+            if (inst->operands.call.arguments) {
+                for (int i = 0; i < inst->operands.call.arguments->element_count; ++i) {
+                    struct IR_Operand **arg = vector_get(inst->operands.call.arguments, i);
+                    if (*arg == old_op) {
+                        *arg = new_op;
+                        replaced = true;
+                    }
+                }
+            }
+            break;
+        }case IR_INSTRUCTION_TYPE_JMP:{
+            if (inst->operands.jmp.args) {
+                for (int i = 0; i < inst->operands.jmp.args->element_count; ++i) {
+                    struct IR_Operand **arg = vector_get(inst->operands.jmp.args, i);
+                    if (*arg == old_op) {
+                        *arg = new_op;
+                        replaced = true;
+                    }
+                }
+            }
+            break;
+        }case IR_INSTRUCTION_TYPE_BR:{
+            if (inst->operands.br.true_args) {
+                for (int i = 0; i < inst->operands.br.true_args->element_count; ++i) {
+                    struct IR_Operand **arg = vector_get(inst->operands.br.true_args, i);
+                    if (*arg == old_op) {
+                        *arg = new_op;
+                        replaced = true;
+                    }
+                }
+            }
+            if (inst->operands.br.false_args) {
+                for (int i = 0; i < inst->operands.br.false_args->element_count; ++i) {
+                    struct IR_Operand **arg = vector_get(inst->operands.br.false_args, i);
+                    if (*arg == old_op) {
+                        *arg = new_op;
+                        replaced = true;
+                    }
+                }
+            }
+            if (inst->operands.br.condition == old_op) {
+                inst->operands.br.condition = new_op;
+                replaced = true;
+            }
+            break;
+        }case IR_INSTRUCTION_TYPE_ALLOCA:
+        case IR_INSTRUCTION_TYPE_NOP:
+        case IR_INSTRUCTION_TYPE_UNDEFINED:
+        case IR_INSTRUCTION_TYPE_ASM:
+        break;
+    }
+
+    return replaced;
+}
+
 static inline void remove_instruction_from_use_list(struct IR_Operand *op, struct IR_Instruction *inst) {
-    if (!op || op->type != IR_OPERAND_TYPE_VREG || !op->use_list) return;
+    if (!op || !op->use_list) return;
 
     for (int i = 0; i < op->use_list->element_count; ++i) {
         struct IR_Instruction *use_inst = *(struct IR_Instruction **) vector_get(op->use_list, i);
@@ -654,20 +789,28 @@ bool opt_dead_code_elimination(struct opt_context_t *context, struct IR_Function
             struct IR_Operand *src1 = NULL;
             struct IR_Operand *src2 = NULL;
             enum IR_Instructions_Operands_type ops_type = IR_get_Instructions_Operands_type(instruction->type);
+            bool next = false;
             switch (ops_type) {
                 case IR_INSTRUCTIONS_OPERANDS_TYPE_DOUBLE: dest = instruction->operands.double_operands.destination; src1 = instruction->operands.double_operands.source_1; src2 = NULL; break;
                 case IR_INSTRUCTIONS_OPERANDS_TYPE_TRIPLE: dest = instruction->operands.triple_operands.destination; src1 = instruction->operands.triple_operands.source_1; src2 = instruction->operands.triple_operands.source_2; break;
                 case IR_INSTRUCTIONS_OPERANDS_TYPE_ALLOCA: dest = instruction->operands.alloca.destination;          src1 = NULL; src2 = NULL; break;
                 case IR_INSTRUCTIONS_OPERANDS_TYPE_CALL:   dest = instruction->operands.call.return_val;             src1 = NULL; src2 = NULL; break;
                 case IR_INSTRUCTIONS_OPERANDS_TYPE_RET:    dest = NULL;                                              src1 = instruction->operands.ret.return_value; src2 = NULL; break;
-                default: break;
+                default: {
+                    next = true;
+                    break;
+                }
+            }
+            if(next) {
+                instruction = next_instruction;
+                continue;
             }
 
             bool instruction_removed = false;
 
             if (!instruction_has_side_effects(instruction)) {
 
-                if (dest && dest->type == IR_OPERAND_TYPE_VREG && dest->use_list->element_count == 0) {
+                if (dest && dest->type == IR_OPERAND_TYPE_VREG && dest->use_list->element_count <= 0) {
                     
 
                     if(src1)remove_instruction_from_use_list(src1, instruction);
@@ -758,7 +901,7 @@ bool opt_constant_folding(struct opt_context_t *context, struct IR_Function *fun
         struct IR_Instruction *instruction = block->head_instruction;
         while (NULL != instruction) {
             enum IR_Instructions_Operands_type ops_type = IR_get_Instructions_Operands_type(instruction->type);
-            if(ops_type == IR_INSTRUCTIONS_OPERANDS_TYPE_TRIPLE) {
+            if(ops_type == IR_INSTRUCTIONS_OPERANDS_TYPE_TRIPLE && instruction->type != IR_INSTRUCTION_TYPE_GEP) {
                 //
                 struct IR_Operand *src1 = instruction->operands.triple_operands.source_1;
                 struct IR_Operand *src2 = instruction->operands.triple_operands.source_2;
@@ -774,11 +917,12 @@ bool opt_constant_folding(struct opt_context_t *context, struct IR_Function *fun
                     switch (instruction->type) {
                         case IR_INSTRUCTION_TYPE_PLUS:          res = src1_val + src2_val; break;
                         case IR_INSTRUCTION_TYPE_MINUS:         res = src1_val - src2_val; break;
-                        case IR_INSTRUCTION_TYPE_DIVIDE:        
-                                                                if (src2_val != 0) res = src1_val / src2_val; 
+                        case IR_INSTRUCTION_TYPE_DIVIDE:        if (src2_val != 0) res = src1_val / src2_val; 
                                                                 else fold_success = false;
                                                                 break;
-                        case IR_INSTRUCTION_TYPE_MOD:           res = src1_val % src2_val; break;
+                        case IR_INSTRUCTION_TYPE_MOD:           if(src2_val != 0) res = src1_val % src2_val;
+                                                                else fold_success = false;
+                                                                break;
                         case IR_INSTRUCTION_TYPE_MUL:           res = src1_val * src2_val; break;
                         case IR_INSTRUCTION_TYPE_SHL:           res = src1_val << src2_val; break;
                         case IR_INSTRUCTION_TYPE_SHR:           res = src1_val >> src2_val; break;
@@ -824,121 +968,6 @@ bool opt_constant_folding(struct opt_context_t *context, struct IR_Function *fun
     return changed;
 }
 
-static bool replace_operand_in_instruction(struct IR_Instruction *inst, struct IR_Operand *old_op, struct IR_Operand *new_op) {
-    if (!inst || !old_op || !new_op) return false;
-    bool replaced = false;
-
-    switch (inst->type) {
-        case IR_INSTRUCTION_TYPE_UNARY_ADDRESS_OF:
-        case IR_INSTRUCTION_TYPE_UNARY_DEREFERENCE:
-        case IR_INSTRUCTION_TYPE_UNARY_NOT:
-        case IR_INSTRUCTION_TYPE_UNARY_BANG:
-        case IR_INSTRUCTION_TYPE_UNARY_MINUS:
-        case IR_INSTRUCTION_TYPE_LOAD:
-        case IR_INSTRUCTION_TYPE_CAST:
-        case IR_INSTRUCTION_TYPE_MOV: {
-
-            if (inst->operands.double_operands.source_1 == old_op) {
-                inst->operands.double_operands.source_1 = new_op;
-                replaced = true;
-            }
-            break;
-        }case IR_INSTRUCTION_TYPE_PLUS:
-        case IR_INSTRUCTION_TYPE_MINUS:
-        case IR_INSTRUCTION_TYPE_MOD:
-        case IR_INSTRUCTION_TYPE_MUL:
-        case IR_INSTRUCTION_TYPE_DIVIDE:
-        case IR_INSTRUCTION_TYPE_BITWISE_AND:
-        case IR_INSTRUCTION_TYPE_BITWISE_OR:
-        case IR_INSTRUCTION_TYPE_BITWISE_XOR:
-        case IR_INSTRUCTION_TYPE_SHR:
-        case IR_INSTRUCTION_TYPE_SHL:
-        case IR_INSTRUCTION_TYPE_EQUAL_EQUAL:
-        case IR_INSTRUCTION_TYPE_BANG_EQUAL:
-        case IR_INSTRUCTION_TYPE_GREATER_EQUAL:
-        case IR_INSTRUCTION_TYPE_LESS_EQUAL:
-        case IR_INSTRUCTION_TYPE_GREATER:
-        case IR_INSTRUCTION_TYPE_LESS: {
-            if (inst->operands.triple_operands.source_1 == old_op) {
-                inst->operands.triple_operands.source_1 = new_op;
-                replaced = true;
-            }
-            if (inst->operands.triple_operands.source_2 == old_op) {
-                inst->operands.triple_operands.source_2 = new_op;
-                replaced = true;
-            }
-            break;
-        }case IR_INSTRUCTION_TYPE_STORE:{
-            if (inst->operands.double_operands.destination == old_op) {
-                inst->operands.double_operands.destination = new_op;
-                replaced = true;
-            }
-            if (inst->operands.double_operands.source_1 == old_op) {
-                inst->operands.double_operands.source_1 = new_op;
-                replaced = true;
-            }
-            break;
-        }case IR_INSTRUCTION_TYPE_RET:{
-            if (inst->operands.ret.return_value == old_op) {
-                inst->operands.ret.return_value = new_op;
-                replaced = true;
-            }
-            break;
-        }case IR_INSTRUCTION_TYPE_CALL:{
-            if (inst->operands.call.arguments) {
-                for (int i = 0; i < inst->operands.call.arguments->element_count; ++i) {
-                    struct IR_Operand **arg = vector_get(inst->operands.call.arguments, i);
-                    if (*arg == old_op) {
-                        *arg = new_op;
-                        replaced = true;
-                    }
-                }
-            }
-            break;
-        }case IR_INSTRUCTION_TYPE_JMP:{
-            if (inst->operands.jmp.args) {
-                for (int i = 0; i < inst->operands.jmp.args->element_count; ++i) {
-                    struct IR_Operand **arg = vector_get(inst->operands.jmp.args, i);
-                    if (*arg == old_op) {
-                        *arg = new_op;
-                        replaced = true;
-                    }
-                }
-            }
-            break;
-        }case IR_INSTRUCTION_TYPE_BR:{
-            if (inst->operands.br.true_args) {
-                for (int i = 0; i < inst->operands.br.true_args->element_count; ++i) {
-                    struct IR_Operand **arg = vector_get(inst->operands.br.true_args, i);
-                    if (*arg == old_op) {
-                        *arg = new_op;
-                        replaced = true;
-                    }
-                }
-            }
-            if (inst->operands.br.false_args) {
-                for (int i = 0; i < inst->operands.br.false_args->element_count; ++i) {
-                    struct IR_Operand **arg = vector_get(inst->operands.br.false_args, i);
-                    if (*arg == old_op) {
-                        *arg = new_op;
-                        replaced = true;
-                    }
-                }
-            }
-            if (inst->operands.br.condition == old_op) {
-                inst->operands.br.condition = new_op;
-                replaced = true;
-            }
-            break;
-        }case IR_INSTRUCTION_TYPE_ALLOCA:
-        case IR_INSTRUCTION_TYPE_NOP:
-        case IR_INSTRUCTION_TYPE_UNDEFINED:
-        case IR_INSTRUCTION_TYPE_ASM:
-        break;
-    }
-
-    return replaced;
-}
 
 bool opt_copy_propagation(struct opt_context_t *context, struct IR_Function *function) {
     bool changed = false;

@@ -18,11 +18,11 @@ struct stack_slot_t *IR_create_stack_slot(struct arena *arena, struct type_info 
     slot->is_argument = is_argument;
 
     if(!is_argument) {
-        slot->stack_offset = function->stack_size;
         function->stack_size += type_table_size_padding(type->size);
+        slot->stack_offset = function->stack_size;
     }else {
-        slot->stack_offset = function->stack_size_for_args;
         function->stack_size_for_args += type_table_size_padding(type->size);
+        slot->stack_offset = function->stack_size_for_args;
     }
 
     vector_add(function->stack_slots, &slot);
@@ -67,6 +67,7 @@ struct IR_Function *IR_create_IR_Function(struct arena *arena, struct bitset_t *
     function->stack_size = 8;
     function->stack_size_for_args = 0;
     function->vreg_counter = 0;
+    function->stack_slot_counter = 0;
 
     function->is_fully_processed = false;
     function->is_visiting = false;

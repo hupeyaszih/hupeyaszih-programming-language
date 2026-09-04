@@ -1,6 +1,7 @@
 #include "core/ir_dumper.h"
 #include "core/ir_gen.h"
 #include "core/symbol_table.h"
+#include "h_string_view.h"
 #include "h_vector.h"
 #include <stdio.h>
 
@@ -32,7 +33,9 @@ static inline void IR_dump_operand(const struct IR_Operand *restrict operand) {
             break;
         }case IR_OPERAND_TYPE_STACK_SLOT: {
             if(!operand->data.slot.stack_slot) break;
-            printf("[%d, size: %ld]", operand->data.slot.stack_slot->stack_offset, operand->data.slot.stack_slot->type->size);
+            printf("[offset: %d, type: " , operand->data.slot.stack_slot->stack_offset);
+            IR_dump_type_info(operand->data.slot.stack_slot->type);
+            printf(", size: %ld]", operand->data.slot.stack_slot->type->size);
             break;
         }case IR_OPERAND_TYPE_GLOBAL: {
             IR_dump_type_info(operand->type_info);
@@ -118,6 +121,7 @@ static void IR_dump_instruction(const struct IR_Instruction *instruction) {
         case IR_INSTRUCTION_TYPE_SHL:   {IR_dump_alu(instruction, "shl");   break;}
         case IR_INSTRUCTION_TYPE_SHR:   {IR_dump_alu(instruction, "shr");   break;}
 
+        case IR_INSTRUCTION_TYPE_GEP:    {IR_dump_alu(instruction, "gep");   break;}
         case IR_INSTRUCTION_TYPE_PLUS:   {IR_dump_alu(instruction, "add");   break;}
         case IR_INSTRUCTION_TYPE_MINUS:  {IR_dump_alu(instruction, "minus"); break;}
         case IR_INSTRUCTION_TYPE_DIVIDE: {IR_dump_alu(instruction, "div");   break;}
@@ -131,11 +135,21 @@ static void IR_dump_instruction(const struct IR_Instruction *instruction) {
         case IR_INSTRUCTION_TYPE_LESS_EQUAL:    {IR_dump_alu(instruction, "less_equal");   break;}
         case IR_INSTRUCTION_TYPE_LESS:          {IR_dump_alu(instruction, "less"); break;}
 
-        case IR_INSTRUCTION_TYPE_ALLOCA:{
+        case IR_INSTRUCTION_TYPE_ASM:{
+            printf("|inline asm|\n");
+            break;
+        }case IR_INSTRUCTION_TYPE_ALLOCA:{
             IR_dump_operand(instruction->operands.alloca.destination);
             printf(" = alloca ");
             IR_dump_type_info(instruction->operands.alloca.type_info);
             printf(" (size: %ld)", instruction->operands.alloca.type_info->size);
+            printf("\n");
+            break;
+        }case IR_INSTRUCTION_TYPE_STORE_INDIRECT:{
+            printf("store_indirect ");
+            IR_dump_operand(instruction->operands.double_operands.destination);
+            printf(", ");
+            IR_dump_operand(instruction->operands.double_operands.source_1);
             printf("\n");
             break;
         }case IR_INSTRUCTION_TYPE_STORE:{

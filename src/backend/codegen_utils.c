@@ -54,6 +54,7 @@ void codegen_utils_emit_call_args(struct arena *temp_arena, struct codegen_conte
         node->temp_reserved = NULL;
         node->reg = reg;
 
+
         node->is_visited = false;
         node->is_done = false;
         node->in_degree = 0;
