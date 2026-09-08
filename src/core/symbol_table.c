@@ -205,14 +205,13 @@ struct type_info *type_table_get_or_create_array_info(struct type_table *table, 
 }
 struct type_info *type_table_decay_array(struct type_table *table, struct type_info *array_info) {
     if(NULL == array_info->promotable_type) {
-        struct type_info *decayed_type = NULL;
-        if(array_info->pointer_level == 0) {
-            decayed_type = type_table_get_or_create_pointer_type_info(table, array_info->array.element_info->name, array_info->array.element_info->pointer_level + 1);
-            array_info->promotable_type = decayed_type;
+        if(array_info->category == TYPE_CATEGORY_ARRAY) {
+            struct type_info *decayed_type = type_table_get_or_create_pointer_type_info(table, array_info->array.element_info->name, array_info->array.element_info->pointer_level + 1);
+            return decayed_type;
         }else {
-            decayed_type = type_table_get_or_create_pointer_type_info(table, array_info->name, array_info->pointer_level - 1);
+            struct type_info *decayed_type = type_table_get_or_create_pointer_type_info(table, array_info->name, array_info->pointer_level + 1);
+            return decayed_type;
         }
-        return decayed_type;
     }
     return array_info->promotable_type;
 }

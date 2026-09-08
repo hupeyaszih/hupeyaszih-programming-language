@@ -36,5 +36,5 @@ int IRL_build_ir(struct IR_Project *project, struct parser_t *parser);
 
 void IRL_find_mutations(struct parser_node *node, struct vector_t *vars, struct vector_t *declarated_vars);
 
-struct IR_Operand *IRL_emit_gep_instruction(struct ir_context *context, struct type_info *array_info, struct IR_Operand *array_addr, size_t index);
+struct IR_Operand *IRL_emit_gep_instruction(struct ir_context *context, struct type_info *array_info, struct IR_Operand *array_addr, struct IR_Operand *index);
 #endif

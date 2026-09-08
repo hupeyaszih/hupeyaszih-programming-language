@@ -94,7 +94,7 @@ static inline struct IR_Operand *ensure_operand_is_register_or_imm(struct ir_con
         case IR_OPERAND_TYPE_VREG: {
             return operand;
         }case IR_OPERAND_TYPE_STACK_SLOT: {
-            struct IR_Instruction *load = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_LOAD);
+            struct IR_Instruction *load = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_MOV);
             IR_Block_add_instruction(context->current_block, load);
 
             struct IR_Operand *vreg = IR_create_new_vreg(context->arena, context->current_function, load, NULL, context->current_block->in_loop);
@@ -105,7 +105,7 @@ static inline struct IR_Operand *ensure_operand_is_register_or_imm(struct ir_con
 
             return vreg;
         }case IR_OPERAND_TYPE_GLOBAL: {
-            struct IR_Instruction *load = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_LOAD);
+            struct IR_Instruction *load = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_MOV);
             IR_Block_add_instruction(context->current_block, load);
 
             struct IR_Operand *vreg = IR_create_new_vreg(context->arena, context->current_function, load, NULL, context->current_block->in_loop);
@@ -124,14 +124,15 @@ static inline struct IR_Operand *ensure_operand_is_register_or_imm(struct ir_con
 
 static inline struct IR_Operand *load_variable(struct ir_context *context, struct symbol_t *sym) {
     if(sym->type->category == TYPE_CATEGORY_ARRAY) {
-        return IRL_emit_gep_instruction(context, sym->type, sym->stack_slot, 0);
+        struct IR_Operand *index = IR_create_new_imm(context->arena, context->current_function, NULL, 0, context->current_block->in_loop, context->type_table->pointer_to_int_type);
+        return IRL_emit_gep_instruction(context, sym->type, sym->stack_slot, index);
     }
     enum location_kind location_kind = sym->location_kind;
     switch (location_kind) {
         case LOCATION_VREG: {
             return sym->current_vreg;
         }case LOCATION_STACK: {
-            struct IR_Instruction *load = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_LOAD);
+            struct IR_Instruction *load = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_MOV);
             IR_Block_add_instruction(context->current_block, load);
 
             struct IR_Operand *vreg = IR_create_new_vreg(context->arena, context->current_function, load, sym, context->current_block->in_loop);
@@ -143,7 +144,7 @@ static inline struct IR_Operand *load_variable(struct ir_context *context, struc
 
             return vreg;
         }case LOCATION_GLOBAL: {
-            struct IR_Instruction *load = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_LOAD);
+            struct IR_Instruction *load = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_MOV);
             IR_Block_add_instruction(context->current_block, load);
 
             struct IR_Operand *vreg = IR_create_new_vreg(context->arena, context->current_function, load, sym, context->current_block->in_loop);
@@ -591,10 +592,12 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
             struct IR_Operand *ptr_op = IRL_run_statement_lower(node->right_node, context, LOWER_R);
 
             if(ptr_op->type_info->category == TYPE_CATEGORY_ARRAY) {
-                return IRL_emit_gep_instruction(context, node->type_info, ptr_op, 0);
+                struct IR_Operand *index = IR_create_new_imm(context->arena, context->current_function, NULL, 0, context->current_block->in_loop, context->type_table->pointer_to_int_type);
+                return IRL_emit_gep_instruction(context, node->type_info, ptr_op, index);
             }
             if(node->type_info->category == TYPE_CATEGORY_ARRAY) {
-                return IRL_emit_gep_instruction(context, node->type_info, ptr_op, 0);
+                struct IR_Operand *index = IR_create_new_imm(context->arena, context->current_function, NULL, 0, context->current_block->in_loop, context->type_table->pointer_to_int_type);
+                return IRL_emit_gep_instruction(context, node->type_info, ptr_op, index);
             }
 
             if (lower_type == LOWER_R) {
@@ -715,7 +718,7 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
         }case PARSER_NODE_VARIABLE_ASSIGMENT: {
             struct IR_Operand *right_operand = IRL_run_statement_lower(node->right_node, context, LOWER_R);
 
-            if (node->left_node->type == PARSER_NODE_UNARY_DEREFERENCE) {
+            if (node->left_node->type == PARSER_NODE_UNARY_DEREFERENCE || node->left_node->type == PARSER_NODE_ARRAY_GET_ELEMENT) {
                 struct IR_Operand *ptr_operand = IRL_run_statement_lower(node->left_node, context, LOWER_L);
 
                 struct IR_Instruction *store= IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_STORE_INDIRECT);
@@ -749,6 +752,25 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
 
             instruction->operands.asm_operands.asm_imm = node->data.literal_data;
             return NULL;
+        }case PARSER_NODE_ARRAY_GET_ELEMENT: {
+            struct IR_Operand *array_addr = IRL_run_statement_lower(node->left_node , context, LOWER_R);
+            struct IR_Operand *index      = IRL_run_statement_lower(node->right_node, context, LOWER_R);
+            struct IR_Operand *dest       = IRL_emit_gep_instruction(context, array_addr->type_info, array_addr, index);
+
+            if(lower_type == LOWER_L) {
+                return dest;
+            }
+
+            struct IR_Instruction *load = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_LOAD);
+            IR_Block_add_instruction(context->current_block, load);
+
+            struct IR_Operand *vreg = IR_create_new_vreg(context->arena, context->current_function, load, NULL, context->current_block->in_loop);
+            vreg->type_info = node->type_info;
+
+            load->operands.double_operands.source_1 = dest;
+            load->operands.double_operands.destination = vreg;
+
+            return vreg;
         }
     }
     return NULL;
@@ -869,18 +891,14 @@ void IRL_find_mutations(struct parser_node *node, struct vector_t *vars, struct 
 }
 
 
-struct IR_Operand *IRL_emit_gep_instruction(struct ir_context *context, struct type_info *array_info, struct IR_Operand *array_addr, size_t index) {
+struct IR_Operand *IRL_emit_gep_instruction(struct ir_context *context, struct type_info *array_info, struct IR_Operand *array_addr, struct IR_Operand *index) {
     struct IR_Instruction *gep_inst = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_GEP);
     struct IR_Operand *dest = IR_create_new_vreg(context->arena, context->current_function, gep_inst, NULL, context->current_block->in_loop);
     dest->type_info = type_table_decay_array(context->type_table, array_info);
 
-    struct IR_Operand *index_op = IR_create_IR_Operand(context->arena, IR_OPERAND_TYPE_IMM, gep_inst, context->current_function, context->current_block->in_loop);
-    index_op->data.imm_value = str_view_fmt(context->arena, "%ld", index);
-    index_op->type_info = context->type_table->pointer_to_int_type;
-
     gep_inst->operands.triple_operands.destination = dest;
     gep_inst->operands.triple_operands.source_1 = array_addr;
-    gep_inst->operands.triple_operands.source_2 = index_op;
+    gep_inst->operands.triple_operands.source_2 = index;
     IR_Block_add_instruction(context->current_block, gep_inst);
 
     array_addr->type_info = array_info;

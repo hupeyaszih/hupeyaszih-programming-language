@@ -226,6 +226,13 @@ void IR_Block_remove_instruction(struct IR_Block *block, struct IR_Instruction *
 }
 // Helpers
 
+struct IR_Operand *IR_create_new_imm(struct arena *arena, struct IR_Function *parent_function, struct IR_Instruction *definition_instruction, size_t imm, int in_loop, struct type_info *type_info) {
+    struct IR_Operand *operand = IR_create_IR_Operand(arena, IR_OPERAND_TYPE_IMM, definition_instruction, parent_function, in_loop);
+    operand->data.imm_value = str_view_fmt(arena, "%ld", imm);
+    operand->type_info = type_info;
+    return operand;
+}
+
 struct IR_Operand *IR_create_new_vreg(struct arena *arena, struct IR_Function *parent_function, struct IR_Instruction *definition_instruction, struct symbol_t *variable, int in_loop) {
     struct IR_Operand *operand = IR_create_IR_Operand(arena, IR_OPERAND_TYPE_VREG, definition_instruction, parent_function, in_loop);
     IR_init_live_interval(&operand->data.vreg.live_interval, operand, -1, -1, -1);

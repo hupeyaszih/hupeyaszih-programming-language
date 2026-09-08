@@ -350,6 +350,7 @@ void IR_Block_remove_instruction(struct IR_Block *block, struct IR_Instruction *
 struct str_view IR_Module_create_global_name(struct IR_Module *module, struct arena *arena);
 
 enum IR_Global_Kind IR_get_global_kind(struct type_table *table, struct IR_Operand *global);
+struct IR_Operand *IR_create_new_imm(struct arena *arena, struct IR_Function *parent_function, struct IR_Instruction *definition_instruction, size_t imm, int in_loop, struct type_info *type_info);
 struct IR_Operand *IR_create_new_vreg(struct arena *arena, struct IR_Function *parent_function, struct IR_Instruction *definition_instruction, struct symbol_t *variable, int in_loop);
 struct IR_Operand *IR_create_new_global(struct arena *arena, struct IR_Module *module, struct str_view value, struct symbol_t *variable, bool is_bss, struct type_table *type_table);
 

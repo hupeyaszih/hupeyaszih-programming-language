@@ -851,6 +851,34 @@ struct parser_node *parser_parse_term(struct parser_t *restrict parser, struct l
     }
     return left;
 }
+
+struct parser_node *parser_parse_postfix(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor) {
+    if(*cursor >= token_count) {
+        LOG_M_ERR("parser_parse_postfix - \"*cursor >= token_count\""); 
+        parser->successful = 0;
+        return NULL;
+    }
+
+    struct parser_node *left_node = parser_parse_factor(parser, tokens, token_count, cursor);
+
+    while(*cursor < token_count && tokens[*cursor].type == LEXER_TOKEN_TYPE_LBRACKET) {
+        int lbracket_line = tokens[*cursor].line;
+        EAT_OR_RETURN(parser, tokens, token_count, cursor, LEXER_TOKEN_TYPE_LBRACKET);
+
+        struct parser_node *index_node = parser_parse_bitwise_or(parser, tokens, token_count, cursor);
+
+        struct parser_node *node = parser_create_node(parser->arena, PARSER_NODE_ARRAY_GET_ELEMENT, lbracket_line);
+        node->left_node = left_node;
+        node->right_node = index_node;
+
+        EAT_OR_RETURN(parser, tokens, token_count, cursor, LEXER_TOKEN_TYPE_RBRACKET);
+
+        left_node = node; 
+    }
+
+    return left_node;
+}
+
 struct parser_node *parser_parse_factor(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor){
     if(NULL == parser) {LOG_M_ERR("parser_parse_factor - \"struct parser_t *restrict parser\" is null"); return NULL;}
     if(*cursor >= token_count) {
@@ -1104,7 +1132,7 @@ struct parser_node *parser_parse_unary(struct parser_t *restrict parser, struct 
         return node;
     }
 
-    return parser_parse_factor(parser, tokens, token_count, cursor);
+    return parser_parse_postfix(parser, tokens, token_count, cursor);
 }
 
 
@@ -1113,6 +1141,12 @@ struct type_info *parser_parse_array_declaration(struct parser_t *restrict parse
 
     int pointer_level = calculate_pointer_level(tokens, cursor);
     bool is_array_declaration = tokens[*cursor].type == LEXER_TOKEN_TYPE_LBRACKET;
+
+    if(is_array_declaration) {
+        parser->successful = 0;
+        C_LOG_ERR("Nested arrays are not allowed");
+    }
+
     struct type_info *element_info = NULL;
     if(is_array_declaration) {
         element_info = parser_parse_array_declaration(parser, tokens, token_count, cursor);

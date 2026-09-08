@@ -137,6 +137,7 @@ int semantic_analyzer_analyze_node(struct parser_node* node, struct semantic_con
         case PARSER_NODE_VARIABLE_ASSIGMENT: return semantic_analyzer_analyze_assigment(node, context);
         case PARSER_NODE_CALL: return semantic_analyzer_analyze_call(node, context);
 
+        case PARSER_NODE_ARRAY_GET_ELEMENT:
         case PARSER_NODE_ASM:
         case PARSER_NODE_LOOP:
         case PARSER_NODE_UNARY_ADDRESS_OF:
@@ -502,6 +503,14 @@ struct type_info *semantic_analyzer_calculate_type_infos(struct parser_node *nod
                 }
             } else {
                 node->type_info = NULL;
+            }
+            break;
+        }case PARSER_NODE_ARRAY_GET_ELEMENT: {
+            if(left_type->category == TYPE_CATEGORY_ARRAY) {
+                node->type_info = type_table_decay_array(context->type_table, left_type);
+                node->type_info = type_table_get_or_create_pointer_type_info(context->type_table, node->type_info->name, node->type_info->pointer_level - 1);
+            }else {
+                node->type_info = type_table_get_or_create_pointer_type_info(context->type_table, left_type->name, left_type->pointer_level - 1);
             }
             break;
         }
