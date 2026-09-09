@@ -1,0 +1,8 @@
+#define NUM 13 $
+#define ADD(x, y) x + y $
+#define MUL(x, y) (ADD(x, y)) * y $
+
+fn main() : int32 {
+    var i:int32 = 3;
+    MUL(i + 1, 5) + NUM;
+}

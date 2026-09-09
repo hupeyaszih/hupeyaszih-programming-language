@@ -9,6 +9,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_executable(hrsc
     src/core/main.c
     src/core/lexer.c
+    src/core/preprocessor.c
     src/core/parser.c
     src/core/hrs_file_io.c
     src/core/symbol_table.c

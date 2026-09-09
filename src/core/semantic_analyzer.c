@@ -216,10 +216,17 @@ int semantic_analyzer_analyze_var_declaration(struct parser_node* node, struct s
         return 1;
     }
 
+    if(sym->type->category == TYPE_CATEGORY_ARRAY && semantic_analyzer_is_in_global(node, context)) {
+        C_LOG_ERR("global arrays are not allowed");
+        context->error = 1;
+        return 1;
+    }
+
     if(!node->right_node || !node->right_node->type_info) return 0;
     if(1 != type_table_can_that_promote_to(node->right_node->type_info, sym->type)) {
         print_semantic_error_type_infos(node, node->right_node->type_info, sym->type);
         context->error = 1;
+        return 1;
     }
     return 0;
 }

@@ -3,12 +3,13 @@
 #include <string.h>
 #include <ctype.h>
 #include "core/globals.h"
+#include "core/preprocessor.h"
 #include "h_arena.h"
 #include "h_string_view.h"
 
 const char LEXER_DELIM[] = " \t\r\n";
 
-const char language_keywords[LEXER_KEYWORD_COUNT][LEXER_MAX_KEYWORD_CHAR_LENGHT] = {"fn", "var", "loop", "return", "continue", "pure", "approx", "resilient", "asm", "sizeof", "alignof", "typeof", "stof"};
+const char language_keywords[LEXER_KEYWORD_COUNT][LEXER_MAX_KEYWORD_CHAR_LENGHT] = {"fn", "var", "loop", "return", "continue", "pure", "approx", "resilient", "asm", "sizeof", "alignof", "typeof", "stof", "define"};
 
 
 static inline enum token_type get_keyword_type(const struct str_view view){
@@ -38,6 +39,8 @@ static inline enum token_type get_keyword_type(const struct str_view view){
         return LEXER_TOKEN_TYPE_TYPEOF;
     }else if(str_view_eq_cstr(view, "stof")){
         return LEXER_TOKEN_TYPE_STOF;
+    }else if(str_view_eq_cstr(view, "define")){
+        return LEXER_TOKEN_TYPE_DEFINE;
     }else{
         return LEXER_TOKEN_TYPE_KEYWORD;
     }
@@ -68,6 +71,10 @@ static inline enum token_type lexer_get_symbol_type(const char *chr) {
     }
 
     switch (*chr) {
+        case '#':
+            return LEXER_TOKEN_TYPE_HASH;
+        case '$':
+            return LEXER_TOKEN_TYPE_DOLLAR;
         case '(':
             return LEXER_TOKEN_TYPE_LPAREN;
         case ')':
@@ -162,7 +169,8 @@ static inline int calculate_statement_count(const struct lexer_file *restrict fi
 }
 
 int lexer_create_lexer_file(struct lexer_file *restrict file, char *restrict str, const char *restrict file_name, struct arena *arena){
-    int current_capacity = 16;
+    int current_capacity = 256;
+
     file->tokens = arena_alloc(arena, sizeof(struct lexer_token) * current_capacity);
     file->file_name = arena_strdup(arena, file_name);
 
@@ -175,6 +183,8 @@ int lexer_create_lexer_file(struct lexer_file *restrict file, char *restrict str
         C_LOG_ERR("\"lexer_create_lexer_file\" function failed to create lexer file because \"token_count<=0\"\n");
         return 0;
     }
+
+    preprocessor_run(arena, file);
 
     file->statement_count = calculate_statement_count(file);
 

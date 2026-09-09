@@ -24,8 +24,8 @@ struct stack_slot_t *IR_create_stack_slot(struct arena *arena, struct type_info 
         function->stack_size_for_args += type_table_size_padding(type->size);
         slot->stack_offset = function->stack_size_for_args;
     }
-
     vector_add(function->stack_slots, &slot);
+
     return slot;
 }
 

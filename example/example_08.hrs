@@ -1,0 +1,23 @@
+#define WIDTH  4 $
+#define HEIGHT 5 $
+#define ARR_LEN (WIDTH * HEIGHT) $
+
+#define GET_INDEX(x, y) (y * WIDTH + x) $
+
+fn main() : int32 {
+    var arr:[int32, ARR_LEN];
+
+    var y:int32 = 0;
+    loop {y < HEIGHT;} return {y;} continue{
+
+        var x:int32 = 0;
+        loop {x < WIDTH;} return {x;} continue{
+            arr[GET_INDEX(x,y)] = GET_INDEX(x,y) * 10;
+            x = x + 1;
+        }
+        y = y + 1;
+    }
+
+
+    arr[GET_INDEX(2,3)];
+}

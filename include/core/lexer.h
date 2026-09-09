@@ -31,6 +31,10 @@ enum token_type{
     LEXER_TOKEN_TYPE_TYPEOF,
     LEXER_TOKEN_TYPE_STOF,     /*  Mix of "typeof" and "sizeof" */
 
+    LEXER_TOKEN_TYPE_HASH,   // #
+    LEXER_TOKEN_TYPE_DOLLAR, // $
+    LEXER_TOKEN_TYPE_DEFINE, // define
+
 
     LEXER_TOKEN_TYPE_PLUS,         // +
     LEXER_TOKEN_TYPE_MINUS,        // -
@@ -95,7 +99,7 @@ struct lexer_file{
 
 #define LEXER_MAX_KEYWORD_CHAR_LENGHT 10
 
-#define LEXER_KEYWORD_COUNT 13
+#define LEXER_KEYWORD_COUNT 14
 
 extern const char LEXER_DELIM[];
 
@@ -134,6 +138,10 @@ static const char* lexer_token_type_to_string(enum token_type type) {
         case LEXER_TOKEN_TYPE_SIZEOF:          return "SIZEOF";
         case LEXER_TOKEN_TYPE_TYPEOF:          return "TYPEOF";
         case LEXER_TOKEN_TYPE_STOF:            return "STOF";
+
+        case LEXER_TOKEN_TYPE_HASH:            return "HASH";
+        case LEXER_TOKEN_TYPE_DOLLAR:          return "DOLLAR";
+        case LEXER_TOKEN_TYPE_DEFINE:          return "DEFINE";
 
 
         case LEXER_TOKEN_TYPE_PLUS:            return "PLUS";
