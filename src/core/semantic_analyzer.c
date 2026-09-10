@@ -222,11 +222,24 @@ int semantic_analyzer_analyze_var_declaration(struct parser_node* node, struct s
         return 1;
     }
 
-    if(!node->right_node || !node->right_node->type_info) return 0;
-    if(1 != type_table_can_that_promote_to(node->right_node->type_info, sym->type)) {
-        print_semantic_error_type_infos(node, node->right_node->type_info, sym->type);
-        context->error = 1;
-        return 1;
+    if(node->type_info->category == TYPE_CATEGORY_ARRAY) {
+        struct vector_t *init_list = sym->array.init_list;
+        if(!init_list) return 0;
+        for(int i = 0; i < init_list->element_count; ++i) {
+            struct parser_node *value = *(struct parser_node **) vector_get(init_list, i);
+            if(1 != type_table_can_that_promote_to(value->type_info, sym->type->array.element_info)) {
+                print_semantic_error_type_infos(node, value->type_info, sym->type->array.element_info);
+                context->error = 1;
+                return 1;
+            }
+        }
+    }else {
+        if(!node->right_node || !node->right_node->type_info) return 0;
+        if(1 != type_table_can_that_promote_to(node->right_node->type_info, sym->type)) {
+            print_semantic_error_type_infos(node, node->right_node->type_info, sym->type);
+            context->error = 1;
+            return 1;
+        }
     }
     return 0;
 }
@@ -431,7 +444,17 @@ struct type_info *semantic_analyzer_calculate_type_infos(struct parser_node *nod
             node->data.variable.symbol = sym;
             if(sym) {
                 node->type_info = sym->type;
-                propagate_literal_types(node->right_node, node->type_info);
+                if(sym->type->category == TYPE_CATEGORY_ARRAY) {
+                    struct vector_t *init_list = sym->array.init_list;
+                    if(!init_list) break;
+                    for(int i = 0;i < init_list->element_count; ++i) {
+                        struct parser_node *value = *(struct parser_node **) vector_get(init_list, i);
+                        semantic_analyzer_calculate_type_infos(value, context);
+                        propagate_literal_types(value, node->type_info);
+                    }
+                }else {
+                    propagate_literal_types(node->right_node, node->type_info);
+                }
             }else {
                 node->type_info = NULL;
             }

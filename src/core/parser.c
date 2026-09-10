@@ -186,6 +186,7 @@ struct parser_node *parser_parse_variable_declaration(struct parser_t *restrict 
     if(NULL == parser) {LOG_M_ERR("parser_parse_variable_declaration - \"struct parser_t *restrict parser\" is null"); return NULL;}
 
     if(NULL == eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_VAR)) {parser->successful = 0; return NULL;}
+    int line = tokens[*cursor].line;
 
     if (*cursor >= token_count) {parser->successful = 0;return NULL;}
     struct lexer_token name_token = tokens[*cursor];
@@ -224,6 +225,7 @@ struct parser_node *parser_parse_variable_declaration(struct parser_t *restrict 
         return NULL;
     }
 
+    struct vector_t *init_list = NULL;
     if(!is_array_declaration) {
         EAT_OR_RETURN(parser, tokens, token_count, cursor, LEXER_TOKEN_TYPE_EQUAL);
 
@@ -231,15 +233,39 @@ struct parser_node *parser_parse_variable_declaration(struct parser_t *restrict 
         if(NULL == value_node) {parser->successful = 0; return NULL;}
 
         decl_node->right_node = value_node; 
+    }else if(is_array_declaration && tokens[*cursor].type == LEXER_TOKEN_TYPE_EQUAL){
+        init_list = vector_create_vector(parser->arena, 16, sizeof(struct parser_node *));
+        EAT_OR_RETURN(parser, tokens, token_count, cursor, LEXER_TOKEN_TYPE_EQUAL);
+        EAT_OR_RETURN(parser, tokens, token_count, cursor, LEXER_TOKEN_TYPE_LBRACE);
+
+        while(tokens[*cursor].type != LEXER_TOKEN_TYPE_RBRACE) {
+            if(tokens[*cursor].type == LEXER_TOKEN_TYPE_COMMA) {
+                ++(*cursor);
+                continue;
+            }
+
+            struct parser_node *value_node = parser_parse_bitwise_or(parser, tokens, token_count, cursor);
+            if(NULL == value_node) {parser->successful = 0; return NULL;}
+            vector_add(init_list, &value_node);
+        }
+
+        EAT_OR_RETURN(parser, tokens, token_count, cursor, LEXER_TOKEN_TYPE_RBRACE);
+        if(init_list->element_count > type_info->array.element_count) {
+            C_LOG_ERR("array length is not enough to initialize this, on line: %d", line);
+            parser->successful = 0;
+            return NULL;
+        }
     }
 
     bool is_global = parser->current_scope->is_global_table;
     if(str_view_eq_cstr(type_info->name, "string")) is_global = true;
 
-    if(NULL == symbol_table_define(parser->current_scope, var_name, type_info, SYMBOL_KIND_VARIABLE, pointer_level, is_global)) {
+    struct symbol_t *sym = symbol_table_define(parser->current_scope, var_name, type_info, SYMBOL_KIND_VARIABLE, pointer_level, is_global);
+    if(NULL == sym) {
         parser->successful = 0;
         return NULL;
     }
+    if(init_list && is_array_declaration) sym->array.init_list = init_list;
 
     return decl_node;
 }

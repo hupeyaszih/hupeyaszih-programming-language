@@ -22,7 +22,7 @@ enum type_category {
     TYPE_CATEGORY_BASIC,   // int, float, bool
     TYPE_CATEGORY_STRUCT,  // NOT SUPPORTED YET!
     TYPE_CATEGORY_POINTER,
-    TYPE_CATEGORY_ARRAY    // NOT SUPPORTED YET!
+    TYPE_CATEGORY_ARRAY
 };
 
 struct type_info {
@@ -81,6 +81,9 @@ struct symbol_t{
             struct parser_node *parameters;
             struct IR_Function *ir_function;
         } function;
+        struct {
+            struct vector_t *init_list;
+        } array;
     };
 
     enum symbol_kind kind;

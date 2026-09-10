@@ -713,6 +713,27 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
                 }else {
                     store_variable(context, sym, right_operand);
                 }
+            }else if(sym->type->category == TYPE_CATEGORY_ARRAY && sym->array.init_list) {
+                struct vector_t *init_list = sym->array.init_list;
+                for(int i = 0;i < init_list->element_count; ++i) {
+                    struct parser_node *value = *(struct parser_node **) vector_get(init_list, i);
+                    printf("%p\n", value);
+                    struct IR_Operand *val_op = IRL_run_statement_lower(value, context, LOWER_R);
+                    if(val_op->type_info == NULL) printf("wow1\n");
+
+                    struct IR_Operand *index = IR_create_new_imm(context->arena, context->current_function, NULL, i, context->current_block->in_loop, context->type_table->pointer_to_int_type);
+                    if(index->type_info == NULL) printf("wow2\n");
+                    struct IR_Operand *gep_op = IRL_emit_gep_instruction(context, sym->type, sym->stack_slot, index);
+                    if(gep_op->type_info == NULL) printf("wow3\n");
+
+
+                    struct IR_Instruction *store= IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_STORE_INDIRECT);
+
+                    store->operands.double_operands.destination = gep_op;
+                    store->operands.double_operands.source_1 = val_op; 
+
+                    IR_Block_add_instruction(context->current_block, store);
+                }
             }
             return node->data.variable.symbol->current_vreg;
         }case PARSER_NODE_VARIABLE_ASSIGMENT: {
