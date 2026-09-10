@@ -409,7 +409,7 @@ void register_allocator_run_allocator(struct register_allocator_t *allocator, st
     }
 
     // coalescing
-    // run_coalescing(allocator, function, nodes);
+    run_coalescing(allocator, function, nodes);
 
     struct vector_t *simplifying_nodes = vector_create_vector(temp_arena, vreg_count, sizeof(struct graph_node *));
     // simplifying
@@ -512,8 +512,13 @@ void register_allocator_run_allocator(struct register_allocator_t *allocator, st
         struct graph_node *root = get_node(node);
 
         if(root != node) {
-            node->vreg->data.vreg.reg = root->vreg->data.vreg.reg;
             node->is_spilled = root->is_spilled;
+            if(node->is_spilled) {
+                node->vreg->data.slot = root->vreg->data.slot;
+                node->vreg->type = IR_OPERAND_TYPE_STACK_SLOT;
+            }else {
+                node->vreg->data.vreg.reg = root->vreg->data.vreg.reg;
+            }
         }
     }
 
