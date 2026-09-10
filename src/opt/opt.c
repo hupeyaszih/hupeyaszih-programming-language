@@ -940,15 +940,12 @@ bool opt_constant_folding(struct opt_context_t *context, struct IR_Function *fun
                     if(fold_success) {
                         dest->constant = true;
 
-                        char buffer[20];
-                        snprintf(buffer, sizeof(buffer), "%ld", res);
-
                         remove_instruction_from_use_list(src1, instruction);
                         remove_instruction_from_use_list(src2, instruction);
 
                         struct IR_Operand *imm_op = IR_create_IR_Operand(context->codegen->arena, IR_OPERAND_TYPE_IMM, instruction, function, dest->in_loop);
                         imm_op->type_info = dest->type_info;
-                        imm_op->data.imm_value = str_view_from_cstr(context->codegen->arena, buffer); 
+                        imm_op->data.imm_value = str_view_fmt(context->codegen->arena, "%ld", res);
 
                         instruction->type = IR_INSTRUCTION_TYPE_MOV;
                         instruction->operands.double_operands.source_1 = imm_op;
