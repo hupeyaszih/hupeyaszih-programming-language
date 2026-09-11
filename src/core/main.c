@@ -9,9 +9,13 @@
 #include "h_arena.h"
 #include "h_bitset.h"
 #include "opt/opt.h"
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <stdio.h>
+#include <assert.h>
 
 void print_help() {
     C_LOG_INFO("to see run options, run with '-help_options'. To see available build targets, run with '-help_build_targets'");
@@ -30,6 +34,10 @@ void clean_build_directory(void) {
 #else
     system("rm -rf ../out/*");
 #endif
+}
+
+size_t hash(const void *key) {
+    return *(size_t*) key;
 }
 
 int main(int argc, char *argv[]) {
@@ -159,7 +167,6 @@ int main(int argc, char *argv[]) {
         run_flag_func(output_path, project);
     }
 
-    // Free
 clean_0:
     free(input);
     

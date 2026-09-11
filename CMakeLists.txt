@@ -17,6 +17,7 @@ add_executable(hrsc
     src/h_vector.c
     src/h_bitset.c
     src/h_arena.c
+    src/h_hashtable.c
 
     src/core/semantic_analyzer.c
 
@@ -30,7 +31,8 @@ add_executable(hrsc
     src/backend/codegen.c
     src/backend/codegen_utils.c
     src/backend/x86_64/x86_64_linux.c
-    # src/opt/opt.c
+
+    src/math/h_math.c
 )
 
 target_compile_options(hrsc PRIVATE -g)
