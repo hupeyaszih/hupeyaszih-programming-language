@@ -1,6 +1,8 @@
 #include "core/symbol_table.h"
+#include "core/flags/variable_flags.h"
 #include "core/parser.h"
 #include "core/globals.h"
+#include "h_bitset.h"
 #include "h_string_view.h"
 #include "h_vector.h"
 #include <assert.h>
@@ -26,7 +28,7 @@ struct symbol_table *symbol_table_create_symbol_table(struct arena *arena, struc
     return table;
 }
 
-struct symbol_t *symbol_table_define(struct symbol_table *restrict table, struct str_view name, struct type_info *restrict type, enum symbol_kind kind, int pointer_level, bool is_global){
+struct symbol_t *symbol_table_define(struct symbol_table *restrict table, struct str_view name, struct type_info *restrict type, enum symbol_kind kind, int pointer_level, bool is_global, struct bitset_t *flags){
     if(NULL == table){
         LOG_M_ERR("symbol_table_define - \"struct symbol_table *restrict table\" is null");
         return NULL;
@@ -54,6 +56,8 @@ struct symbol_t *symbol_table_define(struct symbol_table *restrict table, struct
     struct symbol_t *s = arena_alloc(table->arena, sizeof(struct symbol_t));
     s->name = name;
     s->is_global = is_global;
+    s->flags = flags;
+    if(s->flags == NULL) s->flags = bitset_create(table->arena, VARIABLE_FLAGS_COUNT);
     s->mangled_name = NULL;
     s->type = type;
     s->kind = kind;
@@ -66,7 +70,6 @@ struct symbol_t *symbol_table_define(struct symbol_table *restrict table, struct
         s->location_kind = LOCATION_GLOBAL;
     }
     s->current_vreg = NULL;
-    s->flags = 0;
     s->is_address_taken = false;
     s->stack_slot = NULL;
 

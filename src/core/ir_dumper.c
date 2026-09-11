@@ -1,6 +1,7 @@
 #include "core/ir_dumper.h"
 #include "core/ir_gen.h"
 #include "core/symbol_table.h"
+#include "h_bitset.h"
 #include "h_string_view.h"
 #include "h_vector.h"
 #include <stdio.h>
@@ -15,6 +16,7 @@ static inline void IR_dump_type_info(const struct type_info *type_info) {
 
 static inline void IR_dump_operand(const struct IR_Operand *restrict operand) {
     if(!operand) return;
+    if(operand->variable_flags && bitset_test(operand->variable_flags, 0)) printf("unique ");
     switch (operand->type) {
         case IR_OPERAND_TYPE_IMM: {
             IR_dump_type_info(operand->type_info);

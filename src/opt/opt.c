@@ -1,6 +1,7 @@
 #include "opt/opt.h"
 #include "backend/codegen.h"
 #include "core/flags/function_flags.h"
+#include "core/flags/variable_flags.h"
 #include "core/ir_gen.h"
 #include "h_arena.h"
 #include "h_bitset.h"
@@ -1089,7 +1090,7 @@ bool opt_common_subexpression_elimination(struct opt_context_t *context, struct 
         struct IR_Instruction *instruction = block->head_instruction;
         while(NULL != instruction) {
             struct IR_Instruction *next_instruction = instruction->next;
-            if(instruction->type == IR_INSTRUCTION_TYPE_UNDEFINED || instruction->type == IR_INSTRUCTION_TYPE_NOP || instruction->type == IR_INSTRUCTION_TYPE_GEP || instruction_has_side_effects(instruction)) {
+            if(instruction->type == IR_INSTRUCTION_TYPE_UNDEFINED || instruction->type == IR_INSTRUCTION_TYPE_NOP || instruction->type == IR_INSTRUCTION_TYPE_GEP || instruction_has_side_effects(instruction) || is_instruction_memory_read_instruction(instruction->type)) {
                 instruction = next_instruction;
                 continue;
             }
@@ -1147,5 +1148,11 @@ bool opt_common_subexpression_elimination(struct opt_context_t *context, struct 
         hashtable_clear(table);
         block = block->next;
     }
+    return changed;
+}
+
+bool opt_load_elimination(struct opt_context_t *context, struct IR_Function *function) {
+    bool changed = false;
+
     return changed;
 }

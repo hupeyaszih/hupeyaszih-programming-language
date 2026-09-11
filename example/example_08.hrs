@@ -5,7 +5,7 @@
 #define GET_INDEX(x, y) (y * WIDTH + x) $
 
 fn main() : int32 {
-    var arr:[int32, ARR_LEN];
+    var arr:[int32, ARR_LEN] unique;
 
     var y:int32 = 0;
     loop {y < HEIGHT;} return {y;} continue{

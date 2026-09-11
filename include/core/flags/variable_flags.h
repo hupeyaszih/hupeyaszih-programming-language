@@ -1,0 +1,8 @@
+#ifndef H_FlAGS_VARIABLE_H
+#define H_FlAGS_VARIABLE_H
+
+#define VARIABLE_FLAGS_COUNT (8)
+
+#define VARIABLE_FLAG_IS_UNIQUE_POINTER (0)
+
+#endif

@@ -9,7 +9,7 @@
 
 const char LEXER_DELIM[] = " \t\r\n";
 
-const char language_keywords[LEXER_KEYWORD_COUNT][LEXER_MAX_KEYWORD_CHAR_LENGHT] = {"fn", "var", "loop", "return", "continue", "pure", "approx", "resilient", "asm", "sizeof", "alignof", "typeof", "stof", "define"};
+const char language_keywords[LEXER_KEYWORD_COUNT][LEXER_MAX_KEYWORD_CHAR_LENGHT] = {"fn", "var", "loop", "return", "continue", "pure", "approx", "resilient", "unique", "asm", "sizeof", "alignof", "typeof", "stof", "define"};
 
 
 static inline enum token_type get_keyword_type(const struct str_view view){
@@ -31,6 +31,8 @@ static inline enum token_type get_keyword_type(const struct str_view view){
         return LEXER_TOKEN_TYPE_APPROX;
     }else if(str_view_eq_cstr(view, "resilient")){
         return LEXER_TOKEN_TYPE_RESILIENT;
+    }else if(str_view_eq_cstr(view, "unique")){
+        return LEXER_TOKEN_TYPE_UNIQUE;
     }else if(str_view_eq_cstr(view, "sizeof")){
         return LEXER_TOKEN_TYPE_SIZEOF;
     }else if(str_view_eq_cstr(view, "alignof")){

@@ -1,5 +1,6 @@
 #include "core/parser.h"
 #include "core/flags/function_flags.h"
+#include "core/flags/variable_flags.h"
 #include "core/globals.h"
 #include "core/lexer.h"
 #include "core/symbol_table.h"
@@ -161,6 +162,14 @@ static inline void parser_synchronize(struct lexer_token *tokens, int token_coun
         }
     }
 }
+
+static inline void parser_parse_variable_flags(struct parser_t *restrict parser, struct lexer_token *restrict tokens, int token_count, int *cursor, struct bitset_t *flags) {
+    if(tokens[*cursor].type == LEXER_TOKEN_TYPE_UNIQUE) {
+        eat(tokens, token_count, cursor, LEXER_TOKEN_TYPE_UNIQUE);
+        bitset_set(flags, VARIABLE_FLAG_IS_UNIQUE_POINTER);
+    }
+}
+
 int parser_parse(struct parser_t *restrict parser, struct lexer_file *restrict file) {
     int cursor = 0;
 
@@ -225,6 +234,10 @@ struct parser_node *parser_parse_variable_declaration(struct parser_t *restrict 
         return NULL;
     }
 
+    struct bitset_t *flags = bitset_create(parser->symbol_arena, VARIABLE_FLAGS_COUNT);
+    parser_parse_variable_flags(parser, tokens, token_count, cursor, flags);
+    decl_node->variable_flags = flags;
+
     struct vector_t *init_list = NULL;
     if(!is_array_declaration) {
         EAT_OR_RETURN(parser, tokens, token_count, cursor, LEXER_TOKEN_TYPE_EQUAL);
@@ -260,7 +273,7 @@ struct parser_node *parser_parse_variable_declaration(struct parser_t *restrict 
     bool is_global = parser->current_scope->is_global_table;
     if(str_view_eq_cstr(type_info->name, "string")) is_global = true;
 
-    struct symbol_t *sym = symbol_table_define(parser->current_scope, var_name, type_info, SYMBOL_KIND_VARIABLE, pointer_level, is_global);
+    struct symbol_t *sym = symbol_table_define(parser->current_scope, var_name, type_info, SYMBOL_KIND_VARIABLE, pointer_level, is_global, flags);
     if(NULL == sym) {
         parser->successful = 0;
         return NULL;
@@ -405,6 +418,10 @@ struct parser_node *parser_parse_parameters(struct parser_t *restrict parser, st
             return NULL;
         }
         EAT_OR_RETURN(parser, tokens, token_count, cursor, LEXER_TOKEN_TYPE_IDENTIFIER);
+
+        struct bitset_t *flags = bitset_create(parser->symbol_arena, VARIABLE_FLAGS_COUNT);
+        parser_parse_variable_flags(parser, tokens, token_count, cursor, flags);
+        p_node->variable_flags = flags;
 
         vector_add(params_node->data.block.statements, &p_node);
 
@@ -553,9 +570,10 @@ struct parser_node *parser_parse_function(struct parser_t *restrict parser, stru
     
     for(int i = 0; i < parameters->data.block.count; i++) {
         struct parser_node *p = *(struct parser_node **) vector_get(parameters->data.block.statements, i);
-        struct symbol_t *sym = symbol_table_define(body_scope, p->data.variable.variable_name, p->type_info, SYMBOL_KIND_VARIABLE, p->type_info->pointer_level, body_scope->is_global_table);
+        struct symbol_t *sym = symbol_table_define(body_scope, p->data.variable.variable_name, p->type_info, SYMBOL_KIND_VARIABLE, p->type_info->pointer_level, body_scope->is_global_table, NULL);
         if(NULL == sym) {parser->successful = 0;return NULL;}
         p->data.variable.symbol = sym;
+        sym->flags = p->variable_flags;
     }
 
     struct symbol_table *old_scope = parser->current_scope;
@@ -577,12 +595,12 @@ struct parser_node *parser_parse_function(struct parser_t *restrict parser, stru
     function_node->data.function.name = name;
     function_node->data.function.mangled_name = parser_function_generate_mangled_name(parser, function_node);
 
-    struct symbol_t *sym = symbol_table_define(parser->current_scope, function_node->data.function.name, type_table_get_type_info_cstr(parser->type_table, "fn", 0), SYMBOL_KIND_FUNCTION, 0, parser->current_scope->is_global_table);
+    struct symbol_t *sym = symbol_table_define(parser->current_scope, function_node->data.function.name, type_table_get_type_info_cstr(parser->type_table, "fn", 0), SYMBOL_KIND_FUNCTION, 0, parser->current_scope->is_global_table, NULL);
     if(NULL == sym) {
         parser->successful = 0;
         return NULL;
     }else {
-        sym->flags = function_node->data.function.flags;
+        sym->function.function_flags = function_node->data.function.flags;
         sym->function.parameters = function_node->data.function.params;
         sym->function.return_type = function_node->data.function.return_type;
     }

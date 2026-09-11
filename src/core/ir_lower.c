@@ -7,9 +7,6 @@
 #include "h_vector.h"
 #include <stdbool.h>
 #include <stdio.h>
-#include <string.h>
-
-
 
 struct IR_Operand *IRL_create_stack_slot(struct arena *arena, struct IR_Function *function, struct type_info *type, struct IR_Instruction *definition_instruction, bool is_argument) {
     struct IR_Operand *stack_slot = IR_create_IR_Operand(arena, IR_OPERAND_TYPE_STACK_SLOT, definition_instruction, function, -1);
@@ -70,6 +67,8 @@ static inline void variable_declaration(struct ir_context *context, struct symbo
         alloca->operands.alloca.type_info = sym->type;
 
         alloca->operands.alloca.destination = stack_slot;
+
+        stack_slot->variable_flags = sym->flags;
     }else if(LOCATION_VREG == sym->location_kind){
         bool has_value = node->right_node != NULL;
         if(has_value) return;
@@ -79,11 +78,14 @@ static inline void variable_declaration(struct ir_context *context, struct symbo
         struct IR_Operand *vreg = IR_create_new_vreg(context->arena, context->current_function, NULL, sym, in_loop);
         vreg->type_info = sym->type;
         sym->current_vreg = vreg;
+
+        vreg->variable_flags = sym->flags;
     }else {
         bool has_value = node->right_node != NULL;
         if(has_value) return;
 
         struct IR_Operand *global = IR_create_new_global(context->arena, context->current_module, str_view_from_cstr(NULL, 0), sym, true, context->type_table);
+        global->variable_flags = sym->flags;
         IR_Module_add_global(context->current_module, global);
     }
 }
@@ -103,6 +105,7 @@ static inline struct IR_Operand *ensure_operand_is_register_or_imm(struct ir_con
             load->operands.double_operands.source_1 = operand;
             load->operands.double_operands.destination = vreg;
 
+            vreg->variable_flags = operand->variable_flags;
             return vreg;
         }case IR_OPERAND_TYPE_GLOBAL: {
             struct IR_Instruction *load = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_MOV);
@@ -113,6 +116,8 @@ static inline struct IR_Operand *ensure_operand_is_register_or_imm(struct ir_con
 
             load->operands.double_operands.source_1 = operand;
             load->operands.double_operands.destination = vreg;
+
+            vreg->variable_flags = operand->variable_flags;
             return vreg;
         }case IR_OPERAND_TYPE_IMM: {
             return operand;
@@ -142,6 +147,7 @@ static inline struct IR_Operand *load_variable(struct ir_context *context, struc
             load->operands.double_operands.destination = vreg;
 
 
+            vreg->variable_flags = sym->flags;
             return vreg;
         }case LOCATION_GLOBAL: {
             struct IR_Instruction *load = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_MOV);
@@ -152,6 +158,8 @@ static inline struct IR_Operand *load_variable(struct ir_context *context, struc
 
             load->operands.double_operands.source_1 = sym->global;
             load->operands.double_operands.destination = vreg;
+
+            vreg->variable_flags = sym->flags;
             return vreg;
         }
     }
@@ -197,6 +205,7 @@ static inline void store_variable(struct ir_context *context, struct symbol_t *s
                 assign->operands.double_operands.destination = vreg;
 
                 sym->current_vreg = vreg;
+                vreg->variable_flags = sym->flags;
             }else {
                 struct IR_Instruction *assign = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_MOV);
                 IR_Block_add_instruction(context->current_block, assign);
@@ -208,6 +217,8 @@ static inline void store_variable(struct ir_context *context, struct symbol_t *s
                 assign->operands.double_operands.destination = vreg;
 
                 sym->current_vreg = vreg;
+
+                vreg->variable_flags = sym->flags;
             }
             break;
         }case LOCATION_STACK: {

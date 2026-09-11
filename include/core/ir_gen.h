@@ -106,6 +106,14 @@ static inline enum IR_Instructions_Operands_type IR_get_Instructions_Operands_ty
     return IR_INSTRUCTIONS_OPERANDS_TYPE_UNDEFINED;
 }
 
+static bool is_instruction_memory_read_instruction(enum IR_Instruction_type type) {
+    switch (type) {
+        case IR_INSTRUCTION_TYPE_GEP:
+        case IR_INSTRUCTION_TYPE_UNARY_DEREFERENCE:
+        case IR_INSTRUCTION_TYPE_LOAD: return true;
+        default: return false;
+    }
+}
 
 enum IR_Global_Kind {
     IR_GLOBAL_KIND_STRING,
@@ -171,6 +179,8 @@ struct IR_Operand {
     struct IR_Instruction *definition_instruction;
     struct vector_t *use_list; // struct IR_Instruction *    (All instructions which use the operand)
     struct type_info *type_info;
+
+    struct bitset_t *variable_flags;
 
     enum IR_Operand_type type;
     int in_loop;
@@ -355,4 +365,5 @@ struct IR_Operand *IR_create_new_vreg(struct arena *arena, struct IR_Function *p
 struct IR_Operand *IR_create_new_global(struct arena *arena, struct IR_Module *module, struct str_view value, struct symbol_t *variable, bool is_bss, struct type_table *type_table);
 
 int IR_call_get_arg_index(struct IR_Instruction *call, struct IR_Operand *target_arg);
+
 #endif 

@@ -24,6 +24,7 @@ enum token_type{
     LEXER_TOKEN_TYPE_PURE,
     LEXER_TOKEN_TYPE_APPROX,
     LEXER_TOKEN_TYPE_RESILIENT,
+    LEXER_TOKEN_TYPE_UNIQUE, // unique pointers
 
 
     LEXER_TOKEN_TYPE_ALIGNOF,
@@ -99,7 +100,7 @@ struct lexer_file{
 
 #define LEXER_MAX_KEYWORD_CHAR_LENGHT 10
 
-#define LEXER_KEYWORD_COUNT 14
+#define LEXER_KEYWORD_COUNT 15
 
 extern const char LEXER_DELIM[];
 
@@ -132,6 +133,7 @@ static const char* lexer_token_type_to_string(enum token_type type) {
         case LEXER_TOKEN_TYPE_PURE:            return "PURE";
         case LEXER_TOKEN_TYPE_APPROX:          return "APPROX";
         case LEXER_TOKEN_TYPE_RESILIENT:       return "RESILIENT";
+        case LEXER_TOKEN_TYPE_UNIQUE:          return "UNIQUE";
 
 
         case LEXER_TOKEN_TYPE_ALIGNOF:         return "ALIGNOF";

@@ -66,6 +66,7 @@ struct symbol_t{
     struct str_view name;
     char *mangled_name;
     struct type_info *type;
+    struct bitset_t *flags;
 
     union {
         struct IR_Operand *stack_slot;
@@ -80,6 +81,7 @@ struct symbol_t{
             struct type_info *return_type;
             struct parser_node *parameters;
             struct IR_Function *ir_function;
+            struct bitset_t *function_flags;
         } function;
         struct {
             struct vector_t *init_list;
@@ -89,7 +91,6 @@ struct symbol_t{
     enum symbol_kind kind;
     enum location_kind location_kind;
     int pointer_level;
-    struct bitset_t *flags;
     bool is_address_taken; // If it is true, this operand must be in the memory
     bool is_global;
 };
@@ -110,7 +111,7 @@ struct symbol_table{
 
 struct symbol_table *symbol_table_create_symbol_table(struct arena *arena, struct symbol_table *restrict parent, int *global_scope_counter);
 
-struct symbol_t *symbol_table_define(struct symbol_table *restrict table, struct str_view name, struct type_info *restrict type, enum symbol_kind kind, int pointer_level, bool is_global);
+struct symbol_t *symbol_table_define(struct symbol_table *restrict table, struct str_view name, struct type_info *restrict type, enum symbol_kind kind, int pointer_level, bool is_global, struct bitset_t *flags);
 
 void symbol_table_assign(struct symbol_t *restrict symbol, int *current_stack_offset);
 struct symbol_t* symbol_table_look_up(const struct symbol_table *table, struct str_view name);

@@ -112,6 +112,7 @@ struct parser_node{
    int is_literal_data_created_by_parser;
 
    struct type_info *type_info;
+   struct bitset_t *variable_flags;
 
    int line; 
 };

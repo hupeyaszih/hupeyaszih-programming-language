@@ -1,0 +1,9 @@
+fn main() : int32 {
+    var a: int32 = 10;
+    var pa: *int32 unique = &a;
+    var x: int32 = *pa;
+    var y: int32 = *pa;
+    *pa = 50;
+    var z: int32 = *pa;
+    z;
+}
