@@ -1,0 +1,10 @@
+fn main() : int32 {
+    var x:int32 = 3;
+    var y:int32 = 3;
+    var z:int32 = (x + y) * 2 + (x + y);
+
+    var w:int32 = (x == y) + (x == y);
+    var d:int32 = -x;
+    var dd:int32 = -x;
+    z + w + d + dd;
+}

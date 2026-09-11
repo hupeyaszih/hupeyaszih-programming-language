@@ -1,12 +1,15 @@
 #include "h_hashtable.h"
 #include "h_arena.h"
-#include <stddef.h>
-#include <stdio.h>
 #include "math/h_math.h"
 #include "stdbool.h"
 
+// static inline size_t calc_index(struct hashtable *table, size_t key) {
+//     size_t hash = table->hash_function(&key);
+//     return -1 == hash ? -1 : hash % table->capacity;
+// }
 static inline size_t calc_index(struct hashtable *table, size_t key) {
-    return table->hash_function(&key) % table->capacity;
+    if (key == (size_t)-1) return -1;
+    return key % table->capacity;
 }
 
 static inline struct hashtable_entry *get_entry(struct hashtable *table, size_t index) {return table->entries+index;}
@@ -21,6 +24,11 @@ struct hashtable *hashtable_create_table(struct arena *arena, size_t element_siz
     table->arena = arena;
     table->element_size = element_size;
     return table;
+}
+
+void hashtable_clear(struct hashtable *table) {
+    memset(table->entries, 0, sizeof(struct hashtable_entry) * table->capacity);
+    table->occupied_slot_count = 0;
 }
 
 static inline bool is_table_fully_loaded(size_t capacity, size_t occupied_slot_count) {

@@ -4,9 +4,12 @@
 #include "core/ir_gen.h"
 #include "h_arena.h"
 #include "h_bitset.h"
+#include "h_hashtable.h"
 #include "h_string_view.h"
 #include "h_vector.h"
+#include "math/h_math.h"
 #include "opt/register_allocator.h"
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 
@@ -208,6 +211,7 @@ void opt_optimize_module(struct opt_context_t *context, struct IR_Module *restri
                 changed |= opt_constant_folding     (context, function);
                 changed |= opt_copy_propagation     (context, function);
                 changed |= opt_dead_code_elimination(context, function);
+                changed |= opt_common_subexpression_elimination(context, function);
             }
         }
 
@@ -644,6 +648,7 @@ static inline bool instruction_has_side_effects(struct IR_Instruction *inst) {
     }
 }
 
+
 static bool replace_operand_in_instruction(struct IR_Instruction *inst, struct IR_Operand *old_op, struct IR_Operand *new_op) {
     if (!inst || !old_op || !new_op) return false;
     bool replaced = false;
@@ -759,6 +764,27 @@ static bool replace_operand_in_instruction(struct IR_Instruction *inst, struct I
         case IR_INSTRUCTION_TYPE_UNDEFINED:
         case IR_INSTRUCTION_TYPE_ASM:
         break;
+    }
+
+    return replaced;
+}
+
+
+static bool replace_operand_with_another(struct IR_Function *function, struct IR_Operand *old_op, struct IR_Operand *new_op) {
+    if(!old_op || !new_op || !function) return false;
+    bool replaced = false;
+
+    struct IR_Block *block = function->head_block;
+    while(NULL != block) {
+        struct IR_Instruction *instruction = block->head_instruction;
+        while(NULL != instruction) {
+            struct IR_Instruction *next_instruction = instruction->next;
+
+            replaced |= replace_operand_in_instruction(instruction, old_op, new_op);
+
+            instruction = next_instruction;
+        }
+        block = block->next;
     }
 
     return replaced;
@@ -1017,5 +1043,109 @@ bool opt_copy_propagation(struct opt_context_t *context, struct IR_Function *fun
         block = block->next;
     }
 
+    return changed;
+}
+
+size_t instruction_hash_function(const void *data) {
+    struct IR_Instruction *instruction = (struct IR_Instruction *) data;
+    struct IR_Operand *src1 = NULL;
+    struct IR_Operand *src2 = NULL;
+    enum IR_Instructions_Operands_type ops_type = IR_get_Instructions_Operands_type(instruction->type);
+    int w = instruction->type;
+    int y = -1;
+    int z = -1;
+    if(ops_type == IR_INSTRUCTIONS_OPERANDS_TYPE_TRIPLE) {
+        src1 = instruction->operands.triple_operands.source_1;
+        src2 = instruction->operands.triple_operands.source_2;
+        if(src1->type != IR_OPERAND_TYPE_VREG) return -1;
+        if(src2->type != IR_OPERAND_TYPE_VREG) return -1;
+
+        y = src1->data.vreg.vreg_id;
+        z = src2->data.vreg.vreg_id;
+    }else if(ops_type == IR_INSTRUCTIONS_OPERANDS_TYPE_DOUBLE) {
+        src1 = instruction->operands.double_operands.source_1;
+        if(src1->type != IR_OPERAND_TYPE_VREG) return -1;
+
+        y = src1->data.vreg.vreg_id;
+    }else {
+        return -1;
+    }
+
+    size_t hash = 2166136261u;
+    hash = (hash * 31) ^ (size_t)y;
+    hash = (hash * 31) ^ (size_t)z;
+    hash = (hash * 31) ^ (size_t)w;
+
+    hash ^= 3;
+    return hash;
+}
+
+bool opt_common_subexpression_elimination(struct opt_context_t *context, struct IR_Function *function) {
+    bool changed = false;
+    size_t init_size = hmath_find_next_prime((function->instruction_count / 2) + 1);
+    struct hashtable *table = hashtable_create_table(context->temp_arena, sizeof(struct IR_Operand *), init_size, &instruction_hash_function);
+    struct IR_Block *block = function->head_block;
+    while(NULL != block) {
+        struct IR_Instruction *instruction = block->head_instruction;
+        while(NULL != instruction) {
+            struct IR_Instruction *next_instruction = instruction->next;
+            if(instruction->type == IR_INSTRUCTION_TYPE_UNDEFINED || instruction->type == IR_INSTRUCTION_TYPE_NOP || instruction->type == IR_INSTRUCTION_TYPE_GEP) {
+                instruction = next_instruction;
+                continue;
+            }
+
+            struct IR_Operand *dest = NULL;
+            struct IR_Operand *src1 = NULL;
+            struct IR_Operand *src2 = NULL;
+            enum IR_Instructions_Operands_type ops_type = IR_get_Instructions_Operands_type(instruction->type);
+            if(ops_type == IR_INSTRUCTIONS_OPERANDS_TYPE_TRIPLE) {
+                dest = instruction->operands.triple_operands.destination;
+                src1 = instruction->operands.triple_operands.source_1;
+                src2 = instruction->operands.triple_operands.source_2;
+            }else if(ops_type == IR_INSTRUCTIONS_OPERANDS_TYPE_DOUBLE) {
+                dest = instruction->operands.double_operands.destination;
+                src1 = instruction->operands.double_operands.source_1;
+            }else {
+                instruction = next_instruction;
+                continue;
+            }
+
+            size_t key = instruction_hash_function(instruction);
+            if(key == -1) {
+                instruction = next_instruction;
+                continue;
+            }
+            struct IR_Instruction *saved_instruction = hashtable_get(table, key);
+            if(saved_instruction) {
+                struct IR_Operand *saved_dest = NULL;
+                struct IR_Operand *saved_src1 = NULL;
+                struct IR_Operand *saved_src2 = NULL;
+                if(ops_type == IR_INSTRUCTIONS_OPERANDS_TYPE_TRIPLE) {
+                    saved_dest = saved_instruction->operands.triple_operands.destination;
+                    saved_src1 = saved_instruction->operands.triple_operands.source_1;
+                    saved_src2 = saved_instruction->operands.triple_operands.source_2;
+                }else if(ops_type == IR_INSTRUCTIONS_OPERANDS_TYPE_DOUBLE) {
+                    saved_dest = saved_instruction->operands.double_operands.destination;
+                    saved_src1 = saved_instruction->operands.double_operands.source_1;
+                }
+
+                instruction->type = IR_INSTRUCTION_TYPE_NOP;
+
+                remove_instruction_from_use_list(src1, instruction);
+                remove_instruction_from_use_list(src2, instruction);
+
+
+                replace_operand_with_another(function, dest, saved_dest);
+
+                changed = true;
+            }else {
+                hashtable_add(table, instruction, key);
+            }
+
+            instruction = next_instruction;
+        }
+        hashtable_clear(table);
+        block = block->next;
+    }
     return changed;
 }

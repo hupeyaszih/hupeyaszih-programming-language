@@ -4,7 +4,7 @@
 #include "h_arena.h"
 #include <stddef.h>
 
-enum hashtable_entry_state {HASH_TABLE_ENTRY_STATE_EMPTY, HASH_TABLE_ENTRY_STATE_DELETED, HASH_TABLE_ENTRY_STATE_OCCUPIED};
+enum hashtable_entry_state {HASH_TABLE_ENTRY_STATE_EMPTY = 0, HASH_TABLE_ENTRY_STATE_DELETED, HASH_TABLE_ENTRY_STATE_OCCUPIED};
 
 struct hashtable_entry {
     void *data;
@@ -29,5 +29,6 @@ struct hashtable *hashtable_create_table(struct arena *arena, size_t element_siz
 void hashtable_add(struct hashtable *table, void *data, size_t key);
 void hashtable_delete(struct hashtable *table, size_t key);
 void *hashtable_get(struct hashtable *table, size_t key);
+void hashtable_clear(struct hashtable *table);
 
 #endif

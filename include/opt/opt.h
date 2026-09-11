@@ -35,4 +35,5 @@ void opt_calculate_constants(struct IR_Function *function, struct opt_context_t 
 bool opt_constant_folding(struct opt_context_t *context, struct IR_Function *function);
 bool opt_copy_propagation(struct opt_context_t *context, struct IR_Function *function);
 bool opt_dead_code_elimination(struct opt_context_t *context, struct IR_Function *function);
+bool opt_common_subexpression_elimination(struct opt_context_t *context, struct IR_Function *function);
 #endif

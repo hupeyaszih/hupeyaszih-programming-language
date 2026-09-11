@@ -48,7 +48,7 @@ int main(int argc, char *argv[]) {
     char *input_path = "../example/example_00.hrs";
     char *output_path = "../out/";
     char *build_target = "x86_64_linux";
-    enum optimization_level opt_level = OPT_LEVEL_UNDEFINED;
+    enum optimization_level opt_level = OPT_LEVEL_O2;
 
     struct arena main_arena = arena_create();
     struct bitset_t *flags = bitset_create(&main_arena, FLAG_COUNT);
@@ -82,16 +82,12 @@ int main(int argc, char *argv[]) {
                 return 1;
             }
         }else if(0 == strcmp("-O0", argv[i])) {
-            if(opt_level != OPT_LEVEL_UNDEFINED) continue;
             opt_level = OPT_LEVEL_O0;
         }else if(0 == strcmp("-O1", argv[i])) {
-            if(opt_level != OPT_LEVEL_UNDEFINED) continue;
             opt_level = OPT_LEVEL_O1;
         }else if(0 == strcmp("-O2", argv[i])) {
-            if(opt_level != OPT_LEVEL_UNDEFINED) continue;
             opt_level = OPT_LEVEL_O2;
         }else if(0 == strcmp("-O3", argv[i])) {
-            if(opt_level != OPT_LEVEL_UNDEFINED) continue;
             opt_level = OPT_LEVEL_O3;
         }else if(0 == strcmp("--run", argv[i])) {
             bitset_set(flags, M_FLAG_RUN);
