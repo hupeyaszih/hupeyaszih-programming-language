@@ -50,12 +50,23 @@ loop {
 * shadowing
 * custom SSA-IR
 * x86_64 linux backend/codegen and build target system
+* Macro system
+* Arrays
+* Graph coloring register allocator
+* Global variables
+* Dead code elimination (opt)
+* Copy propagation (opt)
+* Constant folding (opt)
+* Common subexpression elimination (opt)
 
 ### Planned:
 * Float support
 * Structs and packed structs
-* optimization passes
+* other optimization passes
+* "Load" reduction
 * "select" keyword to use cmov etc.
+* Function pointers
+* "NULLF" (NULL function pointer)
 * import system
 * standard library (StdLib)
 * Self-hosting (Rewriting the compiler in .hrs)
@@ -107,6 +118,9 @@ fn main() : int32 {
         │
         ▼
      [ Lexer ]
+        │
+        ▼
+ [ Preprocessor ]
         │
         ▼
      [ Parser ] --> (AST)

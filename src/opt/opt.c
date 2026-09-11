@@ -1089,7 +1089,7 @@ bool opt_common_subexpression_elimination(struct opt_context_t *context, struct 
         struct IR_Instruction *instruction = block->head_instruction;
         while(NULL != instruction) {
             struct IR_Instruction *next_instruction = instruction->next;
-            if(instruction->type == IR_INSTRUCTION_TYPE_UNDEFINED || instruction->type == IR_INSTRUCTION_TYPE_NOP || instruction->type == IR_INSTRUCTION_TYPE_GEP) {
+            if(instruction->type == IR_INSTRUCTION_TYPE_UNDEFINED || instruction->type == IR_INSTRUCTION_TYPE_NOP || instruction->type == IR_INSTRUCTION_TYPE_GEP || instruction_has_side_effects(instruction)) {
                 instruction = next_instruction;
                 continue;
             }
