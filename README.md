@@ -57,7 +57,6 @@ loop {
 * Dead code elimination (opt)
 * Copy propagation (opt)
 * Constant folding (opt)
-* Common subexpression elimination (opt)
 
 ### Planned:
 * Float support
