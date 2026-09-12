@@ -1,0 +1,22 @@
+#define WIDTH 2 $
+#define HEIGHT 2 $
+#define ARR_LEN (WIDTH * HEIGHT) $
+
+fn main() : int32 {
+    var arr:[int32, ARR_LEN] unique;
+    
+    arr[0] = 15;
+    arr[1] = 30;
+
+    {
+        var a:int32 = arr[0]; 
+        var b:int32 = arr[0];
+        
+        var c:int32 = arr[1]; 
+        var d:int32 = arr[1];
+
+        var result:int32 = a + b + c + d;
+    }
+
+    arr[1];
+}

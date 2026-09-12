@@ -108,7 +108,7 @@ static inline struct IR_Operand *ensure_operand_is_register_or_imm(struct ir_con
             vreg->variable_flags = operand->variable_flags;
             return vreg;
         }case IR_OPERAND_TYPE_GLOBAL: {
-            struct IR_Instruction *load = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_MOV);
+            struct IR_Instruction *load = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_LOAD);
             IR_Block_add_instruction(context->current_block, load);
 
             struct IR_Operand *vreg = IR_create_new_vreg(context->arena, context->current_function, load, NULL, context->current_block->in_loop);
@@ -150,7 +150,7 @@ static inline struct IR_Operand *load_variable(struct ir_context *context, struc
             vreg->variable_flags = sym->flags;
             return vreg;
         }case LOCATION_GLOBAL: {
-            struct IR_Instruction *load = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_MOV);
+            struct IR_Instruction *load = IR_create_IR_Instruction(context->arena, context->current_block, IR_INSTRUCTION_TYPE_LOAD);
             IR_Block_add_instruction(context->current_block, load);
 
             struct IR_Operand *vreg = IR_create_new_vreg(context->arena, context->current_function, load, sym, context->current_block->in_loop);
@@ -422,9 +422,20 @@ struct IR_Operand *IRL_run_statement_lower(struct parser_node *node, struct ir_c
         case PARSER_NODE_FUNCTION: {
             return IRL_run_function_lower(node, context);
         }case PARSER_NODE_BLOCK: {
-            struct IR_Block *block = IR_create_IR_Block(context->arena, context->current_function, node->data.block.mangled_name);
-            context->current_block = block;
-            return IRL_run_block_lower(node, context);
+            struct symbol_table *last_scope = context->current_scope;
+            context->current_scope = node->data.block.scope;
+
+            int statement_count = node->data.block.count;
+            struct IR_Operand *last_operand = NULL;
+            for(int i = 0; i < statement_count; ++i) {
+                struct parser_node *curr = *(struct parser_node **) vector_get(node->data.block.statements, i);
+                enum lower_type lower_type = LOWER_UNDEFINED;
+                if(i == statement_count - 1) lower_type = LOWER_R;
+                last_operand = IRL_run_statement_lower(curr, context, lower_type);
+            }
+
+            context->current_scope = last_scope;
+            return last_operand;
         }case PARSER_NODE_LOOP: {
             struct vector_t *declared_variables = vector_create_vector(context->temp_arena, 2, sizeof(struct symbol_t *));
             struct vector_t *mutated_variables = vector_create_vector(context->temp_arena, 2, sizeof(struct symbol_t *));

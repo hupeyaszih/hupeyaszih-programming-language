@@ -17,6 +17,9 @@ fn sys_write(buffer_ptr: *char, length: int32) : int32 {
 fn main() : int32 {
     var str: *char = "Hello World!\n";
     sys_write(str, x);
+    str = "wowow\n";
+    x = 2;
+    sys_write(str, x);
 
     var res:int32 = 20 + x;
 

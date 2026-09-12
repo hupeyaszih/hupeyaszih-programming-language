@@ -125,6 +125,9 @@ struct IR_Operand *IR_create_IR_Operand(struct arena *arena, enum IR_Operand_typ
 
     if(parent_function) {
         vector_add(parent_function->operands, &operand);
+        operand->operand_id = parent_function->operands->element_count;
+    }else {
+        operand->operand_id = -1;
     }
 
     if(IR_OPERAND_TYPE_VREG == type) {

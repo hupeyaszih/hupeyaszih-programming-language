@@ -212,7 +212,8 @@ void opt_optimize_module(struct opt_context_t *context, struct IR_Module *restri
                 changed |= opt_constant_folding     (context, function);
                 changed |= opt_copy_propagation     (context, function);
                 changed |= opt_dead_code_elimination(context, function);
-                changed |= opt_common_subexpression_elimination(context, function);
+                // changed |= opt_common_subexpression_elimination(context, function);
+                // changed |= opt_load_elimination(context, function);
             }
         }
 
@@ -270,9 +271,37 @@ void opt_run_cfg_analysis(struct IR_Function *function) {
         block = block->next;
     }
 }
+static inline uint32_t hash_strview(const char *ptr, size_t len) {
+    uint32_t hash = 2166136261u;
+    for (size_t i = 0; i < len; i++) {
+        hash ^= (uint8_t)ptr[i];
+        hash *= 16777619u;
+    }
+    if (hash == (uint32_t)-1) {
+        hash = 0;
+    }
+    return hash & 0x7FFFFFFF; 
+}
 
 static inline int get_operand_id(const struct IR_Operand *operand) {
-    return operand->type == IR_OPERAND_TYPE_VREG ? operand->data.vreg.vreg_id : operand->data.slot.stack_slot_id;
+    if (IR_OPERAND_TYPE_VREG == operand->type) {
+        return operand->data.vreg.vreg_id;
+    }else if(IR_OPERAND_TYPE_STACK_SLOT == operand->type) {
+        return operand->data.slot.stack_slot_id;
+    }
+    return operand->operand_id;
+}
+
+static inline int get_operand_hashing_ids(const struct IR_Operand *operand) {
+    if (IR_OPERAND_TYPE_VREG == operand->type) {
+        return operand->data.vreg.vreg_id;
+    }else if(IR_OPERAND_TYPE_STACK_SLOT == operand->type) {
+        return operand->data.slot.stack_slot_id;
+    }
+    if(operand->operand_id == -1) {
+        return (size_t) operand;
+    }
+    return operand->operand_id;
 }
 
 static inline void process_use(const struct IR_Operand *operand, struct bitset_t *use, struct IR_Instruction *instruction) {
@@ -1047,6 +1076,63 @@ bool opt_copy_propagation(struct opt_context_t *context, struct IR_Function *fun
     return changed;
 }
 
+/*
+size_t operand_hash_function(const void *data) {
+    struct IR_Operand *operand = (struct IR_Operand *) data;
+    int x = -1;
+    int y = -1;
+    x = operand->type;
+    y = get_operand_hashing_ids(operand);
+
+    size_t hash = 2166136261u;
+    hash = (hash * 31) ^ (size_t)x;
+    hash = (hash * 31) ^ (size_t)y;
+    hash ^= 2;
+    return hash;
+}
+
+bool operand_are_structurally_identical(const void *a, const void *b) {
+    struct IR_Operand *ap = (struct IR_Operand *) a;
+    struct IR_Operand *bp = (struct IR_Operand *) b;
+    int ai = get_operand_id(ap);
+    int bi = get_operand_id(bp);
+    return ai == bi;
+}
+
+bool instruction_are_structurally_identical(const void *a, const void *b) {
+    struct IR_Instruction *ap = (struct IR_Instruction *) a;
+    struct IR_Instruction *bp = (struct IR_Instruction *) b;
+
+    if(ap->type != bp->type) return false;
+    struct IR_Operand *a_dest = NULL;
+    struct IR_Operand *a_src1 = NULL;
+    struct IR_Operand *a_src2 = NULL;
+    struct IR_Operand *b_dest = NULL;
+    struct IR_Operand *b_src1 = NULL;
+    struct IR_Operand *b_src2 = NULL;
+    enum IR_Instructions_Operands_type ops_type = IR_get_Instructions_Operands_type(ap->type);
+    if(ops_type == IR_INSTRUCTIONS_OPERANDS_TYPE_TRIPLE) {
+        a_dest = ap->operands.triple_operands.destination;
+        a_src1 = ap->operands.triple_operands.source_1;
+        a_src2 = ap->operands.triple_operands.source_2;
+
+        b_dest = bp->operands.triple_operands.destination;
+        b_src1 = bp->operands.triple_operands.source_1;
+        b_src2 = bp->operands.triple_operands.source_2;
+    }else if(ops_type == IR_INSTRUCTIONS_OPERANDS_TYPE_DOUBLE) {
+        a_dest = ap->operands.double_operands.destination;
+        a_src1 = ap->operands.double_operands.source_1;
+
+        b_dest = bp->operands.double_operands.destination;
+        b_src1 = bp->operands.double_operands.source_1;
+    }
+    // if(!operand_are_structurally_identical(a_dest, b_dest)) return false;
+    if(!operand_are_structurally_identical(a_src1, b_src1)) return false;
+    if(!operand_are_structurally_identical(a_src2, b_src2)) return false;
+
+    return true;
+}
+
 size_t instruction_hash_function(const void *data) {
     struct IR_Instruction *instruction = (struct IR_Instruction *) data;
     struct IR_Operand *src1 = NULL;
@@ -1055,19 +1141,20 @@ size_t instruction_hash_function(const void *data) {
     int w = instruction->type;
     int y = -1;
     int z = -1;
+    int a = -1;
+    int b = -1;
     if(ops_type == IR_INSTRUCTIONS_OPERANDS_TYPE_TRIPLE) {
         src1 = instruction->operands.triple_operands.source_1;
         src2 = instruction->operands.triple_operands.source_2;
-        if(src1->type != IR_OPERAND_TYPE_VREG) return -1;
-        if(src2->type != IR_OPERAND_TYPE_VREG) return -1;
+        y = get_operand_hashing_ids(src1);
+        z = get_operand_hashing_ids(src2);
 
-        y = src1->data.vreg.vreg_id;
-        z = src2->data.vreg.vreg_id;
+        a = src1->type;
+        b = src2->type;
     }else if(ops_type == IR_INSTRUCTIONS_OPERANDS_TYPE_DOUBLE) {
         src1 = instruction->operands.double_operands.source_1;
-        if(src1->type != IR_OPERAND_TYPE_VREG) return -1;
-
-        y = src1->data.vreg.vreg_id;
+        a = src1->type;
+        y = get_operand_hashing_ids(src1);
     }else {
         return -1;
     }
@@ -1076,15 +1163,17 @@ size_t instruction_hash_function(const void *data) {
     hash = (hash * 31) ^ (size_t)y;
     hash = (hash * 31) ^ (size_t)z;
     hash = (hash * 31) ^ (size_t)w;
+    hash = (hash * 31) ^ (size_t)a;
+    hash = (hash * 31) ^ (size_t)b;
 
-    hash ^= 3;
+    hash ^= 5;
     return hash;
 }
 
 bool opt_common_subexpression_elimination(struct opt_context_t *context, struct IR_Function *function) {
     bool changed = false;
     size_t init_size = hmath_find_next_prime((function->instruction_count / 2) + 1);
-    struct hashtable *table = hashtable_create_table(context->temp_arena, sizeof(struct IR_Operand *), init_size, &instruction_hash_function);
+    struct hashtable *table = hashtable_create_table(context->temp_arena, sizeof(struct IR_Instruction *), init_size, &instruction_hash_function, &instruction_are_structurally_identical);
     struct IR_Block *block = function->head_block;
     while(NULL != block) {
         struct IR_Instruction *instruction = block->head_instruction;
@@ -1116,7 +1205,7 @@ bool opt_common_subexpression_elimination(struct opt_context_t *context, struct 
                 instruction = next_instruction;
                 continue;
             }
-            struct IR_Instruction *saved_instruction = hashtable_get(table, key);
+            struct IR_Instruction *saved_instruction = hashtable_get(table, key, instruction);
             if(saved_instruction) {
                 struct IR_Operand *saved_dest = NULL;
                 struct IR_Operand *saved_src1 = NULL;
@@ -1151,8 +1240,87 @@ bool opt_common_subexpression_elimination(struct opt_context_t *context, struct 
     return changed;
 }
 
+static inline bool flags_is_operand_unique(const struct IR_Operand *operand) {
+    if(NULL == operand->variable_flags) return false;
+    return bitset_test(operand->variable_flags, VARIABLE_FLAG_IS_UNIQUE_POINTER);
+}
+static inline bool is_store_instruction(const struct IR_Instruction *instruction) {return instruction->type == IR_INSTRUCTION_TYPE_STORE_INDIRECT || instruction->type == IR_INSTRUCTION_TYPE_STORE;}
+
 bool opt_load_elimination(struct opt_context_t *context, struct IR_Function *function) {
     bool changed = false;
 
+    size_t init_size = hmath_find_next_prime((function->instruction_count / 2) + 1);
+    struct hashtable *table = hashtable_create_table(context->temp_arena, sizeof(struct IR_Operand *), init_size, &operand_hash_function, &operand_are_structurally_identical);
+    
+    struct IR_Block *block = function->head_block;
+    while(NULL != block) {
+        struct IR_Instruction *instruction = block->head_instruction;
+        while(NULL != instruction) {
+            struct IR_Instruction *next_instruction = instruction->next;
+            struct IR_Operand *dest = NULL;
+            struct IR_Operand *src1 = NULL;
+            struct IR_Operand *src2 = NULL;
+            enum IR_Instructions_Operands_type ops_type = IR_get_Instructions_Operands_type(instruction->type);
+            
+            if(ops_type == IR_INSTRUCTIONS_OPERANDS_TYPE_TRIPLE) {
+                dest = instruction->operands.triple_operands.destination;
+                src1 = instruction->operands.triple_operands.source_1;
+                src2 = instruction->operands.triple_operands.source_2;
+            } else if(ops_type == IR_INSTRUCTIONS_OPERANDS_TYPE_DOUBLE) {
+                dest = instruction->operands.double_operands.destination;
+                src1 = instruction->operands.double_operands.source_1;
+            } else {
+                instruction = next_instruction;
+                continue;
+            }
+
+            if(src1->type != IR_OPERAND_TYPE_VREG && src1->type != IR_OPERAND_TYPE_STACK_SLOT) {
+                instruction = next_instruction;
+                continue;
+            }
+
+            if(is_store_instruction(instruction)) {
+                if(src1 && flags_is_operand_unique(dest)) {
+                    size_t key = operand_hash_function(dest);
+                    hashtable_delete(table, key, dest);
+                }
+                instruction = next_instruction;
+                continue;
+            }
+
+
+            if(instruction_has_side_effects(instruction)) {
+                hashtable_clear(table);
+                instruction = next_instruction;
+                continue;
+            }
+
+            if(!is_instruction_memory_read_instruction(instruction->type)) {
+                instruction = next_instruction;
+                continue;
+            }
+
+            if(src1 && flags_is_operand_unique(src1)) {
+                size_t key = operand_hash_function(src1);
+                struct IR_Operand *saved_dest = hashtable_get(table, key, src1);
+
+                if(saved_dest) {
+                    instruction->type = IR_INSTRUCTION_TYPE_NOP;
+
+                    replace_operand_with_another(function, dest, saved_dest);
+
+                    changed = true;
+                } else {
+                    hashtable_add(table, dest, key);
+                }
+            }
+
+            instruction = next_instruction;
+        }
+        hashtable_clear(table);
+        block = block->next;
+    }
+
     return changed;
 }
+*/

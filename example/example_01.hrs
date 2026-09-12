@@ -1,12 +1,12 @@
 // Hupeyaszih Programming Language (.hrs)
 // Example 2: Double Pointers (**), References (&)
 
-fn modify_via_double_ptr(pp: **int32, delta: int32) : int32 {
+fn modify_via_double_ptr(pp: **int32 unique, delta: int32) : int32 {
     **pp = **pp + delta;
     **pp;
 }
 
-fn swap(a: *int32, b: *int32) : int32 {
+fn swap(a: *int32 unique, b: *int32 unique) : int32 {
     var temp: int32 = *a;
     *a = *b;
     *b = temp;

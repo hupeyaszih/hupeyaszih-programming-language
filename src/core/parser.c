@@ -489,6 +489,10 @@ struct parser_node *parser_parse_loop(struct parser_t *restrict parser, struct l
     parser->current_scope = loop_body->data.block.scope->parent;
     parser->loop_depth_counter--;
     parser->current_loop_id = old_current_loop_id;
+
+    loop_body->data.block.needs_ir_block = 1;
+    continue_block->data.block.needs_ir_block = 1;
+    return_block->data.block.needs_ir_block = 1;
     return loop_node;
 
 cleanup_err_level_0:
@@ -604,6 +608,7 @@ struct parser_node *parser_parse_function(struct parser_t *restrict parser, stru
         sym->function.parameters = function_node->data.function.params;
         sym->function.return_type = function_node->data.function.return_type;
     }
+    function_node->data.function.body->data.block.needs_ir_block = 1;
     return function_node;
 }
 
@@ -631,6 +636,7 @@ struct parser_node *parser_parse_block(struct parser_t *restrict parser, struct 
     if(1 == create_new_scope) {
         parser->current_scope = symbol_table_create_symbol_table(parser->symbol_arena, parser->current_scope, &parser->scope_counter);
     }
+    block_node->data.block.needs_ir_block = 0;
     block_node->data.block.owns_scope = create_new_scope;
     block_node->data.block.scope = parser->current_scope;
     block_node->data.block.mangled_name = parser_block_generate_mangled_name(parser, block_node);

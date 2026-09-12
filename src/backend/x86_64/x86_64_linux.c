@@ -905,6 +905,11 @@ void x86_64_linux_emit_instruction(struct codegen_context_t *context, struct IR_
             struct IR_Operand *src = instruction->operands.double_operands.source_1;
             struct IR_Operand *dest = instruction->operands.double_operands.destination;
 
+            if(src->type == IR_OPERAND_TYPE_GLOBAL) {
+                x86_64_linux_emit_mov_operand_to_operand(context, instruction->operands.double_operands.destination, instruction->operands.double_operands.source_1);
+                break;
+            }
+
             struct register_t *src_reg = x86_64_linux_ensure_operand_is_register(context, src);
             struct register_t *dest_reg = x86_64_linux_ensure_operand_is_register(context, dest);
             enum register_size size = codegen_get_register_size_from_operand(dest);

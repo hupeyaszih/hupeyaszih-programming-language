@@ -184,6 +184,7 @@ struct IR_Operand {
 
     enum IR_Operand_type type;
     int in_loop;
+    int operand_id;
     bool constant;
 };
 

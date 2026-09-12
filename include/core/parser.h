@@ -74,6 +74,7 @@ struct parser_node{
 
            int count;
            int owns_scope;
+           int needs_ir_block;
            int is_resilient;
            int id;
        } block;
