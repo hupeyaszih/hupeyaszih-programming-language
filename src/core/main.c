@@ -26,7 +26,7 @@ void print_help_options() {
 }
 
 void print_help_build_targets() {
-    C_LOG_INFO("\nBuild targets:\n - x86_64_linux\n");
+    C_LOG_INFO("\nBuild targets:\n - x86_64_linux\n - x86_64_macos\n");
 }
 void clean_build_directory(void) {
 #ifdef _WIN32
@@ -99,13 +99,13 @@ int main(int argc, char *argv[]) {
             bitset_set(flags, M_FLAG_IR_DUMP);
         }else if(0 == strcmp("-help", argv[i])) {
             print_help();
-            goto clean_1;
+            goto clean_2;
         }else if(0 == strcmp("-help_options", argv[i])) {
             print_help_options();
-            goto clean_1;
+            goto clean_2;
         }else if(0 == strcmp("-help_build_targets", argv[i])) {
             print_help_build_targets();
-            goto clean_1;
+            goto clean_2;
         }
     }
 
@@ -175,6 +175,7 @@ clean_1:
     arena_destroy(&context.parser_arena);
     arena_destroy(&context.lexer_arena);
     arena_destroy(&main_arena);
+clean_2:
 
 
     return 0;

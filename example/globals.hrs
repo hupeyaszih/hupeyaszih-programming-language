@@ -1,0 +1,2 @@
+#define GLOBAL_INT 11 $
+fn get_num() : int32 {10;}

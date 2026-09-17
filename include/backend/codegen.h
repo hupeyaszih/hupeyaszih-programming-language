@@ -2,6 +2,8 @@
 #define CODEGEN_H
 
 #include "backend/x86_64/x86_64_linux.h"
+#include "backend/x86_64/x86_64_macos.h"
+#include "h_bitset.h"
 #include "h_string_view.h"
 #include "h_vector.h"
 #include <stdbool.h>
@@ -86,6 +88,7 @@ struct codegen_build_target_t{
     void (*emit_globals)           (struct codegen_context_t *context, bool jmp_to_main);
     void (*emit_jmp_main)          (struct codegen_context_t *context);
     void (*emit_label)             (struct codegen_context_t *context, const struct str_view label, bool is_global);
+    struct str_view (*get_label)   (struct codegen_context_t *context, const struct str_view label, bool is_global);
     void (*emit_function_prologue) (struct codegen_context_t *context, struct IR_Function *function);
     void (*emit_function_epilogue) (struct codegen_context_t *context, struct IR_Function *function);
     void (*emit_instruction)       (struct codegen_context_t *context, struct IR_Instruction *instruction);
@@ -130,6 +133,9 @@ void codegen_build_function(struct codegen_context_t *context, struct IR_Functio
 static inline void codegen_init_build_targets(struct codegen_t *codegen) {
     struct codegen_build_target_t *x86_64_linux = x86_64_linux_create_build_target(codegen->arena);
     vector_add(codegen->build_targets, &x86_64_linux);
+
+    struct codegen_build_target_t *x86_64_macos = x86_64_macos_create_build_target(codegen->arena);
+    vector_add(codegen->build_targets, &x86_64_macos);
 }
 
 static inline void codegen_register_add_name(struct register_t *reg ,char *name) {
