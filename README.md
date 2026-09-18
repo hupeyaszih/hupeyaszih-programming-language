@@ -3,7 +3,7 @@
 ---
 
 > [!WARNING]
-> **Project Status:** The language is still under development and currently only supports x86_64 linux!
+> **Project Status:** I'm no longer developing this project (I'll be working on my OS project), I learned a lot from this project :)
 
 ---
 
